@@ -1,45 +1,203 @@
-# SuperHyperion TypeDB v3.0 Schema
-# Scientific Knowledge Hypergraph Ontology
-
-# ============================================
-# ENTITY TYPES
-# ============================================
+# ============================================================================
+# SuperHyperion v2.1 Probabilistic SuperHyperGraph Schema
+# TypeDB TypeQL Schema Definition
+#
+# This schema implements the full v2.1 specification for:
+# - Probabilistic belief states (Beta priors)
+# - Dialectical entropy tracking
+# - Contradiction detection hyper-relations
+# - Source reputation hyperedges
+# - Visual evidence and verification
+# - Predicate clustering support
+# ============================================================================
 
 define
 
-entity paper,
-    owns doi @key,
-    owns title,
-    owns abstract,
-    owns publication_date,
-    owns confidence_score,
-    plays authorship:work,
-    plays citation:citing,
-    plays citation:cited,
-    plays extraction:source;
+# ============================================================================
+# ATTRIBUTE TYPES
+# ============================================================================
 
-entity scientist,
-    owns orcid @key,
-    owns name,
-    owns affiliation,
-    plays authorship:author,
-    plays hypothesis:proposer;
+# --- Identifiers ---
+attribute entity-id, value string;
+attribute doi, value string;
+attribute orcid, value string;
+attribute concept-id, value string;
+attribute agent-id, value string;
 
-entity concept,
-    owns concept_id @key,
+# --- Text Content ---
+attribute title, value string;
+attribute abstract, value string;
+attribute name, value string;
+attribute affiliation, value string;
+attribute label, value string;
+attribute definition, value string;
+attribute content, value string;
+attribute citation-context, value string;
+attribute mechanism-description, value string;
+attribute surface-form, value string;
+attribute canonical-form, value string;
+
+# --- Dates ---
+attribute publication-date, value datetime;
+attribute proposed-date, value datetime;
+attribute verified-at, value datetime;
+attribute last-updated, value datetime;
+
+# --- Probabilistic Scores ---
+attribute confidence-score, value double;
+attribute evidence-weight, value double;
+attribute extraction-confidence, value double;
+attribute dialectical-entropy, value double;
+attribute causal-strength, value double;
+attribute conditional-probability, value double;
+attribute conflict-strength, value double;
+
+# --- Bayesian Parameters (Beta Distribution) ---
+attribute beta-alpha, value double;
+attribute beta-beta, value double;
+attribute reputation-alpha, value double;
+attribute reputation-beta, value double;
+
+# --- Status Enums ---
+attribute belief-state, value string;       # "proposed", "verified", "refuted", "debated"
+attribute verification-status, value string; # "pending", "approved", "rejected"
+attribute resolution-status, value string;  # "unresolved", "resolved", "escalated"
+attribute verdict, value string;            # "valid", "invalid", "uncertain"
+
+# --- Cache / Performance ---
+attribute cached-confidence, value double;
+attribute valid-duration, value long;
+attribute computation-cost, value double;
+attribute derivation-hash, value string;
+
+# --- File / Media ---
+attribute file-path, value string;
+attribute media-type, value string;
+attribute bounding-box, value string;       # JSON: {"x1":0,"y1":0,"x2":100,"y2":100}
+attribute page-number, value long;
+
+# --- VLM Verification ---
+attribute code-snippet, value string;
+attribute ssim-score, value double;
+attribute vlm-similarity-score, value double;
+
+# --- Vector Embeddings (stored as JSON string) ---
+attribute embedding, value string;
+attribute cluster-centroid, value string;
+
+# ============================================================================
+# ENTITY TYPES
+# ============================================================================
+
+# --- Abstract Base Entity with Probabilistic Metadata ---
+entity probabilistic-concept,
+    abstract,
+    owns entity-id @key,
+    owns confidence-score,
+    owns evidence-weight,
+    owns dialectical-entropy,
+    owns last-updated,
+    owns derivation-hash;
+
+# --- Scientific Domain Entities ---
+entity scientific-entity sub probabilistic-concept,
+    abstract,
     owns label,
     owns definition,
-    owns embedding,
+    owns embedding;
+
+entity molecule sub scientific-entity;
+entity protein sub scientific-entity;
+entity gene sub scientific-entity;
+entity cell-line sub scientific-entity;
+entity disease sub scientific-entity;
+entity drug sub scientific-entity;
+entity pathway sub scientific-entity;
+
+entity concept sub scientific-entity,
+    owns concept-id,
     plays causality:cause,
     plays causality:effect,
     plays causality:mediator,
     plays hierarchy:parent,
     plays hierarchy:child;
 
-# ============================================
-# RELATION TYPES
-# ============================================
+# --- Publication & Provenance Entities ---
+entity publication,
+    owns doi @key,
+    owns title,
+    owns abstract,
+    owns publication-date,
+    plays authorship:work,
+    plays citation:citing,
+    plays citation:cited,
+    plays extraction:source,
+    plays belief-assertion:source,
+    plays source-reputation:trusted-entity;
 
+entity scientist,
+    owns orcid @key,
+    owns name,
+    owns affiliation,
+    plays authorship:author,
+    plays hypothesis:proposer,
+    plays source-reputation:trusted-entity;
+
+entity figure,
+    owns file-path,
+    owns media-type,
+    owns page-number,
+    plays visual-verification:original,
+    plays extraction:source,
+    plays belief-assertion:source;
+
+# --- Agent Entities ---
+entity agent,
+    owns agent-id @key,
+    owns name,
+    owns reputation-alpha,
+    owns reputation-beta,
+    plays belief-assertion:believer,
+    plays hypothesis:proposer,
+    plays socratic-debate:participant,
+    plays socratic-debate:moderator,
+    plays source-reputation:trusted-entity;
+
+# --- Proposition (Bayesian Variable) ---
+entity proposition sub probabilistic-concept,
+    owns content,
+    owns belief-state,
+    plays implication:premise,
+    plays implication:conclusion,
+    plays contradiction:conflicting-assertion,
+    plays truth-assertion:subject,
+    plays belief-assertion:subject;
+
+# --- Predicate Cluster ---
+entity predicate-cluster,
+    owns canonical-form,
+    owns cluster-centroid,
+    plays predicate-mapping:cluster;
+
+# --- Visual Evidence ---
+entity ingestion-artifact,
+    owns file-path,
+    owns media-type,
+    owns page-number,
+    owns bounding-box;
+
+entity reconstruction-attempt,
+    owns code-snippet,
+    owns ssim-score,
+    owns vlm-similarity-score,
+    owns verdict,
+    plays visual-verification:reconstruction;
+
+# ============================================================================
+# RELATION TYPES (HYPEREDGES)
+# ============================================================================
+
+# --- Publication Relations ---
 relation authorship,
     relates author,
     relates work;
@@ -47,125 +205,167 @@ relation authorship,
 relation citation,
     relates citing,
     relates cited,
-    owns citation_context;
+    owns citation-context;
 
+# --- Extraction Provenance ---
 relation extraction,
     relates source,
     relates claim,
-    owns extraction_confidence;
+    owns extraction-confidence,
+    owns bounding-box;
 
+# --- Concept Hierarchy ---
 relation hierarchy,
     relates parent,
-    relates child,
-    owns hierarchy_type;
+    relates child;
 
-# ============================================
-# HYPER-RELATIONS (Relations Playing Roles)
-# ============================================
-
-# Causality relation that can be referenced by hypothesis
-relation causality,
+# --- Causality HyperRelation (n-ary) ---
+relation causality sub probabilistic-concept,
     relates cause,
     relates effect,
     relates mediator @card(0..),
-    owns causal_strength,
-    owns mechanism_description,
-    owns belief_state,
-    owns confidence_score,
+    owns causal-strength,
+    owns mechanism-description,
+    owns surface-form,
+    owns belief-state,
     plays hypothesis:assertion,
-    plays contradiction:claim_a,
-    plays contradiction:claim_b,
-    plays extraction:claim;
+    plays contradiction:conflicting-assertion,
+    plays extraction:claim,
+    plays belief-assertion:subject;
 
-# Hypothesis: A meta-relation about causality claims
+# --- Scientific Interactions ---
+relation interaction sub probabilistic-concept,
+    abstract,
+    owns mechanism-description,
+    owns surface-form,
+    plays extraction:claim,
+    plays belief-assertion:subject;
+
+relation inhibition sub interaction,
+    relates inhibitor,
+    relates target;
+
+relation activation sub interaction,
+    relates activator,
+    relates target;
+
+relation binding sub interaction,
+    relates binder,
+    relates target;
+
+relation phosphorylation sub interaction,
+    relates kinase,
+    relates substrate;
+
+# --- Epistemic Relations ---
+
+# Hypothesis: Meta-relation about causality claims with Bayesian belief
 relation hypothesis,
     relates proposer,
     relates assertion,
-    owns confidence_score,
-    owns beta_alpha,
-    owns beta_beta,
-    owns belief_state,
-    owns proposed_date,
-    owns verification_status;
+    owns confidence-score,
+    owns beta-alpha,
+    owns beta-beta,
+    owns belief-state,
+    owns proposed-date,
+    owns verification-status;
 
-# Contradiction detection
+# Belief Assertion: Agent believes a fact from a source
+relation belief-assertion,
+    relates believer,     # The Agent
+    relates source,       # Publication, Figure, or Agent
+    relates subject,      # The proposition/interaction being believed
+    owns confidence-score,
+    owns dialectical-entropy,
+    owns last-updated;
+
+# Contradiction Detection
 relation contradiction,
-    relates claim_a,
-    relates claim_b,
-    owns dialectical_entropy,
-    owns resolution_status;
+    relates conflicting-assertion @card(2..),
+    owns conflict-strength,
+    owns dialectical-entropy,
+    owns resolution-status;
 
-# ============================================
-# ATTRIBUTE TYPES
-# ============================================
+# Implication (Bayesian dependency)
+relation implication sub probabilistic-concept,
+    relates premise,
+    relates conclusion,
+    owns conditional-probability,
+    owns mechanism-description;
 
-# Identifiers
-attribute doi, value string;
-attribute orcid, value string;
-attribute concept_id, value string;
+# Truth Assertion (cached belief state)
+relation truth-assertion,
+    relates subject,
+    owns cached-confidence,
+    owns verified-at,
+    owns valid-duration,
+    owns derivation-hash,
+    owns computation-cost;
 
-# Text content
-attribute title, value string;
-attribute abstract, value string;
-attribute name, value string;
-attribute affiliation, value string;
-attribute label, value string;
-attribute definition, value string;
-attribute citation_context, value string;
-attribute mechanism_description, value string;
-attribute hierarchy_type, value string;
+# --- Source Reputation HyperEdge ---
+relation source-reputation,
+    relates trusted-entity,
+    owns reputation-alpha,
+    owns reputation-beta,
+    owns last-updated;
 
-# Dates
-attribute publication_date, value datetime;
-attribute proposed_date, value datetime;
+# --- Socratic Debate ---
+relation socratic-debate,
+    relates participant @card(2..),
+    relates moderator @card(0..1),
+    relates subject,         # The proposition being debated
+    owns dialectical-entropy,
+    owns resolution-status,
+    owns last-updated;
 
-# Numeric scores
-attribute confidence_score, value double;
-attribute causal_strength, value double;
-attribute extraction_confidence, value double;
-attribute dialectical_entropy, value double;
+# --- Predicate Clustering ---
+relation predicate-mapping,
+    relates surface,      # The surface form entity
+    relates cluster,      # The predicate-cluster
+    owns embedding;
 
-# Bayesian belief state (Beta distribution parameters)
-attribute beta_alpha, value double;
-attribute beta_beta, value double;
+# --- Visual Verification ---
+relation visual-verification,
+    relates original,
+    relates reconstruction,
+    owns ssim-score,
+    owns vlm-similarity-score,
+    owns verdict,
+    owns verified-at;
 
-# Status enums
-attribute belief_state, value string;  # "proposed", "verified", "refuted", "debated"
-attribute verification_status, value string;  # "pending", "approved", "rejected"
-attribute resolution_status, value string;  # "unresolved", "resolved", "escalated"
-
-# Vector embeddings (stored as string, parsed by application)
-attribute embedding, value string;
-
-# ============================================
-# INFERENCE FUNCTIONS (TypeDB v3.0)
-# ============================================
-
-define
+# ============================================================================
+# RULES (TypeDB 3.x Inference Functions)
+# ============================================================================
 
 # Calculate expected belief from Beta distribution
-fun expected_belief($h: hypothesis) -> double:
+fun expected-belief($h: hypothesis) -> double:
     match
-        $h has beta_alpha $a;
-        $h has beta_beta $b;
+        $h has beta-alpha $a;
+        $h has beta-beta $b;
     return $a / ($a + $b);
 
 # Check if hypothesis needs Socratic debate (high entropy)
-fun needs_debate($h: hypothesis) -> bool:
+fun needs-debate($h: hypothesis) -> bool:
     match
-        $h has beta_alpha $a;
-        $h has beta_beta $b;
+        $h has beta-alpha $a;
+        $h has beta-beta $b;
     let $total = $a + $b;
     let $p = $a / $total;
-    # Entropy threshold approximation
     return $p > 0.3 and $p < 0.7 and $total < 10;
 
-# Find contradicting hypotheses
-fun find_contradictions($c1: causality, $c2: causality) -> bool:
+# Calculate reputation expected value
+fun reputation-score($s: source-reputation) -> double:
+    match
+        $s has reputation-alpha $a;
+        $s has reputation-beta $b;
+    return $a / ($a + $b);
+
+# Detect contradicting assertions
+fun is-contradiction($c1: causality, $c2: causality) -> bool:
     match
         $c1 (cause: $x, effect: $y);
         $c2 (cause: $x, effect: $y);
-        $c1 has belief_state "verified";
-        $c2 has belief_state "verified";
+        $c1 has belief-state "verified";
+        $c2 has belief-state "refuted";
         not { $c1 is $c2; };
     return true;

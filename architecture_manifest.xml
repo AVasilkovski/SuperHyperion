@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project_blueprint version="3.0">
+    <system_name>SuperHyperion</system_name>
+    <mission>
+        Construct a Multi-Agent Self-Reflecting Scientific Intelligence System.
+        The system must ingest scientific papers, extract knowledge into a TypeDB Hypergraph, 
+        and use CodeAct agents to perform Socratic verification of claims.
+    </mission>
+    <core_philosophy>Glass-Box Reasoning over Black-Box Generation</core_philosophy>
+
+    <!-- FREE-TIER INFRASTRUCTURE STACK -->
+    <tech_stack tier="free">
+        <!-- Container Hosting -->
+        <substrate provider="azure">
+            <service>Azure Container Apps</service>
+            <free_tier>180K vCPU-sec/month, 360K GiB-sec memory</free_tier>
+            <note>For production deployment</note>
+        </substrate>
+
+        <!-- Local Development -->
+        <local_dev>
+            <tool>Docker Compose</tool>
+            <description>Full local stack for development before cloud deployment</description>
+        </local_dev>
+
+        <!-- Language -->
+        <language>Python 3.12</language>
+
+        <!-- Knowledge Graph -->
+        <database provider="typedb">
+            <service>TypeDB Cloud</service>
+            <tier>Free Development Tier</tier>
+            <purpose>Hypergraph / Semantic Layer with probabilistic truth states</purpose>
+        </database>
+
+        <!-- Vector Store -->
+        <vector_store provider="azure">
+            <service>Azure Cosmos DB for MongoDB vCore</service>
+            <free_tier>1000 RU/s, 25GB storage</free_tier>
+            <features>Vector search, hybrid queries</features>
+        </vector_store>
+
+        <!-- LLM Inference -->
+        <llm provider="local">
+            <service>Ollama</service>
+            <cost>Free (runs locally)</cost>
+            <recommended_models>
+                <model purpose="reasoning">llama3.1:8b, mistral:7b</model>
+                <model purpose="embedding">nomic-embed-text, mxbai-embed-large</model>
+            </recommended_models>
+        </llm>
+
+        <!-- Orchestration - CodeAct Native -->
+        <orchestration>
+            <framework>LangGraph</framework>
+            <action_space>CodeAct (Executable Python via Jupyter Sandbox)</action_space>
+            <note>No Ray cluster needed - agents execute directly in CodeAct runtime</note>
+        </orchestration>
+
+        <!-- Interface -->
+        <backend>FastAPI (Async)</backend>
+        <frontend>
+            <service>Streamlit</service>
+            <hosting>Streamlit Community Cloud (free)</hosting>
+        </frontend>
+    </tech_stack>
+
+    <!-- CORE ARCHITECTURE -->
+    <core_architecture>
+        <component name="SuperHyperGraph">
+            <description>
+                A TypeDB instance modeling scientific assertions as hyperedges. 
+                Supports 'Probabilistic Truth States' (not binary true/false).
+            </description>
+            <schema_requirements>
+                <requirement>Use nested relations (relations playing roles)</requirement>
+                <requirement>Implement 'hypothesis' as a reified relation</requirement>
+                <requirement>Attributes: confidence_score, beta_distribution_prior (alpha, beta)</requirement>
+                <requirement>Use @card for cardinality (TypeDB v3.0)</requirement>
+                <requirement>Use define fun for inference logic (not rules)</requirement>
+            </schema_requirements>
+        </component>
+
+        <component name="Agent_Swarm">
+            <pattern>CodeAct Runtime</pattern>
+            <description>
+                Agents write and execute Python code in a sandboxed Jupyter environment.
+                No JSON tools - pure executable code as action space.
+                Orchestrated by LangGraph state machine (no Ray overhead).
+            </description>
+            <roles>
+                <role name="IngestionAgent">Parses PDFs, extracts claims, pushes to TypeDB</role>
+                <role name="SocraticCritic">Challenges claims using Dialectical Entropy</role>
+                <role name="BeliefMaintenanceAgent">Runs background Bayesian updates on the graph</role>
+            </roles>
+        </component>
+
+        <component name="VectorSearch">
+            <description>
+                Azure Cosmos DB stores embeddings for semantic similarity search.
+                Hybrid retrieval combines vector similarity with TypeDB graph traversal.
+            </description>
+        </component>
+    </core_architecture>
+
+    <!-- KEY ALGORITHMS -->
+    <key_algorithms>
+        <metric name="Dialectical Entropy">
+            <formula>H(p) = -sum(p_i * log(p_i)) over clustered predicates</formula>
+            <threshold>Greater than 0.4 triggers Socratic Debate</threshold>
+        </metric>
+        <metric name="Recursive Hyperedge Consistency">
+            <logic>Validate n-ary relations in TypeDB against ontology constraints</logic>
+        </metric>
+        <metric name="Entity-Weighted Overlap (EWO)">
+            <usage>Prioritize graph traversal paths in RAG</usage>
+        </metric>
+    </key_algorithms>
+
+    <!-- EXECUTION PROTOCOL (LOCAL DEVELOPMENT FOCUS) -->
+    <execution_protocol>
+        <sprint id="1" name="Substrate">Docker Compose local stack + TypeDB Cloud setup</sprint>
+        <sprint id="2" name="Agentic Core">LangGraph + CodeAct agents</sprint>
+        <sprint id="3" name="API and Interface">FastAPI + Streamlit (local)</sprint>
+        <sprint id="4" name="Resilience">Local testing + validation</sprint>
+        <handoff_rule>Each sprint requires human approval before proceeding</handoff_rule>
+    </execution_protocol>
+
+    <!-- WORKFLOW RULES -->
+    <workflow_rules>
+        <rule>Always verify dependencies before writing code</rule>
+        <rule>Use TypeDB v3.0 syntax (functions, not just rules)</rule>
+        <rule>CodeAct agents must include error handling for execution failures</rule>
+        <rule>Implement 'Snapshot Isolation' for reading graph states</rule>
+        <rule>Use Ollama for all LLM inference (no paid APIs)</rule>
+        <rule>Focus on local development - production is future work</rule>
+    </workflow_rules>
+
+    <!-- LOCAL DEVELOPMENT ENVIRONMENT -->
+    <environments>
+        <environment name="local" status="active">
+            <description>Full stack via Docker Compose - PRIMARY FOCUS</description>
+            <components>
+                <component>Ollama (local install or container)</component>
+                <component>TypeDB Cloud (free tier) or local TypeDB container</component>
+                <component>FastAPI service (uvicorn)</component>
+                <component>Streamlit app</component>
+                <component>Jupyter sandbox for CodeAct execution</component>
+            </components>
+        </environment>
+        <environment name="production" status="future">
+            <description>Azure deployment - NOT IMPLEMENTED YET</description>
+            <note>Placeholder for future cloud deployment when ready</note>
+        </environment>
+    </environments>
+</project_blueprint>

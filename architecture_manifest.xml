@@ -119,10 +119,42 @@
 
     <!-- EXECUTION PROTOCOL (LOCAL DEVELOPMENT FOCUS) -->
     <execution_protocol>
-        <sprint id="1" name="Substrate">Docker Compose local stack + TypeDB Cloud setup</sprint>
-        <sprint id="2" name="Agentic Core">LangGraph + CodeAct agents</sprint>
-        <sprint id="3" name="API and Interface">FastAPI + Streamlit (local)</sprint>
-        <sprint id="4" name="Resilience">Local testing + validation</sprint>
+        <sprint id="1" name="The Substrate">
+            <goal>Infrastructure and Database</goal>
+            <tasks>
+                <task>Docker Compose local stack</task>
+                <task>TypeDB v3.0 schema (scientific_knowledge.tql)</task>
+                <task>TypeDB Cloud connection config</task>
+                <task>Ollama LLM integration</task>
+            </tasks>
+        </sprint>
+        <sprint id="2" name="The Agentic Core">
+            <goal>LangGraph + CodeAct Brain</goal>
+            <tasks>
+                <task>Base agent with TypeDB driver (src/agents/)</task>
+                <task>CodeAct executor with Jupyter sandbox</task>
+                <task>Belief maintenance agent</task>
+                <task>LangGraph state and workflow (src/graph/)</task>
+                <task>CodeAct system prompts (src/prompts/)</task>
+            </tasks>
+        </sprint>
+        <sprint id="3" name="API and Interface">
+            <goal>Connect Frontend to Swarm</goal>
+            <tasks>
+                <task>FastAPI gateway (POST /query, GET /stream, POST /upload)</task>
+                <task>Streamlit dashboard with Glass Box trace</task>
+                <task>Graph Explorer visualization</task>
+                <task>HITL approval interface</task>
+            </tasks>
+        </sprint>
+        <sprint id="4" name="Resilience">
+            <goal>Testing and Observability</goal>
+            <tasks>
+                <task>CodeAct sandbox security tests</task>
+                <task>Reasoning integration tests</task>
+                <task>Logging and observability</task>
+            </tasks>
+        </sprint>
         <handoff_rule>Each sprint requires human approval before proceeding</handoff_rule>
     </execution_protocol>
 

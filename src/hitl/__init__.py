@@ -4,6 +4,7 @@ Human-in-the-Loop (HITL) Module
 v2.1: Implements gates for human oversight of belief transitions.
 v2.2: Adds ScopeLockGate for constitutional scope commitment.
 v2.2: Adds WriteIntentService for Phase 14 write-intent lifecycle.
+v2.3: Adds IntentStore abstraction for TypeDB persistence.
 """
 
 from .base import HITLGate, HITLDecision, HITLPendingItem
@@ -19,6 +20,7 @@ from .intent_service import (
     IntentTransitionError,
     write_intent_service,
 )
+from .intent_store import IntentStore, InMemoryIntentStore, TypeDBIntentStore
 
 __all__ = [
     "HITLGate",
@@ -41,5 +43,8 @@ __all__ = [
     "IntentStatusEvent",
     "IntentTransitionError",
     "write_intent_service",
+    # v2.3 Intent Store
+    "IntentStore",
+    "InMemoryIntentStore",
+    "TypeDBIntentStore",
 ]
-

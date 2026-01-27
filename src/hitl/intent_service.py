@@ -16,11 +16,14 @@ INVARIANTS:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Literal, Set
+from typing import Dict, Any, List, Optional, Literal, Set, TYPE_CHECKING
 from enum import Enum
 import uuid
 import json
 import logging
+
+if TYPE_CHECKING:
+    from .intent_store import IntentStore
 
 logger = logging.getLogger(__name__)
 
@@ -213,17 +216,25 @@ class WriteIntentService:
     
     Pure Python, no UI. This is the constitutional layer.
     Streamlit/CLI are just ports that call this service.
+    
+    Uses IntentStore for persistence:
+    - InMemoryIntentStore for tests
+    - TypeDBIntentStore for production
     """
     
-    def __init__(self, db_client=None):
+    def __init__(self, store: Optional["IntentStore"] = None):
         """
-        Initialize with optional TypeDB client.
+        Initialize with optional IntentStore.
         
-        For testing, runs in-memory without DB.
+        If no store provided, uses InMemoryIntentStore.
         """
-        self.db_client = db_client
-        self._intents: Dict[str, WriteIntent] = {}  # In-memory store
-        self._events: Dict[str, List[IntentStatusEvent]] = {}  # intent_id -> events
+        if store is None:
+            from .intent_store import InMemoryIntentStore
+            store = InMemoryIntentStore()
+        self._store = store
+        
+        # In-memory cache for WriteIntent objects (reconstructed from store)
+        self._intent_cache: Dict[str, WriteIntent] = {}
     
     # =========================================================================
     # State Machine Core
@@ -254,29 +265,48 @@ class WriteIntentService:
         error: Optional[str] = None,
     ) -> IntentStatusEvent:
         """Append an event to the intent's history."""
-        event = IntentStatusEvent(
-            event_id=f"evt_{uuid.uuid4().hex[:12]}",
+        event_id = f"evt_{uuid.uuid4().hex[:12]}"
+        now = datetime.now()
+        
+        # Persist event to store
+        self._store.append_event(
+            event_id=event_id,
             intent_id=intent.intent_id,
-            from_status=intent.status,
-            to_status=to_status,
+            from_status=intent.status.value,
+            to_status=to_status.value,
             actor_type=actor_type,
             actor_id=actor_id,
-            created_at=datetime.now(),
+            created_at=now,
             rationale=rationale,
             defer_until=defer_until,
             execution_id=execution_id,
             error=error,
         )
         
-        if intent.intent_id not in self._events:
-            self._events[intent.intent_id] = []
-        self._events[intent.intent_id].append(event)
+        # Update intent status in store
+        self._store.update_intent_status(intent.intent_id, to_status.value)
         
-        # Update intent status
+        # Update cached intent
+        old_status = intent.status
         intent.status = to_status
         
+        # Create event object for return
+        event = IntentStatusEvent(
+            event_id=event_id,
+            intent_id=intent.intent_id,
+            from_status=old_status,
+            to_status=to_status,
+            actor_type=actor_type,
+            actor_id=actor_id,
+            created_at=now,
+            rationale=rationale,
+            defer_until=defer_until,
+            execution_id=execution_id,
+            error=error,
+        )
+        
         logger.info(
-            f"Intent {intent.intent_id}: {event.from_status.value} → {event.to_status.value} "
+            f"Intent {intent.intent_id}: {old_status.value} → {to_status.value} "
             f"by {actor_type}:{actor_id}"
         )
         
@@ -300,22 +330,38 @@ class WriteIntentService:
         
         Returns a new intent in STAGED status.
         """
-        intent = WriteIntent(
-            intent_id=f"intent_{uuid.uuid4().hex[:12]}",
+        intent_id = f"intent_{uuid.uuid4().hex[:12]}"
+        now = datetime.now()
+        expires_at = now + timedelta(days=expires_in_days)
+        
+        # Persist to store
+        self._store.insert_intent(
+            intent_id=intent_id,
             intent_type=intent_type,
             payload=payload,
             impact_score=impact_score,
-            status=IntentStatus.STAGED,
-            created_at=datetime.now(),
-            expires_at=datetime.now() + timedelta(days=expires_in_days),
+            status=IntentStatus.STAGED.value,
+            created_at=now,
+            expires_at=expires_at,
             scope_lock_id=scope_lock_id,
             supersedes_intent_id=supersedes_intent_id,
         )
         
-        self._intents[intent.intent_id] = intent
-        self._events[intent.intent_id] = []
+        # Create and cache intent object
+        intent = WriteIntent(
+            intent_id=intent_id,
+            intent_type=intent_type,
+            payload=payload,
+            impact_score=impact_score,
+            status=IntentStatus.STAGED,
+            created_at=now,
+            expires_at=expires_at,
+            scope_lock_id=scope_lock_id,
+            supersedes_intent_id=supersedes_intent_id,
+        )
+        self._intent_cache[intent_id] = intent
         
-        logger.info(f"Intent staged: {intent.intent_id} (type={intent_type})")
+        logger.info(f"Intent staged: {intent_id} (type={intent_type})")
         return intent
     
     def submit_for_review(
@@ -531,15 +577,20 @@ class WriteIntentService:
         expired_ids = []
         now = datetime.now()
         
-        for intent in self._intents.values():
-            if intent.status in TERMINAL_STATES:
-                continue
-            if intent.expires_at and now > intent.expires_at:
-                try:
-                    self.expire(intent.intent_id)
-                    expired_ids.append(intent.intent_id)
-                except IntentTransitionError:
-                    pass  # Already in a state that can't expire
+        # Get expirable intents from store
+        expirable = self._store.list_expirable_intents(now)
+        
+        for intent_data in expirable:
+            intent_id = intent_data["intent_id"]
+            try:
+                # Load intent to cache if not present
+                intent = self._get_or_raise(intent_id)
+                self.expire(intent_id)
+                expired_ids.append(intent_id)
+            except IntentTransitionError:
+                pass  # Already in a state that can't expire
+            except IntentNotFoundError:
+                pass  # Intent doesn't exist in cache
         
         return expired_ids
     
@@ -552,28 +603,36 @@ class WriteIntentService:
         reactivated_ids = []
         now = datetime.now()
         
-        for intent in self._intents.values():
-            if intent.status != IntentStatus.DEFERRED:
-                continue
+        # Get deferred intents from store
+        deferred = self._store.list_intents_by_status(IntentStatus.DEFERRED.value)
+        
+        for intent_data in deferred:
+            intent_id = intent_data["intent_id"]
             
-            # Find the defer event
-            events = self._events.get(intent.intent_id, [])
-            defer_event = None
+            # Get events for this intent
+            events = self._store.get_events(intent_id)
+            
+            # Find the defer event with defer_until
+            defer_until = None
             for e in reversed(events):
-                if e.to_status == IntentStatus.DEFERRED and e.defer_until:
-                    defer_event = e
+                if e.get("to_status") == IntentStatus.DEFERRED.value and e.get("defer_until"):
+                    defer_until = e["defer_until"]
                     break
             
-            if defer_event and defer_event.defer_until and now >= defer_event.defer_until:
-                # Re-submit for review
-                self._append_event(
-                    intent,
-                    to_status=IntentStatus.AWAITING_HITL,
-                    actor_type="system",
-                    actor_id="defer_service",
-                    rationale=f"Reactivated after defer_until={defer_event.defer_until.isoformat()}",
-                )
-                reactivated_ids.append(intent.intent_id)
+            if defer_until and now >= defer_until:
+                try:
+                    # Load intent and reactivate
+                    intent = self._get_or_raise(intent_id)
+                    self._append_event(
+                        intent,
+                        to_status=IntentStatus.AWAITING_HITL,
+                        actor_type="system",
+                        actor_id="defer_service",
+                        rationale=f"Reactivated after defer_until={defer_until.isoformat()}",
+                    )
+                    reactivated_ids.append(intent_id)
+                except IntentNotFoundError:
+                    pass
         
         return reactivated_ids
     
@@ -583,7 +642,29 @@ class WriteIntentService:
     
     def get(self, intent_id: str) -> Optional[WriteIntent]:
         """Get an intent by ID."""
-        return self._intents.get(intent_id)
+        # Check cache first
+        if intent_id in self._intent_cache:
+            return self._intent_cache[intent_id]
+        
+        # Load from store
+        data = self._store.get_intent(intent_id)
+        if not data:
+            return None
+        
+        # Reconstruct WriteIntent and cache
+        intent = WriteIntent(
+            intent_id=data["intent_id"],
+            intent_type=data["intent_type"],
+            payload=data.get("payload", {}),
+            impact_score=data.get("impact_score", 0.0),
+            status=IntentStatus(data["status"]),
+            created_at=data["created_at"] if isinstance(data["created_at"], datetime) else datetime.fromisoformat(data["created_at"]),
+            expires_at=data.get("expires_at"),
+            scope_lock_id=data.get("scope_lock_id"),
+            supersedes_intent_id=data.get("supersedes_intent_id"),
+        )
+        self._intent_cache[intent_id] = intent
+        return intent
     
     def _get_or_raise(self, intent_id: str) -> WriteIntent:
         """Get an intent or raise IntentNotFoundError."""
@@ -594,7 +675,13 @@ class WriteIntentService:
     
     def list_by_status(self, status: IntentStatus) -> List[WriteIntent]:
         """List intents by status."""
-        return [i for i in self._intents.values() if i.status == status]
+        data_list = self._store.list_intents_by_status(status.value)
+        intents = []
+        for data in data_list:
+            intent = self.get(data["intent_id"])
+            if intent:
+                intents.append(intent)
+        return intents
     
     def list_pending(self) -> List[WriteIntent]:
         """List intents awaiting human decision."""
@@ -602,12 +689,27 @@ class WriteIntentService:
     
     def get_history(self, intent_id: str) -> List[IntentStatusEvent]:
         """Get all events for an intent."""
-        return self._events.get(intent_id, [])
+        event_data = self._store.get_events(intent_id)
+        events = []
+        for e in event_data:
+            events.append(IntentStatusEvent(
+                event_id=e["event_id"],
+                intent_id=e["intent_id"],
+                from_status=IntentStatus(e["from_status"]),
+                to_status=IntentStatus(e["to_status"]),
+                actor_type=e["actor_type"],
+                actor_id=e["actor_id"],
+                created_at=e["created_at"] if isinstance(e["created_at"], datetime) else datetime.fromisoformat(e["created_at"]),
+                rationale=e.get("rationale"),
+                defer_until=e.get("defer_until"),
+                execution_id=e.get("execution_id"),
+                error=e.get("error"),
+            ))
+        return events
     
     def _has_approved_event(self, intent_id: str) -> bool:
         """Check if intent has an approved event in its history."""
-        events = self._events.get(intent_id, [])
-        return any(e.to_status == IntentStatus.APPROVED for e in events)
+        return self._store.has_event_with_status(intent_id, IntentStatus.APPROVED.value)
 
 
 # Global instance (no DB client - must be configured)

@@ -424,6 +424,70 @@ entity meta-oversight-report,
   owns json;                       # Full report payload
 
 
+# ---------------------------------------------------------------------------
+# Operator Governance (Template Metadata)
+# ---------------------------------------------------------------------------
+
+entity template-metadata,
+  owns template-id @key,           # "bootstrap_ci"
+  owns version,                    # "1.0.0"
+  owns spec-hash,
+  owns code-hash,
+  owns deps-hash,
+  owns status,                     # "active" | "deprecated" | "banned"
+  owns approved-by,
+  owns approved-at,
+  owns frozen,
+  owns frozen-at,
+  owns first-evidence-id,          # Link to freezing evidence
+  owns freeze-claim-id,
+  owns freeze-scope-lock-id,
+  owns tainted,
+  owns tainted-at,
+  owns tainted-reason,
+  owns superseded-by,
+  owns created-at;
+
+attribute version, value string;
+attribute spec-hash, value string;
+attribute code-hash, value string;
+attribute deps-hash, value string;
+attribute status, value string;
+attribute approved-by, value string;
+attribute approved-at, value datetime;
+attribute frozen, value boolean;
+attribute frozen-at, value datetime;
+attribute first-evidence-id, value string;
+attribute freeze-claim-id, value string;
+attribute freeze-scope-lock-id, value string;
+attribute tainted, value boolean;
+attribute tainted-at, value datetime;
+attribute tainted-reason, value string;
+attribute superseded-by, value string;
+
+
+entity template-lifecycle-event,
+  owns entity-id @key,
+  owns template-id,
+  owns version,
+  owns event-type,                 # "registered", "approved", "frozen", "tainted", "deprecated"
+  owns actor,
+  owns rationale,
+  owns json,                       # Extra context (hashes, evidence-id, etc)
+  owns created-at;
+
+attribute event-type, value string;
+attribute actor, value string;
+
+relation template-has-lifecycle-event,
+  relates template,
+  relates event;
+
+template-metadata plays template-has-lifecycle-event:template;
+template-lifecycle-event plays template-has-lifecycle-event:event;
+
+
+
 # ============================================================================
 # RELATION TYPES (v2.1 + v2.2 + Phase 11)
 # ============================================================================

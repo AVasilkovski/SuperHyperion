@@ -6,6 +6,8 @@ import logging
 from dataclasses import asdict
 
 from src.agents.base_agent import BaseAgent, AgentContext
+from src.montecarlo.template_store import TypeDBTemplateStore
+from src.montecarlo.versioned_registry import VERSIONED_REGISTRY, get_latest_template  # Access explicit registry
 
 logger = logging.getLogger(__name__)
 class OntologySteward(BaseAgent):
@@ -105,6 +107,15 @@ class OntologySteward(BaseAgent):
              
              try:
                  self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data))
+                 
+                 # Phase 14 Hook: Freeze template on first evidence
+                 if ev_data.get("success") and ev_data.get("template_id"):
+                     self._freeze_template_on_evidence(
+                         template_id=ev_data["template_id"],
+                         evidence_id=f'ev-{ev_data.get("execution_id", "")}', # Match logic in q_insert
+                         claim_id=ev_data.get("claim_id") or ev_data.get("claim-id"),
+                         scope_lock_id=ev_data.get("scope_lock_id") or ev_data.get("scope-lock-id"),
+                     )
              except Exception as e:
                  logger.error(f"Evidence insert failed (id={ev_data.get('execution_id')}): {e}")
         # 4. Persist Epistemic Proposals
@@ -227,6 +238,87 @@ class OntologySteward(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to execute intent {intent}: {e}")
             return False, str(e)
+
+    def _freeze_template_on_evidence(
+        self,
+        template_id: str,
+        evidence_id: str,
+        claim_id: Optional[str] = None,
+        scope_lock_id: Optional[str] = None,
+    ):
+        """
+        Operator Extension: Freeze method template on first evidence.
+        
+        Ensures metadata exists before freezing (lazy sync).
+        """
+        try:
+            # 1. Resolve version
+            # In v2.2, we assume running code matches latest registry version.
+            # In v2.3+, evidence will carry explicit version.
+            # For now, look up latest active spec in registry.
+            # NOTE: If template_id not in registry (e.g. ad-hoc), we skip (or warn).
+            try:
+                template = get_latest_template(template_id)
+                # We need the qualified ID to get the spec
+                # Iterate registry to find it (or add get_latest_spec to registry)
+                # Easier: just scan VERSIONED_REGISTRY.
+                specs = [
+                    VERSIONED_REGISTRY.get_spec(qid) 
+                    for qid in VERSIONED_REGISTRY.list_all() 
+                    if qid.startswith(f"{template_id}@")
+                ]
+                if not specs:
+                    logger.warning(f"Skipping freeze: Template {template_id} not in registry.")
+                    return
+                # Sort by version desc
+                specs.sort(key=lambda s: s.version, reverse=True)
+                spec = specs[0]
+                version_str = str(spec.version)
+                
+            except ValueError:
+                return # Not a registered template
+
+            # 2. Get store instance
+            # Reuse DB connection if possible
+            driver = getattr(self, "db", None) and getattr(self.db, "driver", None)
+            if not driver:
+                from src.db.typedb_client import typedb
+                driver = typedb.driver
+                
+            store = TypeDBTemplateStore(driver)
+            
+            # 3. Ensure metadata exists (Lazy Sync)
+            # This handles first-run bootstrap without explicit "init" step
+            meta = store.get_metadata(template_id, version_str)
+            if not meta:
+                from src.montecarlo.template_metadata import TemplateMetadata, TemplateStatus, compute_code_hash
+                
+                # Check integrity before insert
+                current_code_hash = compute_code_hash(type(template))
+                
+                # Create and insert
+                new_meta = TemplateMetadata(
+                    template_id=template_id,
+                    version=spec.version,
+                    spec_hash=spec.spec_hash(),
+                    code_hash=current_code_hash,
+                    status=TemplateStatus.ACTIVE,
+                    approved_by="bootstrap", # Auto-approved on first use for v2.2
+                    approved_at=None,
+                )
+                store.insert_metadata(new_meta)
+            
+            # 4. Execute Freeze
+            store.freeze(
+                template_id=template_id,
+                version=version_str,
+                evidence_id=evidence_id,
+                claim_id=claim_id,
+                scope_lock_id=scope_lock_id,
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to freeze template {template_id}: {e}")
 
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)

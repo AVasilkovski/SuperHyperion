@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "generated_at": "2026-01-28T00:30:37.270333",
+    "generator": "gen_template_manifest.py",
+    "version": "1.0.0"
+  },
+  "bayesian_update@1.0.0": {
+    "capabilities": [
+      "randomness"
+    ],
+    "code_hash": "fcbbdd0193c609cf08bde14dc9f1c9e431cac7047686f5dbcab99a697475cf90",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "4194e943ed162f41a3ceb68f4682294127a9ca9676c2791434f1bf3c4e700a85",
+    "status": "active",
+    "template_id": "bayesian_update",
+    "version": "1.0.0"
+  },
+  "bootstrap_ci@1.0.0": {
+    "capabilities": [
+      "randomness"
+    ],
+    "code_hash": "00f4e527283c4e573b26dd751e392cec0a36565d3640be1d6c08eadc23fc168d",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "3e6b3d7d2dc5ac759c6b750875250b49284afc68353efb1ca5e5700e509c15b1",
+    "status": "active",
+    "template_id": "bootstrap_ci",
+    "version": "1.0.0"
+  },
+  "citation_check@1.0.0": {
+    "capabilities": [],
+    "code_hash": "0cc9974f2dfdbccb2d0fa43b2c4f504331e423a02679c0e3d48f4ec28e3509d1",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "efc34e3c4231098ba53ff52d1b125dd62e50303ae9e8331283092bf16a3174e8",
+    "status": "active",
+    "template_id": "citation_check",
+    "version": "1.0.0"
+  },
+  "contradiction_detect@1.0.0": {
+    "capabilities": [],
+    "code_hash": "8568d8709b2cc970febb238d695886b761a1f765f2a665ca6ba43e9f201e318d",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "d77f17f1318edb4519b6774623643eafec29ade5f05337aaa45c8342b1aa9298",
+    "status": "active",
+    "template_id": "contradiction_detect",
+    "version": "1.0.0"
+  },
+  "effect_direction@1.0.0": {
+    "capabilities": [],
+    "code_hash": "5deda724f9763dabd9bf77181e77dcfe5f7e0b67aaa552be696d772f1c520a61",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "31e7c0b19cd2e7ee06eea8fb81570d8282ecf1e16d9d3561038c61ba033e066a",
+    "status": "active",
+    "template_id": "effect_direction",
+    "version": "1.0.0"
+  },
+  "numeric_consistency@1.0.0": {
+    "capabilities": [],
+    "code_hash": "d1458948e5cf42a1bba921b6ed81d53977c39a78dc5321681e848499d257d51b",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "efa95cf11458b96bf1c13945ceea977f456ce35cbbc30ea4021d79d4a12c9a93",
+    "status": "active",
+    "template_id": "numeric_consistency",
+    "version": "1.0.0"
+  },
+  "sensitivity_suite@1.0.0": {
+    "capabilities": [
+      "randomness"
+    ],
+    "code_hash": "977a2527acae72129b60e7b54c32ab42535c35091fb33db228a4dae42c48ac4d",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "39e37478b896a32a52c2b0cf97d8a7e48edac26d889000b8a4db8e0d51878b3a",
+    "status": "active",
+    "template_id": "sensitivity_suite",
+    "version": "1.0.0"
+  },
+  "threshold_check@1.0.0": {
+    "capabilities": [],
+    "code_hash": "a8c42e31bdf1323b500d6bd688ddc24e349427d7e3fe71c3ed233b24659cb120",
+    "depends_on": [],
+    "deps_hash": null,
+    "frozen": false,
+    "spec_hash": "1697249941bdbb98ce756338671ccd9f2e8476e75d6837d087486a04f5710e17",
+    "status": "active",
+    "template_id": "threshold_check",
+    "version": "1.0.0"
+  }
+}

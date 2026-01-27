@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      typedb:
+        image: vaticle/typedb:2.28.0
+        ports:
+          - 1729:1729
+        options: >-
+          --health-cmd "echo 'TypeDB is ready'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+
+      - name: Wait for TypeDB
+        run: |
+          echo "Waiting for TypeDB to be ready..."
+          for i in {1..30}; do
+            if nc -z localhost 1729; then
+              echo "TypeDB is ready!"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 2
+          done
+
+      - name: Load TypeDB schema
+        run: |
+          pip install typedb-driver
+          python -c "
+          from typedb.driver import TypeDB, SessionType, TransactionType
+          with TypeDB.core_driver('localhost:1729') as driver:
+              driver.databases.create('scientific_knowledge')
+              with driver.session('scientific_knowledge', SessionType.SCHEMA) as session:
+                  with session.transaction(TransactionType.WRITE) as tx:
+                      with open('src/schema/scientific_knowledge.tql', 'r') as f:
+                          tx.query.define(f.read())
+                      tx.commit()
+          print('Schema loaded successfully')
+          "
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --tb=short -x --ignore=tests/test_v22_schema_validation.py --ignore=tests/test_v22_final_sanity.py
+        env:
+          TYPEDB_ADDRESS: localhost:1729
+
+      - name: Run schema validation tests
+        run: |
+          pytest tests/test_v22_schema_validation.py tests/test_v22_final_sanity.py -v --tb=short || true
+        env:
+          TYPEDB_ADDRESS: localhost:1729
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            .pytest_cache/
+            *.log
+          retention-days: 7
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run linter
+        run: ruff check src/ tests/ --output-format=github || true

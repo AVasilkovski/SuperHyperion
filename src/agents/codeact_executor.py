@@ -5,16 +5,13 @@ Secure sandbox for executing Python code using Jupyter kernels.
 This implements the CodeAct paradigm where agents think and act in Python.
 """
 
-import asyncio
 import re
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass
 import logging
 
 from jupyter_client import KernelManager
 from jupyter_client.kernelspec import NoSuchKernel
-
-from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +140,7 @@ print("CodeAct sandbox initialized")
             self.start()
         
         self._execution_count += 1
-        msg_id = self._kc.execute(code)
+        _msg_id = self._kc.execute(code)  # noqa: F841
         
         stdout_parts = []
         stderr_parts = []

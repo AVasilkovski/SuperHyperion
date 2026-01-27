@@ -5,13 +5,12 @@ v2.1 Step 2: Refines user hypothesis H into precise H′.
 Removes ambiguity, identifies variables, asks clarifying questions.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from dataclasses import dataclass
 import logging
 import json
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.config import config
 
 logger = logging.getLogger(__name__)
 

@@ -6,8 +6,7 @@ Monitors for contradictions and triggers belief revision.
 """
 
 import asyncio
-import math
-from typing import Optional, List, Dict, Any
+from typing import List, Dict
 from dataclasses import dataclass
 import logging
 
@@ -177,7 +176,7 @@ class BeliefMaintenanceAgent(BaseAgent):
             evidence_weight: Strength of the evidence (default 1.0)
         """
         # Fetch current belief
-        query = f"""
+        query = """
         match
             $h isa hypothesis,
                 has beta_alpha $a,

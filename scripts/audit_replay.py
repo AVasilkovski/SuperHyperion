@@ -218,7 +218,7 @@ async def main():
     print_section("SESSION", result.get("session"))
     print_section("ATOMIC CLAIMS", result.get("claims"))
     print_section("SPECULATIVE CONTEXT (Speculative Lane)", result.get("speculative_context"))
-    print_section("EXPERIMENT HINTS (Bridge → digest only)", {
+    print_section("EXPERIMENT HINTS (Bridge -> digest only)", {
         k: {"claim_id": v.get("claim_id"), "digest": v.get("digest"), "sensitivity_axes": v.get("sensitivity_axes")}
         for k, v in result.get("experiment_hints", {}).items()
     })

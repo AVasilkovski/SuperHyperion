@@ -279,13 +279,15 @@ class OntologySteward(BaseAgent):
                 return # Not a registered template
 
             # 2. Get store instance
-            # Reuse DB connection if possible
-            driver = getattr(self, "db", None) and getattr(self.db, "driver", None)
-            if not driver:
-                from src.db.typedb_client import typedb
-                driver = typedb.driver
-                
-            store = TypeDBTemplateStore(driver)
+            store = getattr(self, "template_store", None)
+            if not store:
+                # Reuse DB connection if possible
+                driver = getattr(self, "db", None) and getattr(self.db, "driver", None)
+                if not driver:
+                    from src.db.typedb_client import typedb
+                    driver = typedb.driver
+                    
+                store = TypeDBTemplateStore(driver)
             
             # 3. Ensure metadata exists (Lazy Sync)
             # This handles first-run bootstrap without explicit "init" step

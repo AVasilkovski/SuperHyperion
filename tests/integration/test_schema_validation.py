@@ -21,6 +21,8 @@ class MockTransaction:
     
     def commit(self): pass
     def close(self): pass
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb): pass
 
 class MockSession:
     def __init__(self):
@@ -51,8 +53,22 @@ def mock_typedb(monkeypatch):
     monkeypatch.setattr("src.db.typedb_client._load_typedb", lambda: True)
     
     # Patch TypeDB.core_driver to return our mock
-    # Note: We need to patch where it's imported or used
-    monkeypatch.setattr("src.db.typedb_client.TypeDB.core_driver", lambda addr: mock_driver)
+    # Patch TypeDB global - we need to create a mock class structure
+    class MockTypeDBClass:
+        @staticmethod
+        def core_driver(addr): return mock_driver
+        
+    monkeypatch.setattr("src.db.typedb_client.TypeDB", MockTypeDBClass)
+    
+    # Patch SessionType and TransactionType enum-like objects
+    class MockEnum:
+        SCHEMA = "schema"
+        DATA = "data"
+        WRITE = "write"
+        READ = "read"
+        
+    monkeypatch.setattr("src.db.typedb_client.SessionType", MockEnum)
+    monkeypatch.setattr("src.db.typedb_client.TransactionType", MockEnum)
     
     return mock_driver
 
@@ -85,6 +101,9 @@ def test_schema_syntax_and_load(mock_typedb):
     #     tx.query.define(content)
     
     # We can access the definition via the mock_driver fixture if we ensured it was returned
+    if not mock_typedb.sess.tx.query.definitions:
+        pytest.fail(f"No definitions found! Mock driver stats: {len(mock_typedb.sess.tx.query.definitions)} inserts: {len(mock_typedb.sess.tx.query.inserts)}")
+        
     defined_schema = mock_typedb.sess.tx.query.definitions[0]
     
     # 1. Check for Duplicate Relation Definition

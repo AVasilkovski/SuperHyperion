@@ -13,7 +13,7 @@ from src.agents.ontology_steward import (
 
 def test_schema_static_verification():
     """Verify schema text contains required definitions."""
-    schema_path = Path("src/schema/schema_v22_patch.tql")
+    schema_path = Path("src/schema/scientific_knowledge.tql")
     content = schema_path.read_text(encoding="utf-8")
     
     # 1. Success Attribute

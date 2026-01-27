@@ -66,13 +66,25 @@ jobs:
 
       - name: Run unit tests
         run: |
-          pytest tests/ -v --tb=short -x --ignore=tests/test_v22_schema_validation.py --ignore=tests/test_v22_final_sanity.py
+          pytest tests/unit/ -v --tb=short
         env:
           TYPEDB_ADDRESS: localhost:1729
 
-      - name: Run schema validation tests
+      - name: Run integration tests
         run: |
-          pytest tests/test_v22_schema_validation.py tests/test_v22_final_sanity.py -v --tb=short || true
+          pytest tests/integration/ -v --tb=short
+        env:
+          TYPEDB_ADDRESS: localhost:1729
+
+      - name: Run e2e tests
+        run: |
+          pytest tests/e2e/ -v --tb=short
+        env:
+          TYPEDB_ADDRESS: localhost:1729
+
+      - name: Run security tests
+        run: |
+          pytest tests/security/ -v --tb=short
         env:
           TYPEDB_ADDRESS: localhost:1729
 

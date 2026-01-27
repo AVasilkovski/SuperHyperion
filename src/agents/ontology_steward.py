@@ -483,6 +483,10 @@ def q_insert_validation_evidence(session_id: str, ev: dict) -> str:
             )
 
         if isinstance(obj, dict):
+            # PRIMARY SENTINEL CHECK: lane marker
+            if obj.get("lane") == "speculative":
+                return True
+            
             # Check epistemic status keys
             for k in SPEC_KEYS:
                 if obj.get(k) == "speculative":

@@ -50,7 +50,11 @@ class ExperimentHints(BaseModel):
     # Direct falsification criteria
     falsification_criteria: List[str] = Field(default_factory=list)
     
-    # GUARD MARKER: Always "speculative" - Steward will reject if this leaks
+    # SENTINEL MARKER: Structural boundary for speculative lane
+    # This single field is the primary enforcement mechanism
+    lane: Literal["speculative"] = "speculative"
+    
+    # Legacy guard marker (kept for backward compatibility)
     epistemic_status: Literal["speculative"] = "speculative"
     
     def digest(self) -> str:
@@ -81,6 +85,7 @@ class ExperimentHints(BaseModel):
 
 # Fields that indicate speculative residue - must NEVER appear in ExperimentSpec
 SPECULATIVE_RESIDUE_FIELDS = {
+    "lane",  # Primary sentinel marker
     "experiment_hints",
     "speculative_context", 
     "epistemic_status",

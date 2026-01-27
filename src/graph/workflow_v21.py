@@ -5,7 +5,7 @@ LangGraph v2.1 Workflow Definition
 Implements CodeAct as belief gatekeeper and HITL gates.
 """
 
-from typing import Literal, Dict, Any
+from typing import Literal
 import logging
 
 from langgraph.graph import StateGraph, END
@@ -27,7 +27,6 @@ from src.agents import (
 )
 from src.epistemic import EpistemicClassifierAgent
 from src.hitl import EpistemicApprovalGate, HighImpactWriteCheckpoint, audit_log
-from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +210,7 @@ async def epistemic_gate_node(state: AgentState) -> AgentState:
     logger.info("v2.1: Epistemic Gate Node (HITL)")
     
     gate = EpistemicApprovalGate()
-    classifier = EpistemicClassifierAgent()
+    _classifier = EpistemicClassifierAgent()  # Reserved for future use
     
     pending_decisions = []
     classifications = state["graph_context"].get("classifications", [])
@@ -446,9 +445,9 @@ if __name__ == "__main__":
     
     async def test_v21():
         result = await run_v21_query("Protein X inhibits pathway Y under condition Z")
-        print(f"\n=== GROUNDED RESPONSE ===")
+        print("\n=== GROUNDED RESPONSE ===")
         print(result.get("grounded_response", {}).get("summary", "No grounded response"))
-        print(f"\n=== SPECULATIVE ALTERNATIVES ===")
+        print("\n=== SPECULATIVE ALTERNATIVES ===")
         for alt in result.get("speculative_alternatives", [])[:3]:
             print(f"- {alt.get('hypothesis', 'Unknown')}")
         print(f"\nScientific Uncertainty: {result.get('scientific_uncertainty', {})}")

@@ -6,7 +6,6 @@ Environment configuration for TypeDB, Ollama, and service connections.
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass

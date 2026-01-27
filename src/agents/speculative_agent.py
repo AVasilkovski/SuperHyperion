@@ -5,12 +5,11 @@ v2.1 Step 5: Proposes alternative hypotheses and models.
 Operates in SPECULATIVE lane - cannot update beliefs directly.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
 import json
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.config import config
 from src.montecarlo.types import ExperimentHints, PriorSuggestion
 
 logger = logging.getLogger(__name__)

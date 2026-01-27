@@ -5,9 +5,8 @@ v2.1: Tracks source credibility using Beta(α, β) distribution.
 Updated when papers retracted, claims refuted, or experiments fail replication.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, Optional, List
-import math
+from dataclasses import dataclass
+from typing import Dict
 import logging
 
 logger = logging.getLogger(__name__)

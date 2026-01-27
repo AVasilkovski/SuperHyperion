@@ -10,13 +10,12 @@ Responsibilities:
 3. Enforce Feynman heuristics (toy models, extremes, dimensions).
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 import logging
-import json
 import time
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.graph.state import Evidence, ScientificUncertainty
+from src.graph.state import Evidence
 from src.montecarlo.templates import registry, TemplateExecution, sha256_json
 from src.montecarlo.types import ExperimentSpec, MCResult
 

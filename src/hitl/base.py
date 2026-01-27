@@ -7,7 +7,7 @@ v2.1: Base classes for human-in-the-loop gates.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Literal
+from typing import Dict, Any, Optional, Literal
 import logging
 
 logger = logging.getLogger(__name__)

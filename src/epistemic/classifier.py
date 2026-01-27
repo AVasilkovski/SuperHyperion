@@ -11,7 +11,6 @@ import logging
 
 from src.agents.base_agent import BaseAgent, AgentContext
 from src.epistemic.status import EpistemicStatus, requires_hitl_approval
-from src.epistemic.uncertainty import uncertainty_from_codeact_result
 
 logger = logging.getLogger(__name__)
 

@@ -5,13 +5,11 @@ v2.1 Step 10: Assigns scientific uncertainty, flags unknowns, highlights risks.
 Uses the scientific uncertainty formula, NOT rhetorical disagreement.
 """
 
-from typing import Dict, Any, List
 import logging
 
 from src.agents.base_agent import BaseAgent, AgentContext
 from src.graph.state import ScientificUncertainty
 from src.epistemic.uncertainty import (
-    calculate_scientific_uncertainty,
     uncertainty_from_codeact_result,
 )
 

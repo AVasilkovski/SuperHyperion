@@ -129,8 +129,11 @@ print("CodeAct sandbox initialized")
             Tuple of (is_safe, error_message)
         """
         for pattern in BLOCKED_PATTERNS:
-            if re.search(pattern, code):
+            match = re.search(pattern, code)
+            if match:
                 return False, f"Blocked pattern detected: {pattern}"
+        
+        return True, None
         
         return True, None
     

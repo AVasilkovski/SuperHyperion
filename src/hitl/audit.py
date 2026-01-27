@@ -4,7 +4,7 @@ HITL Audit Log
 v2.1 H6: Immutable audit trail for all human decisions.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import json

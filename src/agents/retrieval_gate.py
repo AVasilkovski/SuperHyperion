@@ -5,7 +5,7 @@ Gates retrieval quality before proceeding to speculation.
 Routes back to ground if coverage/provenance insufficient.
 """
 
-from typing import Dict, Any, Literal
+from typing import Dict, Any
 import logging
 
 from src.agents.base_agent import BaseAgent, AgentContext

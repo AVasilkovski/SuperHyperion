@@ -244,7 +244,7 @@ def sha256_json(data: Any) -> str:
     try:
         s = json.dumps(data, sort_keys=True)
         return hashlib.sha256(s.encode()).hexdigest()
-    except:
+    except Exception:
         return "hash-error"
 
 def q_insert_session(session_id: str, user_query: str, status: str) -> str:

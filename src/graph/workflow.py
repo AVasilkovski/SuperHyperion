@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from src.graph.state import AgentState, NodeType, create_initial_state
-from src.agents import codeact, execute_python
+from src.agents import execute_python
 from src.llm import ollama
 from src.db import typedb
 from src.config import config
@@ -31,7 +31,7 @@ def retrieve_node(state: AgentState) -> AgentState:
     logger.info("Executing: Retrieve Node")
     state["current_node"] = NodeType.RETRIEVE.value
     
-    query = state["query"]
+    _query = state["query"]  # Used for context, retrieval uses fixed TypeQL
     
     # Generate embedding for semantic search (if available)
     try:
@@ -202,7 +202,7 @@ End with: ENTROPY_SCORE: [0.0-1.0]"""
         match = re.search(r'ENTROPY_SCORE:\s*([\d.]+)', critique)
         if match:
             state["dialectical_entropy"] = float(match.group(1))
-    except:
+    except Exception:
         pass
     
     state["messages"].append({

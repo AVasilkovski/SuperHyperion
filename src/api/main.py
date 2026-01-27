@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from src.graph import run_query, AgentState
+from src.graph import run_query
 from src.config import config
 
 logging.basicConfig(level=logging.INFO)

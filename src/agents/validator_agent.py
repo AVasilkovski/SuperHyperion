@@ -6,13 +6,11 @@ This is the BELIEF GATEKEEPER - the only agent that can authorize belief updates
 """
 
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 import logging
 
 from src.agents.base_agent import BaseAgent, AgentContext
 from src.agents.codeact_executor import CodeActExecutor
 from src.graph.state import Evidence, ScientificUncertainty
-from src.epistemic.uncertainty import uncertainty_from_codeact_result
 
 logger = logging.getLogger(__name__)
 

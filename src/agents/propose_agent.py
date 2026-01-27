@@ -7,12 +7,11 @@ Consumes verification artifacts and meta_critique to enforce caps.
 DOES NOT write to TypeDB (that's steward_node).
 """
 
-from typing import Dict, Any, List, Optional, Literal
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 import logging
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.epistemic.status import EpistemicStatus
 
 logger = logging.getLogger(__name__)
 

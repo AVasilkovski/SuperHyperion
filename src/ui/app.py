@@ -11,10 +11,8 @@ Features:
 
 import streamlit as st
 import httpx
-import json
 import time
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass
+from typing import Optional, Dict, List
 import os
 
 # Configuration
@@ -144,7 +142,7 @@ def get_recent_jobs() -> List[Dict]:
         )
         response.raise_for_status()
         return response.json()
-    except:
+    except Exception:
         return []
 
 
@@ -175,10 +173,10 @@ def render_glass_box():
             with st.sidebar.expander(f"📊 Result {i+1}", expanded=True):
                 st.text(content[:300])
         elif trace_type == "critique":
-            with st.sidebar.expander(f"⚖️ Critique", expanded=True):
+            with st.sidebar.expander("⚖️ Critique", expanded=True):
                 st.markdown(content[:400])
         elif trace_type == "debate":
-            with st.sidebar.expander(f"🗣️ Debate", expanded=True):
+            with st.sidebar.expander("🗣️ Debate", expanded=True):
                 st.markdown(content[:500])
 
 
@@ -307,7 +305,7 @@ def main():
                 st.success("🟢 API Connected")
             else:
                 st.error("🔴 API Error")
-        except:
+        except Exception:
             st.warning("🟡 API Offline - Start with `uvicorn src.api.main:app`")
         
         st.divider()

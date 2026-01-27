@@ -8,7 +8,6 @@ Implements v2.2 mandatory changes:
 - monotonic step_index tracing
 """
 
-from typing import Literal, Dict, Any
 import logging
 import time
 
@@ -30,10 +29,8 @@ from src.agents import (
 )
 from src.agents.verify_agent import verify_agent
 from src.agents.propose_agent import propose_agent
-from src.agents.retrieval_gate import retrieval_gate, route_retrieval_gate
-from src.epistemic import EpistemicClassifierAgent
+from src.agents.retrieval_gate import retrieval_gate
 from src.hitl import EpistemicApprovalGate, HighImpactWriteCheckpoint, audit_log
-from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -517,12 +514,12 @@ if __name__ == "__main__":
     
     async def test_v22():
         result = await run_v22_query("Protein X inhibits pathway Y under condition Z")
-        print(f"\n=== GROUNDED RESPONSE ===")
+        print("\n=== GROUNDED RESPONSE ===")
         print(result.get("grounded_response", {}).get("summary", "No grounded response"))
-        print(f"\n=== EPISTEMIC PROPOSALS ===")
+        print("\n=== EPISTEMIC PROPOSALS ===")
         for prop in result.get("epistemic_update_proposal", [])[:3]:
             print(f"- {prop.get('claim_id')}: {prop.get('final_proposed_status')} (caps: {prop.get('cap_reasons', [])})")
-        print(f"\n=== WRITE INTENTS ===")
+        print("\n=== WRITE INTENTS ===")
         for intent in result.get("write_intents", [])[:3]:
             print(f"- {intent.get('intent_type')}: {intent.get('payload', {}).get('claim_id')}")
         print(f"\nStep count: {result.get('step_index', 0)}")

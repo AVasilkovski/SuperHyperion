@@ -7,13 +7,12 @@ Implements DePlot/MatCha/Qwen-VL pipeline per v2.1 specification.
 
 import base64
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Dict, Tuple
 from dataclasses import dataclass
 import logging
 import json
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -324,7 +323,7 @@ Include:
         if not extracted_data.structured_data:
             return False, 0.0
         
-        recon_code = self._generate_reconstruction_code(extracted_data)
+        _recon_code = self._generate_reconstruction_code(extracted_data)
         
         # In production, would execute code and compare images
         # For now, return confidence score as verification

@@ -6,8 +6,9 @@ Handles Python 3.13 compatibility with lazy imports.
 """
 
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from contextlib import contextmanager
+from datetime import datetime
 import logging
 
 from src.config import config
@@ -110,8 +111,8 @@ class TypeDBConnection:
         """
         if schema_paths is None:
             base = Path(__file__).parent.parent / "schema" / "scientific_knowledge.tql"
-            patch = Path(__file__).parent.parent / "schema" / "schema_v22_patch.tql"
-            schema_paths = [base, patch]
+            # patch = Path(__file__).parent.parent / "schema" / "schema_v22_patch.tql" # Merged into unified schema
+            schema_paths = [base]
 
         if self._mock_mode:
             for p in schema_paths:
@@ -346,7 +347,7 @@ class TypeDBConnection:
     
     def get_high_entropy_hypotheses(self, threshold: float = 0.4) -> List[Dict]:
         """Find hypotheses with high dialectical entropy (needing debate)."""
-        query = f"""
+        query = """
         match
             $h isa hypothesis,
                 has beta-alpha $a,

@@ -4,6 +4,39 @@ This document defines the canonical phased architecture of SuperHyperion.
 Each phase introduces strictly bounded capabilities with explicit epistemic guarantees.
 
 ------------------------------------------------------------
+## DESIGN PHILOSOPHY
+------------------------------------------------------------
+
+> **SuperHyperion optimizes for epistemic integrity and auditability over unconstrained novelty. Novel methods are supported via governed operator extension.**
+
+### Authority Model
+
+| Role | Authority | Sovereign? |
+|------|-----------|------------|
+| LLM | Advisory (ideas, designs, proposals) | ❌ |
+| Templates | Mechanical (truth-preserving execution) | ❌ |
+| Steward | Constitutional (enforces invariants) | ❌ |
+| Human | **Sovereign** (identity + belief mutation) | ✅ |
+
+### Two Sovereign Points
+
+1. **Scope Lock** — Identity formation ("What are we talking about?")
+2. **Write-Intent** — Belief mutation ("What becomes durable truth?")
+
+------------------------------------------------------------
+## EPISTEMIC STAGES (5-Stage Model)
+------------------------------------------------------------
+
+| Stage | Phases | Produces | Authority |
+|-------|--------|----------|-----------|
+| **EXPLORATION** | P1–P5 | scope-draft, speculative-hypothesis | LLM |
+| **COMMITMENT** | ScopeLockGate | scope-lock | **Human** |
+| **EXPERIMENTATION** | P6–P8 | template-execution, evidence-candidate | Templates |
+| **ADJUDICATION** | P9–P12 | epistemic-proposal, write-intent(staged) | Steward |
+| **MUTATION** | P13–P14 | durable KB updates | **Human** |
+
+
+------------------------------------------------------------
 ## PHASE 1 — CLAIM INGESTION
 ------------------------------------------------------------
 **Goal:**

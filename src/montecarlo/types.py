@@ -100,8 +100,10 @@ class ExperimentSpec(BaseModel):
     LLM-generated specification for a Monte Carlo experiment.
     
     INVARIANT: No speculative residue allowed. This is a grounded artifact.
+    INVARIANT: Must have scope_lock_id for grounded lineage.
     """
     claim_id: str
+    scope_lock_id: Optional[str] = None  # Required for grounded execution
     hypothesis: str
 
     template_id: Literal[

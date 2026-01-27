@@ -100,26 +100,42 @@ class TypeDBConnection:
         else:
             logger.info(f"Database already exists: {self.database}")
     
-    def load_schema(self, schema_path: Optional[Path] = None):
-        """Load TypeQL schema from file."""
-        if schema_path is None:
-            schema_path = Path(__file__).parent.parent / "schema" / "scientific_knowledge.tql"
+    def load_schema(self, schema_paths: Optional[List[Path]] = None):
+        """
+        Load TypeQL schema into database.
         
+        Args:
+            schema_paths: List of paths to .tql schema files. 
+                        If None, loads scientific_knowledge.tql and schema_v22_patch.tql.
+        """
+        if schema_paths is None:
+            base = Path(__file__).parent.parent / "schema" / "scientific_knowledge.tql"
+            patch = Path(__file__).parent.parent / "schema" / "schema_v22_patch.tql"
+            schema_paths = [base, patch]
+
         if self._mock_mode:
-            logger.info(f"[MOCK] Would load schema from: {schema_path}")
+            for p in schema_paths:
+                logger.info(f"[MOCK] Would load schema from: {p}")
             return
-        
-        schema_content = schema_path.read_text()
-        
+
+        try:
+            schema_content = "\n\n".join(p.read_text(encoding="utf-8") for p in schema_paths)
+        except Exception as e:
+            logger.error(f"Failed to read schema files: {e}")
+            return
+
         driver = self.connect()
         if driver is None:
             return
-            
-        with driver.session(self.database, SessionType.SCHEMA) as session:
-            with session.transaction(TransactionType.WRITE) as tx:
-                tx.query.define(schema_content)
-                tx.commit()
-                logger.info(f"Schema loaded from: {schema_path}")
+
+        try:
+            with driver.session(self.database, SessionType.SCHEMA) as session:
+                with session.transaction(TransactionType.WRITE) as tx:
+                    tx.query.define(schema_content)
+                    tx.commit()
+            logger.info(f"Schema loaded: {[p.name for p in schema_paths]}")
+        except Exception as e:
+            logger.error(f"Failed to load schema: {e}")
     
     @contextmanager
     def session(self, session_type=None):
@@ -233,15 +249,19 @@ class TypeDBConnection:
     def insert_source_reputation(
         self,
         entity_id: str,
+        entity_type: str,
         alpha: float = 1.0,
         beta: float = 1.0
     ):
         """Insert or update source reputation."""
         query = f"""
-        match $e has entity-id "{entity_id}";
-        insert $r (trusted-entity: $e) isa source-reputation,
+        match $e isa {entity_type}, has entity-id "{entity_id}";
+        insert
+        $s isa source-reputation,
             has reputation-alpha {alpha},
-            has reputation-beta {beta};
+            has reputation-beta {beta},
+            has last-updated "{datetime.now().isoformat()}";
+        (trusted-entity: $e) isa source-reputation;
         """
         self.query_insert(query)
     
@@ -255,26 +275,26 @@ class TypeDBConnection:
         # First get current values
         results = self.query_fetch(f"""
         match
-            $e has entity-id "{entity_id}";
+            $e isa $entity_type, has entity-id "{entity_id}";
             $r (trusted-entity: $e) isa source-reputation,
                 has reputation-alpha $a,
                 has reputation-beta $b;
-        fetch $r: reputation-alpha, reputation-beta;
+        fetch $r: reputation-alpha, reputation-beta, $e: entity-id, $entity_type;
         limit 1;
         """)
         
         if not results:
-            # Create new reputation
-            self.insert_source_reputation(
-                entity_id,
-                alpha=1.0 + (weight if positive else 0),
-                beta=1.0 + (0 if positive else weight)
-            )
+            # This should not happen if the entity exists and has reputation,
+            # but if it's a new entity or reputation, we need its type.
+            # For now, assume it's an agent if not found.
+            # TODO: Refine this to fetch entity type if reputation is not found.
+            logger.warning(f"No existing reputation found for {entity_id}. Cannot update.")
             return
         
         current = results[0]
         alpha = current.get('reputation-alpha', 1.0)
         beta = current.get('reputation-beta', 1.0)
+        entity_type = current.get('entity_type', 'agent') # Default to agent if not found
         
         if positive:
             alpha += weight
@@ -282,19 +302,31 @@ class TypeDBConnection:
             beta += weight
         
         # Update
-        query = f"""
-        match
-            $e has entity-id "{entity_id}";
-            $r (trusted-entity: $e) isa source-reputation;
-        delete
-            $r has reputation-alpha $old_a;
-            $r has reputation-beta $old_b;
-        insert
-            $r has reputation-alpha {alpha};
-            $r has reputation-beta {beta};
+        # v2.2 Fix: Separate delete and insert operations
+        delete_query = f"""
+        match 
+            $s isa source-reputation, has trusted-entity $entity;
+            $entity has entity-id "{entity_id}";
+        delete $s;
         """
-        # Note: TypeDB doesn't support delete+insert in one query, need two
-        self.query_delete(query)
+        
+        insert_query = f"""
+        match $entity isa {entity_type}, has entity-id "{entity_id}";
+        insert
+        $s isa source-reputation,
+            has reputation-alpha {alpha},
+            has reputation-beta {beta},
+            has last-updated "{datetime.now().isoformat()}";
+        (trusted-entity: $entity) isa source-reputation;
+        """
+        
+        if self._mock_mode:
+            logger.info(f"[MOCK] Would update reputation for {entity_id}")
+            return
+            
+        # Execute separately
+        self.query_delete(delete_query)
+        self.query_insert(insert_query)
     
     def detect_contradictions(self) -> List[Dict]:
         """Find contradicting assertions in the graph."""

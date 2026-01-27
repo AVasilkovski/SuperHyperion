@@ -27,6 +27,7 @@ attribute orcid, value string;
 attribute concept-id, value string;
 attribute agent-id, value string;
 attribute claim-id, value string;  # NEW v2.2 hardening
+attribute scope-lock-id, value string;  # NEW HITL: links grounded artifacts to approved scope
 
 # --- Text Content ---
 attribute title, value string;
@@ -141,6 +142,13 @@ attribute intent-status, value string;
 attribute impact-score, value double;
 
 attribute created-at, value datetime;
+attribute expires-at, value datetime;
+attribute defer-until, value datetime;
+attribute supersedes-intent-id, value string;
+attribute actor-type, value string;  # "human" | "system"
+attribute from-status, value string;
+attribute to-status, value string;
+attribute rationale, value string;
 
 attribute severity, value string;
 attribute success, value boolean;
@@ -279,6 +287,7 @@ entity template-execution,
   owns template-id,
   owns entity-id,
   owns claim-id,        # Explicit claim-id field
+  owns scope-lock-id,   # Links to approved scope
   owns success,
   owns runtime-ms,
   owns params-hash,
@@ -335,6 +344,9 @@ entity write-intent,
   owns intent-type,
   owns intent-status,
   owns impact-score,
+  owns scope-lock-id,           # Required for executable intents
+  owns expires-at,              # Hard expiry timestamp
+  owns supersedes-intent-id,    # References expired/cancelled intent
   owns json,
   owns created-at;
 
@@ -344,14 +356,22 @@ entity validation-evidence,
   owns template-id,
   owns execution-id,
   owns claim-id,       # Explicit claim-id field
+  owns scope-lock-id,  # Links to approved scope
   owns success,
   owns confidence-score,
   owns json,
   owns created-at;
 
 entity intent-status-event,
+  owns entity-id @key,
   owns intent-id,
-  owns intent-status,
+  owns from-status,
+  owns to-status,
+  owns actor-type,              # "human" | "system"
+  owns agent-id,                # Actor ID
+  owns rationale,
+  owns defer-until,             # For deferred transitions
+  owns execution-id,            # For executed transitions
   owns json,
   owns created-at;
 
@@ -367,6 +387,41 @@ entity speculative-hypothesis,
   owns confidence-score,
   owns json,
   owns created-at;
+
+# ---------------------------------------------------------------------------
+# HITL Constitutional Hardening: Scope Lifecycle
+# ---------------------------------------------------------------------------
+
+# scope-draft: Mutable, iterative refinement (pre-commitment)
+entity scope-draft,
+  owns entity-id @key,
+  owns session-id,
+  owns content,                    # Hypothesis H'
+  owns json,                       # Full decomposition payload
+  owns derivation-hash,            # Hash of canonical JSON
+  owns created-at;
+
+# scope-lock: Immutable signed artifact (commitment point)
+entity scope-lock,
+  owns entity-id @key,
+  owns session-id,
+  owns content,                    # Final H'
+  owns json,                       # claim_ids[], constraints, decomposition
+  owns derivation-hash,            # Lock hash for audit
+  owns hitl-approved-by,           # Human approver
+  owns hitl-approval-time,         # Approval timestamp
+  owns intent-status,              # "locked" | "expired"
+  owns created-at;
+
+# ---------------------------------------------------------------------------
+# Daily Meta-Oversight Reports
+# ---------------------------------------------------------------------------
+
+entity meta-oversight-report,
+  owns entity-id @key,
+  owns created-at,                 # Report date
+  owns severity,                   # Overall severity
+  owns json;                       # Full report payload
 
 
 # ============================================================================
@@ -548,6 +603,19 @@ epistemic-proposal plays session-has-epistemic-proposal:proposal;
 hitl-decision plays session-has-hitl-decision:hitl-decision;
 write-intent plays session-has-write-intent:write-intent;
 validation-evidence plays session-has-evidence:evidence;
+
+# HITL Scope Lifecycle Relations
+relation session-has-scope-draft, relates session, relates draft;
+relation session-has-scope-lock, relates session, relates lock;
+relation session-has-meta-oversight, relates session, relates report;
+
+run-session plays session-has-scope-draft:session,
+           plays session-has-scope-lock:session,
+           plays session-has-meta-oversight:session;
+
+scope-draft plays session-has-scope-draft:draft;
+scope-lock plays session-has-scope-lock:lock;
+meta-oversight-report plays session-has-meta-oversight:report;
 
 # v2.2 Proposition Links (first-class queryability)
 relation proposal-targets-proposition,

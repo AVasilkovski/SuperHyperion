@@ -5,13 +5,12 @@ v2.1 Step 3: Splits clarified hypothesis H′ into atomic claims C1...Cn.
 Each claim should be independently verifiable.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 from dataclasses import dataclass
 import logging
 import json
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.config import config
 
 logger = logging.getLogger(__name__)
 

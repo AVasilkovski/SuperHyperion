@@ -6,7 +6,6 @@ import logging
 from dataclasses import asdict
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.epistemic.status import EpistemicStatus
 
 logger = logging.getLogger(__name__)
 class OntologySteward(BaseAgent):

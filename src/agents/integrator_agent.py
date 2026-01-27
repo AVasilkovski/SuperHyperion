@@ -5,11 +5,10 @@ v2.1 Step 12: Synthesizes dual outputs (grounded + speculative).
 The final synthesis agent before ontology updates.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import logging
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.epistemic.status import EpistemicStatus
 
 logger = logging.getLogger(__name__)
 

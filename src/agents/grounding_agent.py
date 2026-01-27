@@ -9,7 +9,6 @@ from typing import Dict, Any, List
 import logging
 
 from src.agents.base_agent import BaseAgent, AgentContext
-from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,7 @@ class GroundingAgent(BaseAgent):
         Retrieve constraint-anchored context for a single claim.
         """
         subject = claim.get("subject", "")
-        relation = claim.get("relation", "")
+        _relation = claim.get("relation", "")  # Reserved for future use
         obj = claim.get("object", "")
         
         # Query for domain axioms
@@ -102,8 +101,8 @@ class GroundingAgent(BaseAgent):
     def _retrieve_prior_evidence(self, claim: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Retrieve prior evidence for the claim."""
         try:
-            content = claim.get("content", "")
-            query = f"""
+            _content = claim.get("content", "")  # Reserved for future use
+            query = """
                 match
                     $h isa hypothesis, has confidence-score $c;
                     $h has belief-state $s;

@@ -113,11 +113,12 @@ def test_experiment_spec_rejects_nested_speculative_content():
     """ExperimentSpec rejects nested dicts with epistemic_status=speculative."""
     from src.montecarlo.types import ExperimentSpec
     
-    with pytest.raises(ValueError, match="INVARIANT VIOLATION.*speculative content"):
+    with pytest.raises(ValueError, match="INVARIANT VIOLATION.*[Ss]peculative"):
         ExperimentSpec(
             claim_id="claim-1",
             hypothesis="test",
             template_id="numeric_consistency",
+            scope_lock_id="scope-1",
             params={"nested": {"epistemic_status": "speculative"}},
         )
 
@@ -130,6 +131,7 @@ def test_experiment_spec_accepts_clean_spec():
         claim_id="claim-1",
         hypothesis="Verify that X holds",
         template_id="numeric_consistency",
+        scope_lock_id="scope-1",
         params={"claimed_value": 0.5, "observed_values": [0.4, 0.5, 0.6]},
         assumptions={"independence_assumed": True},
     )

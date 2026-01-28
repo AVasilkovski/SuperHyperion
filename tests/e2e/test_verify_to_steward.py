@@ -62,6 +62,7 @@ class TestVerifyAgent(VerifyAgent):
             claim_id=claim["claim_id"],
             hypothesis=f"Verify: {claim['content']}",
             template_id=self.mock_template_id,
+            scope_lock_id="scope-e2e-1",
             params={"n_runs": 1000, "data": [1,2,3,4,5]},
             units={"estimate": "unit"},
             assumptions={"independence_assumed": True},
@@ -74,6 +75,7 @@ class TestVerifyAgent(VerifyAgent):
         return TemplateExecution(
             execution_id=f"exec-{spec.claim_id}",
             template_id=spec.template_id,
+            template_qid=f"{spec.template_id}@1.0.0",
             claim_id=spec.claim_id,
             params=spec.params,
             result={
@@ -97,6 +99,11 @@ class TestOntologySteward(OntologySteward):
 
     def insert_to_graph(self, query: str):
         self.db.query_insert(query)
+    
+    def _seal_operator_before_mint(self, *args, **kwargs):
+        """Skip seal verification for mock E2E testing."""
+        # In E2E tests, we don't have a real TypeDB, so skip seal
+        pass
 
 # ----------------------------
 # Test Cases

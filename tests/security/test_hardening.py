@@ -227,10 +227,13 @@ async def test_write_template_permissions():
         "confidence_level": 0.95
     }
     
+    # Use qualified template_id format (Phase 14.5 requirement)
+    qualified_id = f"{tmpl.template_id}@1.0.0"
+    
     # 1. Non-steward caller -> PermissionError
     with pytest.raises(PermissionError):
         registry.run_template(
-            template_id=tmpl.template_id,
+            template_id=qualified_id,
             params=valid_params,
             caller_role="verify" 
         )
@@ -238,7 +241,7 @@ async def test_write_template_permissions():
     # 2. Steward caller -> Success (or at least no PermissionError)
     # This might fail validation/run if params are wrong, but PermissionError shouldn't be raised
     result = registry.run_template(
-        template_id=tmpl.template_id, 
+        template_id=qualified_id, 
         params=valid_params,
         caller_role="steward"
     )

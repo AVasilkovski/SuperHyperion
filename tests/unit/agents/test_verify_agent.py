@@ -77,7 +77,8 @@ class MockRegistry(TemplateRegistry):
         return TemplateExecution(
             execution_id="exec-mock",
             template_id=template_id,
-            claim_id=context.get("claim_id", "unknown"),
+            template_qid=f"{template_id}@1.0.0",
+            claim_id=context.get("claim_id", "unknown") if context else "unknown",
             params=params,
             result=result,
             success=True,
@@ -94,13 +95,13 @@ async def test_p13_verify_pipeline_happy_path():
     agent = VerifyAgent()
     agent.registry = MockRegistry()
     
-    # Mock LLM design step to return a valid spec
     # Mock LLM design step to return a valid spec (async)
     async def mock_design(*args, **kwargs):
         return ExperimentSpec(
             claim_id="claim-1",
             hypothesis="Test hypothesis",
             template_id="bootstrap_ci",
+            scope_lock_id="scope-1",
             params={"data": [1,2,3]},
             units={"estimate": "kg"}
         )
@@ -135,12 +136,12 @@ async def test_p13_verify_fragility_detection():
     agent.registry = MockRegistry()
     
     # Mock LLM to request fragility simulation
-    # Mock LLM to request fragility simulation
     async def mock_fragile_design(*args, **kwargs):
         return ExperimentSpec(
             claim_id="claim-fragile",
             hypothesis="Fragile hypothesis",
             template_id="sensitivity_suite",
+            scope_lock_id="scope-1",
             params={"simulate_fragility": True} # Trigger mock behavior
         )
     agent._design_experiment_spec = mock_fragile_design
@@ -169,6 +170,7 @@ async def test_p13_verify_diagnostic_failure():
             claim_id="claim-bad-diag",
             hypothesis="Bad ESS",
             template_id="bayesian_update",
+            scope_lock_id="scope-1",
             params={"simulate_bad_ess": True}
         )
     agent._design_experiment_spec = mock_bad_diag_design
@@ -198,6 +200,7 @@ async def test_p13_verify_budget_failure():
             claim_id="claim-slow",
             hypothesis="Slow Run",
             template_id="bootstrap_ci",
+            scope_lock_id="scope-1",
             params={"data": [1,2,3]}
         )
     agent._design_experiment_spec = mock_slow_design
@@ -228,6 +231,7 @@ async def test_p13_verify_citation_check_registered_and_runs():
             claim_id="claim-cite",
             hypothesis="Must have citations",
             template_id="citation_check",
+            scope_lock_id="scope-1",
             params={"evidence_bundle": [{"claim_id": "claim-cite", "source": "paper-1"}], "claim_id": "claim-cite"},
             units={"estimate": "unit"}
         )
@@ -260,9 +264,12 @@ def test_registry_has_all_experiment_spec_templates():
     try:
         # Pydantic v2
         field_info = ExperimentSpec.model_fields["template_id"]
-        # Handle Union/Literal inspection
+        # Handle Union/Literal inspection - filter to only string values
         if hasattr(field_info.annotation, "__args__"):
-             required = set(field_info.annotation.__args__)
+            raw_args = field_info.annotation.__args__
+            # Filter to only string values (Literal args are strings,
+            # but Optional adds NoneType to the union)
+            required = {arg for arg in raw_args if isinstance(arg, str)}
         else:
              # Fallback if simple type (unlikely for Literal)
              required = set()

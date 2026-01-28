@@ -463,7 +463,8 @@ class EffectDirectionTemplate(Template):
 class TemplateExecution:
     """Record of a template execution for auditing."""
     execution_id: str
-    template_id: str
+    template_qid: str  # Canonical Qualified ID
+    template_id: str   # Derived/Legacy ID
     claim_id: str
     params: Dict[str, Any]
     result: Dict[str, Any]
@@ -511,17 +512,51 @@ class TemplateRegistry:
     
     def run_template(
         self,
-        template_id: str,
+        template_id: str,  # This might be qid or legacy id depending on caller
         params: Dict[str, Any],
         context: Optional[Dict] = None,
         caller_role: str = "verify",
+        template_qid: Optional[str] = None, # Explicit QID if avail
     ) -> TemplateExecution:
         """
         Run a template with validated parameters.
         
         Returns a TemplateExecution record for auditing.
         """
-        template = self.get(template_id)
+        # Canonicalization Logic
+        # Canonicalization Logic (Phase 14.5 Refinement)
+        real_qid = ""
+        real_tid = ""
+
+        # 1. Prefer explicit QID argument
+        if template_qid:
+            if "@" not in template_qid:
+                 return TemplateExecution(
+                    template_qid=template_qid,
+                    template_id=template_id,
+                    success=False,
+                    result={"error": f"UNQUALIFIED_TEMPLATE_QID: Provided qid '{template_qid}' is defective."},
+                    execution_id=""
+                 )
+            real_qid = template_qid
+            real_tid = template_qid.split("@")[0]
+            
+        # 2. Allow template_id as QID if fully qualified
+        elif template_id and "@" in template_id:
+            real_qid = template_id
+            real_tid = template_id.split("@")[0]
+            
+        # 3. CRITICAL: Hard Fail if no qualified ID (Kill @unqualified fallback)
+        else:
+             return TemplateExecution(
+                template_qid="",
+                template_id=template_id,
+                success=False,
+                result={"error": f"UNQUALIFIED_TEMPLATE_QID: template_id '{template_id}' must be qualified (name@X.Y.Z) or template_qid provided."},
+                execution_id=""
+             ) 
+        
+        template = self.get(real_tid)
         
         # Enforce write template restrictions
         if template.is_write_template and caller_role != "steward":
@@ -536,7 +571,8 @@ class TemplateRegistry:
         except Exception as e:
             return TemplateExecution(
                 execution_id=f"exec-{time.time_ns()}",
-                template_id=template_id,
+                template_qid=real_qid,
+                template_id=real_tid,
                 claim_id=context.get("claim_id", "unknown"),
                 params=params,
                 result={"error": str(e)},
@@ -578,7 +614,8 @@ class TemplateRegistry:
         
         return TemplateExecution(
             execution_id=f"exec-{time.time_ns()}",
-            template_id=template_id,
+            template_qid=real_qid,
+            template_id=real_tid,
             claim_id=context.get("claim_id", "unknown"),
             params=params_dict,
             result=result,

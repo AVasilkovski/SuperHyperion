@@ -149,6 +149,16 @@ class TemplateSpec:
 # Code Hash Utilities
 # =============================================================================
 
+
+def sha256_json_strict(data: Any) -> str:
+    """
+    Strict hash of JSON-serializable data.
+    Raises exception on failure instead of fallback.
+    """
+    s = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
 def normalize_ast(source: str) -> str:
     """
     Normalize Python source to AST dump (ignoring line numbers/formatting).
@@ -181,6 +191,14 @@ def compute_code_hash(cls: type, strict: bool = False) -> str:
         # If we can't inspect source (e.g. REPL), return placeholder
         # In PROD this should probably fail, but for now we maintain robustness
         return f"hash-error-{str(e)}"
+
+def compute_code_hash_strict(cls: type) -> str:
+    """
+    Compute code hash of template class, failing hard on error.
+    
+    Constitutional Seal Usage: This MUST be used during freeze/validation.
+    """
+    return compute_code_hash(cls, strict=True)
 
 
 # =============================================================================

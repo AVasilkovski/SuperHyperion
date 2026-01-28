@@ -85,9 +85,11 @@ class Evidence:
     hypothesis_id: str
     claim_id: Optional[str]
     template_id: str
-    test_description: str
-    execution_id: str
-    result: Dict[str, Any]
+    template_qid: Optional[str] = None  # Phase 14.5: Qualified template ID
+    scope_lock_id: Optional[str] = None  # Phase 14.5: Scope lock ID
+    test_description: str = ""
+    execution_id: str = ""
+    result: Dict[str, Any] = field(default_factory=dict)
     metrics: Dict[str, float] = field(default_factory=dict)
     
     # v2.2 Phase 13 Fields

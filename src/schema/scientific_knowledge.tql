@@ -2,10 +2,10 @@
 # SuperHyperion Unified Schema (v2.1 + v2.2 + Phase 11)
 # TypeDB TypeQL Schema Definition
 #
-# Includes:
-# - v2.1 Probabilistic SuperHyperGraph Schema
-# - v2.2 Audit / Session / MonteCarlo persistence artifacts
-# - Phase 11 Speculative Hypotheses (stored but segregated from validation-evidence)
+  # Includes:
+  # - v2.1 Probabilistic SuperHyperGraph Schema
+  # - v2.2 Audit / Session / MonteCarlo persistence artifacts
+  # - Phase 11 Speculative Hypotheses (stored but segregated from validation-evidence)
 #
 # NOTE:
 # - Single unified file (NO patches)
@@ -114,6 +114,7 @@ attribute trace-summary, value string;
 
 attribute execution-id, value string;
 attribute template-id, value string;
+attribute template-qid, value string;  # Qualified ID (name@version)
 attribute runtime-ms, value long;
 attribute params-hash, value string;
 attribute result-hash, value string;
@@ -285,6 +286,7 @@ entity trace-entry,
 entity template-execution,
   owns execution-id @key,
   owns template-id,
+  owns template-qid,
   owns entity-id,
   owns claim-id,        # Explicit claim-id field
   owns scope-lock-id,   # Links to approved scope
@@ -354,6 +356,7 @@ entity validation-evidence,
   owns entity-id @key,
   owns content,
   owns template-id,
+  owns template-qid,
   owns execution-id,
   owns claim-id,       # Explicit claim-id field
   owns scope-lock-id,  # Links to approved scope

@@ -714,8 +714,9 @@ def q_insert_validation_evidence(session_id: str, ev: dict) -> str:
         has confidence-score {conf},
         has json "{escape(json.dumps(payload, sort_keys=True))}",
         has created-at {iso_now()};
-    (session: $s, validation-evidence: $v) isa session-has-validation-evidence;
+    (session: $s, evidence: $v) isa session-has-evidence;
     (evidence: $v, proposition: $p) isa evidence-for-proposition;
+
     '''
 
 def q_insert_speculative_hypothesis(

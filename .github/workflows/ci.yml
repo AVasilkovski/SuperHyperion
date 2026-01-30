@@ -55,8 +55,7 @@ jobs:
           from typedb.driver import TypeDB, TransactionType
 
           DB = "scientific_knowledge"
-
-          with TypeDB.core_driver("localhost:1729") as driver:
+          with TypeDB.driver("localhost:1729") as driver:
               # create DB if missing
               try:
                   driver.databases.create(DB)

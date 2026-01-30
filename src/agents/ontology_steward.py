@@ -704,7 +704,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict) -> str:
     match $p isa proposition, has entity-id "{escape(claim_id)}";
     insert
     $v isa validation-evidence,
-        has evidence-id "{escape(evid_id)}",
+        has entity-id "{escape(evid_id)}",
         has claim-id "{escape(claim_id)}",
         has execution-id "{escape(exec_id)}",
         has template-qid "{escape(template_qid)}",

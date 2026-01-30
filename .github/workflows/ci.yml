@@ -53,22 +53,22 @@ jobs:
         run: |
           python - <<'PY'
           from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
-
+          
           DB = "scientific_knowledge"
           creds = Credentials(username="", password="")
           opts = DriverOptions()
+          opts.tls_enabled = False
 
           with TypeDB.driver("localhost:1729", creds, opts) as driver:
-              # create DB if missing
-              try:
+                try:
                   driver.databases.create(DB)
-              except Exception:
-                  pass
+                  except Exception:
+                pass
 
               with driver.transaction(DB, TransactionType.SCHEMA) as tx:
-                  with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
-                      tx.query(f.read()).resolve()
-                  tx.commit()
+                with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
+                   tx.query(f.read()).resolve()
+                tx.commit()
 
           print("Schema loaded successfully")
           PY

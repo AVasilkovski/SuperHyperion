@@ -12,7 +12,7 @@ jobs:
 
     services:
       typedb:
-        image: vaticle/typedb:2.18.2
+        image: vaticle/typedb:2.28.0
         ports:
           - 1729:1729
         options: >-
@@ -51,16 +51,21 @@ jobs:
 
       - name: Load TypeDB schema
         run: |
-          python -c "
+          python - <<'PY'
           from typedb.driver import TypeDB, SessionType, TransactionType
-          with TypeDB.core_driver('localhost:1729') as driver:
-              driver.databases.create('scientific_knowledge')
-              with driver.session('scientific_knowledge', SessionType.SCHEMA) as session:
+
+          DB = "scientific_knowledge"
+          with TypeDB.core_driver("localhost:1729") as driver:
+              if not driver.databases.contains(DB):
+                  driver.databases.create(DB)
+
+              with driver.session(DB, SessionType.SCHEMA) as session:
                   with session.transaction(TransactionType.WRITE) as tx:
-                      with open('src/schema/scientific_knowledge.tql', 'r') as f:
+                      with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
                           tx.query.define(f.read())
                       tx.commit()
-          print('Schema loaded successfully')
+
+          print("Schema loaded successfully")
           "
 
       - name: Run unit tests

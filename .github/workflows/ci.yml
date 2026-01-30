@@ -51,7 +51,6 @@ jobs:
 
       - name: Load TypeDB schema
         run: |
-          pip install typedb-driver
           python -c "
           from typedb.driver import TypeDB, SessionType, TransactionType
           with TypeDB.core_driver('localhost:1729') as driver:

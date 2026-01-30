@@ -12,7 +12,7 @@ jobs:
 
     services:
       typedb:
-        image: vaticle/typedb:2.28.0
+        image: typedb/typedb:latest
         ports:
           - 1729:1729
         options: >-
@@ -52,18 +52,22 @@ jobs:
       - name: Load TypeDB schema
         run: |
           python - <<'PY'
-          from typedb.driver import TypeDB, SessionType, TransactionType
+          from typedb.driver import TypeDB, TransactionType
 
           DB = "scientific_knowledge"
-          with TypeDB.core_driver("localhost:1729") as driver:
-              if not driver.databases.contains(DB):
-                  driver.databases.create(DB)
 
-              with driver.session(DB, SessionType.SCHEMA) as session:
-                  with session.transaction(TransactionType.WRITE) as tx:
-                      with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
-                          tx.query.define(f.read())
-                      tx.commit()
+          with TypeDB.core_driver("localhost:1729") as driver:
+              # create DB if missing
+              try:
+                  driver.databases.create(DB)
+              except Exception:
+                  pass
+
+              # load schema
+              with driver.transaction(DB, TransactionType.SCHEMA) as tx:
+                  with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
+                      tx.query(f.read()).resolve()
+                  tx.commit()
 
           print("Schema loaded successfully")
           PY

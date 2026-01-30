@@ -61,14 +61,14 @@ jobs:
 
           with TypeDB.driver("localhost:1729", creds, opts) as driver:
                 try:
-                  driver.databases.create(DB)
-                  except Exception:
-                pass
+                    driver.databases.create(DB)
+                except Exception:
+                    pass
 
-              with driver.transaction(DB, TransactionType.SCHEMA) as tx:
-                with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
-                   tx.query(f.read()).resolve()
-                tx.commit()
+                with driver.transaction(DB, TransactionType.SCHEMA) as tx:
+                  with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
+                    tx.query(f.read()).resolve()
+                  tx.commit()
 
           print("Schema loaded successfully")
           PY

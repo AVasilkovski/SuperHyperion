@@ -1,35 +1,19 @@
-# ============================================================================
-# SuperHyperion Unified Schema (v2.1 + v2.2 + Phase 11)
-# TypeDB TypeQL Schema Definition
-#
-  # Includes:
-  # - v2.1 Probabilistic SuperHyperGraph Schema
-  # - v2.2 Audit / Session / MonteCarlo persistence artifacts
-  # - Phase 11 Speculative Hypotheses (stored but segregated from validation-evidence)
-#
-# NOTE:
-# - Single unified file (NO patches)
-# - Exactly one 'define'
-# - Avoids collision with v2.1 'hypothesis' relation by using 'speculative-hypothesis' entity
-# - Uses 'hypothesis' role label for speculative relations for clarity
-# ============================================================================
-
 define
 
-# ============================================================================
-# ATTRIBUTE TYPES (v2.1 + v2.2)
-# ============================================================================
+// ============================================================================
+// ATTRIBUTE TYPES (v2.1 + v2.2)
+// ============================================================================
 
-# --- Identifiers ---
+// --- Identifiers ---
 attribute entity-id, value string;
 attribute doi, value string;
 attribute orcid, value string;
 attribute concept-id, value string;
 attribute agent-id, value string;
-attribute claim-id, value string;  # NEW v2.2 hardening
-attribute scope-lock-id, value string;  # NEW HITL: links grounded artifacts to approved scope
+attribute claim-id, value string;  // NEW v2.2 hardening
+attribute scope-lock-id, value string;  // NEW HITL: links grounded artifacts to approved scope
 
-# --- Text Content ---
+// --- Text Content ---
 attribute title, value string;
 attribute abstract, value string;
 attribute name, value string;
@@ -42,13 +26,13 @@ attribute mechanism-description, value string;
 attribute surface-form, value string;
 attribute canonical-form, value string;
 
-# --- Dates ---
+// --- Dates ---
 attribute publication-date, value datetime;
 attribute proposed-date, value datetime;
 attribute verified-at, value datetime;
 attribute last-updated, value datetime;
 
-# --- Probabilistic Scores ---
+// --- Probabilistic Scores ---
 attribute confidence-score, value double;
 attribute evidence-weight, value double;
 attribute extraction-confidence, value double;
@@ -57,49 +41,49 @@ attribute causal-strength, value double;
 attribute conditional-probability, value double;
 attribute conflict-strength, value double;
 
-# --- Bayesian Parameters (Beta Distribution) ---
+// --- Bayesian Parameters (Beta Distribution) ---
 attribute beta-alpha, value double;
 attribute beta-beta, value double;
 attribute reputation-alpha, value double;
 attribute reputation-beta, value double;
 
-# --- Status Enums ---
-attribute belief-state, value string;        # "proposed", "verified", "refuted", "debated"
-attribute verification-status, value string; # "pending", "approved", "rejected"
-attribute resolution-status, value string;   # "unresolved", "resolved", "escalated"
-attribute verdict, value string;             # "valid", "invalid", "uncertain"
+// --- Status Enums ---
+attribute belief-state, value string;        // "proposed", "verified", "refuted", "debated"
+attribute verification-status, value string; // "pending", "approved", "rejected"
+attribute resolution-status, value string;   // "unresolved", "resolved", "escalated"
+attribute verdict, value string;             // "valid", "invalid", "uncertain"
 
-# --- v2.1 Epistemic Status (5-state classification) ---
-attribute epistemic-status, value string;    # "proven", "supported", "unresolved", "speculative", "refuted"
+// --- v2.1 Epistemic Status (5-state classification) ---
+attribute epistemic-status, value string;    // "proven", "supported", "unresolved", "speculative", "refuted"
 attribute last-validation-time, value datetime;
 attribute source-reputation-prior, value double;
-attribute hitl-approved-by, value string;    # Human approver ID
+attribute hitl-approved-by, value string;    // Human approver ID
 attribute hitl-approval-time, value datetime;
 
-# --- Cache / Performance ---
+// --- Cache / Performance ---
 attribute cached-confidence, value double;
 attribute valid-duration, value long;
 attribute computation-cost, value double;
 attribute derivation-hash, value string;
 
-# --- File / Media ---
+// --- File / Media ---
 attribute file-path, value string;
 attribute media-type, value string;
-attribute bounding-box, value string;        # JSON string: {"x1":0,"y1":0,"x2":100,"y2":100}
+attribute bounding-box, value string;        // JSON string: {"x1":0,"y1":0,"x2":100,"y2":100}
 attribute page-number, value long;
 
-# --- VLM Verification ---
+// --- VLM Verification ---
 attribute code-snippet, value string;
 attribute ssim-score, value double;
 attribute vlm-similarity-score, value double;
 
-# --- Vector Embeddings (stored as JSON string) ---
+// --- Vector Embeddings (stored as JSON string) ---
 attribute embedding, value string;
 attribute cluster-centroid, value string;
 
-# ---------------------------------------------------------------------------
-# v2.2 Audit / Session / MC Attributes
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// v2.2 Audit / Session / MC Attributes
+// ---------------------------------------------------------------------------
 
 attribute session-id, value string;
 attribute run-status, value string;
@@ -114,7 +98,7 @@ attribute trace-summary, value string;
 
 attribute execution-id, value string;
 attribute template-id, value string;
-attribute template-qid, value string;  # Qualified ID (name@version)
+attribute template-qid, value string;  // Qualified ID (name@version)
 attribute runtime-ms, value long;
 attribute params-hash, value string;
 attribute result-hash, value string;
@@ -146,7 +130,7 @@ attribute created-at, value datetime;
 attribute expires-at, value datetime;
 attribute defer-until, value datetime;
 attribute supersedes-intent-id, value string;
-attribute actor-type, value string;  # "human" | "system"
+attribute actor-type, value string;  // "human" | "system"
 attribute from-status, value string;
 attribute to-status, value string;
 attribute rationale, value string;
@@ -154,12 +138,32 @@ attribute rationale, value string;
 attribute severity, value string;
 attribute success, value boolean;
 
+attribute version, value string;
+attribute spec-hash, value string;
+attribute code-hash, value string;
+attribute deps-hash, value string;
+attribute status, value string;
+attribute approved-by, value string;
+attribute approved-at, value datetime;
+attribute frozen, value boolean;
+attribute frozen-at, value datetime;
+attribute first-evidence-id, value string;
+attribute freeze-claim-id, value string;
+attribute freeze-scope-lock-id, value string;
+attribute tainted, value boolean;
+attribute tainted-at, value datetime;
+attribute tainted-reason, value string;
+attribute superseded-by, value string;
 
-# ============================================================================
-# ENTITY TYPES (v2.1 + v2.2 + Phase 11)
-# ============================================================================
+attribute event-type, value string;
+attribute actor, value string;
 
-# --- Abstract Base Entity with Probabilistic Metadata ---
+
+// ============================================================================
+// ENTITY TYPES (v2.1 + v2.2 + Phase 11)
+// ============================================================================
+
+// --- Abstract Base Entity with Probabilistic Metadata ---
 entity probabilistic-concept,
     abstract,
     owns entity-id @key,
@@ -169,7 +173,7 @@ entity probabilistic-concept,
     owns last-updated,
     owns derivation-hash;
 
-# --- Scientific Domain Entities ---
+// --- Scientific Domain Entities ---
 entity scientific-entity sub probabilistic-concept,
     abstract,
     owns label,
@@ -192,7 +196,7 @@ entity concept sub scientific-entity,
     plays hierarchy:parent,
     plays hierarchy:child;
 
-# --- Publication & Provenance Entities ---
+// --- Publication & Provenance Entities ---
 entity publication,
     owns doi @key,
     owns title,
@@ -221,7 +225,7 @@ entity figure,
     plays extraction:source,
     plays belief-assertion:source;
 
-# --- Agent Entities ---
+// --- Agent Entities ---
 entity agent,
     owns agent-id @key,
     owns name,
@@ -233,7 +237,7 @@ entity agent,
     plays socratic-debate:moderator,
     plays source-reputation:trusted-entity;
 
-# --- Proposition (Bayesian Variable) ---
+// --- Proposition (Bayesian Variable) ---
 entity proposition sub probabilistic-concept,
     owns content,
     owns belief-state,
@@ -244,13 +248,13 @@ entity proposition sub probabilistic-concept,
     plays truth-assertion:subject,
     plays belief-assertion:subject;
 
-# --- Predicate Cluster ---
+// --- Predicate Cluster ---
 entity predicate-cluster,
     owns canonical-form,
     owns cluster-centroid,
     plays predicate-mapping:cluster;
 
-# --- Visual Evidence ---
+// --- Visual Evidence ---
 entity ingestion-artifact,
     owns file-path,
     owns media-type,
@@ -264,9 +268,9 @@ entity reconstruction-attempt,
     owns verdict,
     plays visual-verification:reconstruction;
 
-# ---------------------------------------------------------------------------
-# v2.2 Audit / Session / MC Entities
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// v2.2 Audit / Session / MC Entities
+// ---------------------------------------------------------------------------
 
 entity run-session,
   owns session-id @key,
@@ -288,8 +292,8 @@ entity template-execution,
   owns template-id,
   owns template-qid,
   owns entity-id,
-  owns claim-id,        # Explicit claim-id field
-  owns scope-lock-id,   # Links to approved scope
+  owns claim-id,        // Explicit claim-id field
+  owns scope-lock-id,   // Links to approved scope
   owns success,
   owns runtime-ms,
   owns params-hash,
@@ -346,9 +350,9 @@ entity write-intent,
   owns intent-type,
   owns intent-status,
   owns impact-score,
-  owns scope-lock-id,           # Required for executable intents
-  owns expires-at,              # Hard expiry timestamp
-  owns supersedes-intent-id,    # References expired/cancelled intent
+  owns scope-lock-id,           // Required for executable intents
+  owns expires-at,              // Hard expiry timestamp
+  owns supersedes-intent-id,    // References expired/cancelled intent
   owns json,
   owns created-at;
 
@@ -358,8 +362,8 @@ entity validation-evidence,
   owns template-id,
   owns template-qid,
   owns execution-id,
-  owns claim-id,       # Explicit claim-id field
-  owns scope-lock-id,  # Links to approved scope
+  owns claim-id,       // Explicit claim-id field
+  owns scope-lock-id,  // Links to approved scope
   owns success,
   owns confidence-score,
   owns json,
@@ -370,17 +374,17 @@ entity intent-status-event,
   owns intent-id,
   owns from-status,
   owns to-status,
-  owns actor-type,              # "human" | "system"
-  owns agent-id,                # Actor ID
+  owns actor-type,              // "human" | "system"
+  owns agent-id,                // Actor ID
   owns rationale,
-  owns defer-until,             # For deferred transitions
-  owns execution-id,            # For executed transitions
+  owns defer-until,             // For deferred transitions
+  owns execution-id,            // For executed transitions
   owns json,
   owns created-at;
 
-# ---------------------------------------------------------------------------
-# Phase 11: Speculative Hypotheses (standalone, non-grounding)
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Phase 11: Speculative Hypotheses (standalone, non-grounding)
+// ---------------------------------------------------------------------------
 
 entity speculative-hypothesis,
   owns entity-id @key,
@@ -391,58 +395,58 @@ entity speculative-hypothesis,
   owns json,
   owns created-at;
 
-# ---------------------------------------------------------------------------
-# HITL Constitutional Hardening: Scope Lifecycle
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// HITL Constitutional Hardening: Scope Lifecycle
+// ---------------------------------------------------------------------------
 
-# scope-draft: Mutable, iterative refinement (pre-commitment)
+// scope-draft: Mutable, iterative refinement (pre-commitment)
 entity scope-draft,
   owns entity-id @key,
   owns session-id,
-  owns content,                    # Hypothesis H'
-  owns json,                       # Full decomposition payload
-  owns derivation-hash,            # Hash of canonical JSON
+  owns content,                    // Hypothesis H'
+  owns json,                       // Full decomposition payload
+  owns derivation-hash,            // Hash of canonical JSON
   owns created-at;
 
-# scope-lock: Immutable signed artifact (commitment point)
+// scope-lock: Immutable signed artifact (commitment point)
 entity scope-lock,
   owns entity-id @key,
   owns session-id,
-  owns content,                    # Final H'
-  owns json,                       # claim_ids[], constraints, decomposition
-  owns derivation-hash,            # Lock hash for audit
-  owns hitl-approved-by,           # Human approver
-  owns hitl-approval-time,         # Approval timestamp
-  owns intent-status,              # "locked" | "expired"
+  owns content,                    // Final H'
+  owns json,                       // claim_ids[], constraints, decomposition
+  owns derivation-hash,            // Lock hash for audit
+  owns hitl-approved-by,           // Human approver
+  owns hitl-approval-time,         // Approval timestamp
+  owns intent-status,              // "locked" | "expired"
   owns created-at;
 
-# ---------------------------------------------------------------------------
-# Daily Meta-Oversight Reports
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Daily Meta-Oversight Reports
+// ---------------------------------------------------------------------------
 
 entity meta-oversight-report,
   owns entity-id @key,
-  owns created-at,                 # Report date
-  owns severity,                   # Overall severity
-  owns json;                       # Full report payload
+  owns created-at,                 // Report date
+  owns severity,                   // Overall severity
+  owns json;                       // Full report payload
 
 
-# ---------------------------------------------------------------------------
-# Operator Governance (Template Metadata)
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Operator Governance (Template Metadata)
+// ---------------------------------------------------------------------------
 
 entity template-metadata,
-  owns template-id @key,           # "bootstrap_ci"
-  owns version,                    # "1.0.0"
+  owns template-id @key,           // "bootstrap_ci"
+  owns version,                    // "1.0.0"
   owns spec-hash,
   owns code-hash,
   owns deps-hash,
-  owns status,                     # "active" | "deprecated" | "banned"
+  owns status,                     // "active" | "deprecated" | "banned"
   owns approved-by,
   owns approved-at,
   owns frozen,
   owns frozen-at,
-  owns first-evidence-id,          # Link to freezing evidence
+  owns first-evidence-id,          // Link to freezing evidence
   owns freeze-claim-id,
   owns freeze-scope-lock-id,
   owns tainted,
@@ -451,36 +455,18 @@ entity template-metadata,
   owns superseded-by,
   owns created-at;
 
-attribute version, value string;
-attribute spec-hash, value string;
-attribute code-hash, value string;
-attribute deps-hash, value string;
-attribute status, value string;
-attribute approved-by, value string;
-attribute approved-at, value datetime;
-attribute frozen, value boolean;
-attribute frozen-at, value datetime;
-attribute first-evidence-id, value string;
-attribute freeze-claim-id, value string;
-attribute freeze-scope-lock-id, value string;
-attribute tainted, value boolean;
-attribute tainted-at, value datetime;
-attribute tainted-reason, value string;
-attribute superseded-by, value string;
-
 
 entity template-lifecycle-event,
   owns entity-id @key,
   owns template-id,
   owns version,
-  owns event-type,                 # "registered", "approved", "frozen", "tainted", "deprecated"
+  owns event-type,                 // "registered", "approved", "frozen", "tainted", "deprecated"
   owns actor,
   owns rationale,
-  owns json,                       # Extra context (hashes, evidence-id, etc)
+  owns json,                       // Extra context (hashes, evidence-id, etc)
   owns created-at;
 
-attribute event-type, value string;
-attribute actor, value string;
+
 
 relation template-has-lifecycle-event,
   relates template,
@@ -491,11 +477,11 @@ template-lifecycle-event plays template-has-lifecycle-event:event;
 
 
 
-# ============================================================================
-# RELATION TYPES (v2.1 + v2.2 + Phase 11)
-# ============================================================================
+// ============================================================================
+// RELATION TYPES (v2.1 + v2.2 + Phase 11)
+// ============================================================================
 
-# --- Publication Relations ---
+// --- Publication Relations ---
 relation authorship,
     relates author,
     relates work;
@@ -505,19 +491,19 @@ relation citation,
     relates cited,
     owns citation-context;
 
-# --- Extraction Provenance ---
+// --- Extraction Provenance ---
 relation extraction,
     relates source,
     relates claim,
     owns extraction-confidence,
     owns bounding-box;
 
-# --- Concept Hierarchy ---
+// --- Concept Hierarchy ---
 relation hierarchy,
     relates parent,
     relates child;
 
-# --- Causality HyperRelation (n-ary) ---
+// --- Causality HyperRelation (n-ary) ---
 relation causality sub probabilistic-concept,
     relates cause,
     relates effect,
@@ -531,7 +517,7 @@ relation causality sub probabilistic-concept,
     plays extraction:claim,
     plays belief-assertion:subject;
 
-# --- Scientific Interactions ---
+// --- Scientific Interactions ---
 relation interaction sub probabilistic-concept,
     abstract,
     owns mechanism-description,
@@ -555,9 +541,9 @@ relation phosphorylation sub interaction,
     relates kinase,
     relates substrate;
 
-# --- Epistemic Relations ---
+// --- Epistemic Relations ---
 
-# Hypothesis: Meta-relation about causality claims with Bayesian belief (v2.1)
+// Hypothesis: Meta-relation about causality claims with Bayesian belief (v2.1)
 relation hypothesis,
     relates proposer,
     relates assertion,
@@ -568,30 +554,30 @@ relation hypothesis,
     owns proposed-date,
     owns verification-status;
 
-# Belief Assertion: Agent believes a fact from a source
+// Belief Assertion: Agent believes a fact from a source
 relation belief-assertion,
-    relates believer,     # The Agent
-    relates source,       # Publication, Figure, or Agent
-    relates subject,      # The proposition/interaction being believed
+    relates believer,     // The Agent
+    relates source,       // Publication, Figure, or Agent
+    relates subject,      // The proposition/interaction being believed
     owns confidence-score,
     owns dialectical-entropy,
     owns last-updated;
 
-# Contradiction Detection
+// Contradiction Detection
 relation contradiction,
     relates conflicting-assertion @card(2..),
     owns conflict-strength,
     owns dialectical-entropy,
     owns resolution-status;
 
-# Implication (Bayesian dependency)
+// Implication (Bayesian dependency)
 relation implication sub probabilistic-concept,
     relates premise,
     relates conclusion,
     owns conditional-probability,
     owns mechanism-description;
 
-# Truth Assertion (cached belief state)
+// Truth Assertion (cached belief state)
 relation truth-assertion,
     relates subject,
     owns cached-confidence,
@@ -600,29 +586,29 @@ relation truth-assertion,
     owns derivation-hash,
     owns computation-cost;
 
-# --- Source Reputation HyperEdge ---
+// --- Source Reputation HyperEdge ---
 relation source-reputation,
     relates trusted-entity,
     owns reputation-alpha,
     owns reputation-beta,
     owns last-updated;
 
-# --- Socratic Debate ---
+// --- Socratic Debate ---
 relation socratic-debate,
     relates participant @card(2..),
     relates moderator @card(0..1),
-    relates subject,         # The proposition being debated
+    relates subject,         // The proposition being debated
     owns dialectical-entropy,
     owns resolution-status,
     owns last-updated;
 
-# --- Predicate Clustering ---
+// --- Predicate Clustering ---
 relation predicate-mapping,
-    relates surface,      # The surface form entity
-    relates cluster,      # The predicate-cluster
+    relates surface,      // The surface form entity
+    relates cluster,      // The predicate-cluster
     owns embedding;
 
-# --- Visual Verification ---
+// --- Visual Verification ---
 relation visual-verification,
     relates original,
     relates reconstruction,
@@ -631,9 +617,9 @@ relation visual-verification,
     owns verdict,
     owns verified-at;
 
-# ---------------------------------------------------------------------------
-# v2.2 Session / Audit Relations
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// v2.2 Session / Audit Relations
+// ---------------------------------------------------------------------------
 
 relation session-has-trace, relates session, relates trace;
 relation session-has-execution, relates session, relates execution;
@@ -671,7 +657,7 @@ hitl-decision plays session-has-hitl-decision:hitl-decision;
 write-intent plays session-has-write-intent:write-intent;
 validation-evidence plays session-has-evidence:evidence;
 
-# HITL Scope Lifecycle Relations
+// HITL Scope Lifecycle Relations
 relation session-has-scope-draft, relates session, relates draft;
 relation session-has-scope-lock, relates session, relates lock;
 relation session-has-meta-oversight, relates session, relates report;
@@ -684,7 +670,7 @@ scope-draft plays session-has-scope-draft:draft;
 scope-lock plays session-has-scope-lock:lock;
 meta-oversight-report plays session-has-meta-oversight:report;
 
-# v2.2 Proposition Links (first-class queryability)
+// v2.2 Proposition Links (first-class queryability)
 relation proposal-targets-proposition,
   relates proposal,
   relates proposition;
@@ -699,7 +685,7 @@ relation evidence-for-proposition,
 validation-evidence plays evidence-for-proposition:evidence;
 proposition plays evidence-for-proposition:proposition;
 
-# v2.2 Intent status audit log
+// v2.2 Intent status audit log
 relation intent-has-status-event,
   relates write-intent,
   relates intent-status-event;
@@ -707,9 +693,9 @@ relation intent-has-status-event,
 write-intent plays intent-has-status-event:write-intent;
 intent-status-event plays intent-has-status-event:intent-status-event;
 
-# ---------------------------------------------------------------------------
-# Phase 11: Speculative Hypothesis Relations
-# ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Phase 11: Speculative Hypothesis Relations
+// ---------------------------------------------------------------------------
 
 relation session-has-speculative-hypothesis,
   relates session,
@@ -718,45 +704,11 @@ relation session-has-speculative-hypothesis,
 run-session plays session-has-speculative-hypothesis:session;
 speculative-hypothesis plays session-has-speculative-hypothesis:hypothesis;
 
-# Optional: let a speculative hypothesis reference the proposition it is "about"
-# (This does NOT make it evidence; it’s just a link for queryability.)
+// Optional: let a speculative hypothesis reference the proposition it is "about"
+// (This does NOT make it evidence; it’s just a link for queryability.)
 relation speculative-hypothesis-targets-proposition,
   relates hypothesis,
   relates proposition;
 
 speculative-hypothesis plays speculative-hypothesis-targets-proposition:hypothesis;
 proposition plays speculative-hypothesis-targets-proposition:proposition;
-
-
-# ============================================================================
-# RULES (TypeDB 3.x Inference Functions) - v2.1
-# ============================================================================
-
-fun expected-belief($h: hypothesis) -> double:
-    match
-        $h has beta-alpha $a;
-        $h has beta-beta $b;
-    return $a / ($a + $b);
-
-fun needs-debate($h: hypothesis) -> bool:
-    match
-        $h has beta-alpha $a;
-        $h has beta-beta $b;
-    let $total = $a + $b;
-    let $p = $a / $total;
-    return $p > 0.3 and $p < 0.7 and $total < 10;
-
-fun reputation-score($s: source-reputation) -> double:
-    match
-        $s has reputation-alpha $a;
-        $s has reputation-beta $b;
-    return $a / ($a + $b);
-
-fun is-contradiction($c1: causality, $c2: causality) -> bool:
-    match
-        $c1 (cause: $x, effect: $y);
-        $c2 (cause: $x, effect: $y);
-        $c1 has belief-state "verified";
-        $c2 has belief-state "refuted";
-        not { $c1 is $c2; };
-    return true;

@@ -37,42 +37,51 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
 
-      - name: Wait for TypeDB
+      - name: Wait for TypeDB (driver-level)
         run: |
-          echo "Waiting for TypeDB to be ready..."
-          for i in {1..30}; do
-            if nc -z localhost 1729; then
-              echo "TypeDB is ready!"
-              break
-            fi
-            echo "Attempt $i/30..."
-            sleep 2
-          done
+          python - <<'PY'
+          import time, os
+          from typedb.driver import TypeDB, Credentials, DriverOptions
+
+          os.environ["TYPEDB_TLS_ENABLED"] = "false"
+          creds = Credentials(username="", password="")
+          opts = DriverOptions(tls_enabled=False)
+
+          for i in range(60):
+              try:
+                  with TypeDB.driver("localhost:1729", creds, opts) as driver:
+                      driver.databases.all()  # cheap call just to prove readiness
+                  print("TypeDB is ready")
+                  break
+              except Exception as e:
+                  if i == 59:
+                      raise
+                  time.sleep(2)
+          PY
 
       - name: Load TypeDB schema
         run: |
           python - <<'PY'
+          import os
           from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
-          
+
+          os.environ["TYPEDB_TLS_ENABLED"] = "false"
+
           DB = "scientific_knowledge"
           creds = Credentials(username="", password="")
-          opts = DriverOptions()
-          opts.tls_enabled = False
+          opts = DriverOptions(tls_enabled=False)
 
           with TypeDB.driver("localhost:1729", creds, opts) as driver:
-                try:
-                    driver.databases.create(DB)
-                except Exception:
-                    pass
+              if not driver.databases.contains(DB):
+                  driver.databases.create(DB)
 
-                with driver.transaction(DB, TransactionType.SCHEMA) as tx:
+              with driver.transaction(DB, TransactionType.SCHEMA) as tx:
                   with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
-                    tx.query(f.read()).resolve()
+                      tx.query(f.read()).resolve()
                   tx.commit()
 
           print("Schema loaded successfully")
           PY
-
       - name: Run unit tests
         run: |
           pytest tests/unit/ -v --tb=short

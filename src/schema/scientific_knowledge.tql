@@ -1,10 +1,4 @@
 define
-
-// ============================================================================
-// ATTRIBUTE TYPES (v2.1 + v2.2)
-// ============================================================================
-
-// --- Identifiers ---
 attribute entity-id, value string;
 attribute doi, value string;
 attribute orcid, value string;

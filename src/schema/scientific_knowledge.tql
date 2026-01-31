@@ -4,8 +4,8 @@ attribute doi, value string;
 attribute orcid, value string;
 attribute concept-id, value string;
 attribute agent-id, value string;
-attribute claim-id, value string;  // NEW v2.2 hardening
-attribute scope-lock-id, value string;  // NEW HITL: links grounded artifacts to approved scope
+attribute claim-id, value string;
+attribute scope-lock-id, value string;
 
 // --- Text Content ---
 attribute title, value string;
@@ -42,16 +42,22 @@ attribute reputation-alpha, value double;
 attribute reputation-beta, value double;
 
 // --- Status Enums ---
-attribute belief-state, value string;        // "proposed", "verified", "refuted", "debated"
-attribute verification-status, value string; // "pending", "approved", "rejected"
-attribute resolution-status, value string;   // "unresolved", "resolved", "escalated"
-attribute verdict, value string;             // "valid", "invalid", "uncertain"
+// "proposed", "verified", "refuted", "debated"
+attribute belief-state, value string;
+// "pending", "approved", "rejected"
+attribute verification-status, value string;
+// "unresolved", "resolved", "escalated"
+attribute resolution-status, value string;
+// "valid", "invalid", "uncertain"
+attribute verdict, value string;
 
 // --- v2.1 Epistemic Status (5-state classification) ---
-attribute epistemic-status, value string;    // "proven", "supported", "unresolved", "speculative", "refuted"
+// "proven", "supported", "unresolved", "speculative", "refuted"
+attribute epistemic-status, value string;    
 attribute last-validation-time, value datetime;
-attribute source-reputation-prior, value double;
-attribute hitl-approved-by, value string;    // Human approver ID
+attribute source-reputation-prior, value double;   
+// Human approver ID
+attribute hitl-approved-by, value string;
 attribute hitl-approval-time, value datetime;
 
 // --- Cache / Performance ---
@@ -63,7 +69,8 @@ attribute derivation-hash, value string;
 // --- File / Media ---
 attribute file-path, value string;
 attribute media-type, value string;
-attribute bounding-box, value string;        // JSON string: {"x1":0,"y1":0,"x2":100,"y2":100}
+// JSON string: {"x1":0,"y1":0,"x2":100,"y2":100}
+attribute bounding-box, value string;
 attribute page-number, value long;
 
 // --- VLM Verification ---
@@ -92,7 +99,8 @@ attribute trace-summary, value string;
 
 attribute execution-id, value string;
 attribute template-id, value string;
-attribute template-qid, value string;  // Qualified ID (name@version)
+// Qualified ID (name@version)
+attribute template-qid, value string;
 attribute runtime-ms, value long;
 attribute params-hash, value string;
 attribute result-hash, value string;
@@ -124,7 +132,7 @@ attribute created-at, value datetime;
 attribute expires-at, value datetime;
 attribute defer-until, value datetime;
 attribute supersedes-intent-id, value string;
-attribute actor-type, value string;  // "human" | "system"
+attribute actor-type, value string;
 attribute from-status, value string;
 attribute to-status, value string;
 attribute rationale, value string;
@@ -286,8 +294,8 @@ entity template-execution,
   owns template-id,
   owns template-qid,
   owns entity-id,
-  owns claim-id,        // Explicit claim-id field
-  owns scope-lock-id,   // Links to approved scope
+  owns claim-id,
+  owns scope-lock-id,
   owns success,
   owns runtime-ms,
   owns params-hash,
@@ -344,9 +352,9 @@ entity write-intent,
   owns intent-type,
   owns intent-status,
   owns impact-score,
-  owns scope-lock-id,           // Required for executable intents
-  owns expires-at,              // Hard expiry timestamp
-  owns supersedes-intent-id,    // References expired/cancelled intent
+  owns scope-lock-id,
+  owns expires-at,
+  owns supersedes-intent-id,
   owns json,
   owns created-at;
 
@@ -356,8 +364,8 @@ entity validation-evidence,
   owns template-id,
   owns template-qid,
   owns execution-id,
-  owns claim-id,       // Explicit claim-id field
-  owns scope-lock-id,  // Links to approved scope
+  owns claim-id,
+  owns scope-lock-id,
   owns success,
   owns confidence-score,
   owns json,
@@ -368,11 +376,11 @@ entity intent-status-event,
   owns intent-id,
   owns from-status,
   owns to-status,
-  owns actor-type,              // "human" | "system"
-  owns agent-id,                // Actor ID
+  owns actor-type,
+  owns agent-id,
   owns rationale,
-  owns defer-until,             // For deferred transitions
-  owns execution-id,            // For executed transitions
+  owns defer-until,
+  owns execution-id,
   owns json,
   owns created-at;
 
@@ -397,21 +405,21 @@ entity speculative-hypothesis,
 entity scope-draft,
   owns entity-id @key,
   owns session-id,
-  owns content,                    // Hypothesis H'
-  owns json,                       // Full decomposition payload
-  owns derivation-hash,            // Hash of canonical JSON
+  owns content,
+  owns json,
+  owns derivation-hash,
   owns created-at;
 
 // scope-lock: Immutable signed artifact (commitment point)
 entity scope-lock,
   owns entity-id @key,
   owns session-id,
-  owns content,                    // Final H'
-  owns json,                       // claim_ids[], constraints, decomposition
-  owns derivation-hash,            // Lock hash for audit
-  owns hitl-approved-by,           // Human approver
-  owns hitl-approval-time,         // Approval timestamp
-  owns intent-status,              // "locked" | "expired"
+  owns content,
+  owns json,
+  owns derivation-hash,
+  owns hitl-approved-by,
+  owns hitl-approval-time,
+  owns intent-status,
   owns created-at;
 
 // ---------------------------------------------------------------------------
@@ -420,9 +428,9 @@ entity scope-lock,
 
 entity meta-oversight-report,
   owns entity-id @key,
-  owns created-at,                 // Report date
-  owns severity,                   // Overall severity
-  owns json;                       // Full report payload
+  owns created-at,
+  owns severity,
+  owns json;
 
 
 // ---------------------------------------------------------------------------
@@ -430,17 +438,17 @@ entity meta-oversight-report,
 // ---------------------------------------------------------------------------
 
 entity template-metadata,
-  owns template-id @key,           // "bootstrap_ci"
-  owns version,                    // "1.0.0"
+  owns template-id @key,
+  owns version,
   owns spec-hash,
   owns code-hash,
   owns deps-hash,
-  owns status,                     // "active" | "deprecated" | "banned"
+  owns status,
   owns approved-by,
   owns approved-at,
   owns frozen,
   owns frozen-at,
-  owns first-evidence-id,          // Link to freezing evidence
+  owns first-evidence-id,
   owns freeze-claim-id,
   owns freeze-scope-lock-id,
   owns tainted,
@@ -454,10 +462,10 @@ entity template-lifecycle-event,
   owns entity-id @key,
   owns template-id,
   owns version,
-  owns event-type,                 // "registered", "approved", "frozen", "tainted", "deprecated"
+  owns event-type,
   owns actor,
   owns rationale,
-  owns json,                       // Extra context (hashes, evidence-id, etc)
+  owns json,
   owns created-at;
 
 
@@ -550,9 +558,9 @@ relation hypothesis,
 
 // Belief Assertion: Agent believes a fact from a source
 relation belief-assertion,
-    relates believer,     // The Agent
-    relates source,       // Publication, Figure, or Agent
-    relates subject,      // The proposition/interaction being believed
+    relates believer,
+    relates source,
+    relates subject,
     owns confidence-score,
     owns dialectical-entropy,
     owns last-updated;
@@ -591,15 +599,15 @@ relation source-reputation,
 relation socratic-debate,
     relates participant @card(2..),
     relates moderator @card(0..1),
-    relates subject,         // The proposition being debated
+    relates subject,
     owns dialectical-entropy,
     owns resolution-status,
     owns last-updated;
 
 // --- Predicate Clustering ---
 relation predicate-mapping,
-    relates surface,      // The surface form entity
-    relates cluster,      // The predicate-cluster
+    relates surface,
+    relates cluster,
     owns embedding;
 
 // --- Visual Verification ---

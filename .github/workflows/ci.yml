@@ -45,7 +45,8 @@ jobs:
 
           os.environ["TYPEDB_TLS_ENABLED"] = "false"
           creds = Credentials(username="", password="")
-          opts = DriverOptions(tls_enabled=False)
+          opts = DriverOptions()
+          opts.tls_enabled = False
 
           for i in range(60):
               try:
@@ -69,7 +70,8 @@ jobs:
 
           DB = "scientific_knowledge"
           creds = Credentials(username="", password="")
-          opts = DriverOptions(tls_enabled=False)
+          opts = DriverOptions()
+          opts.tls_enabled = False
 
           with TypeDB.driver("localhost:1729", creds, opts) as driver:
               if not driver.databases.contains(DB):

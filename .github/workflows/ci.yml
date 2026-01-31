@@ -10,17 +10,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      typedb:
-        image: typedb/typedb:latest
-        ports:
-          - 1729:1729
-        options: >-
-          --health-cmd "echo 'TypeDB is ready'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,76 +26,92 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
 
-      - name: Wait for TypeDB (driver-level)
+      - name: Wait for TypeDB Cloud
+        env:
+          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
+          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
+          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
         run: |
           python - <<'PY'
-          import time, os
+          import os, time
           from typedb.driver import TypeDB, Credentials, DriverOptions
 
-          os.environ["TYPEDB_TLS_ENABLED"] = "false"
-          creds = Credentials(username="", password="")
-          opts = DriverOptions()
-          opts.tls_enabled = False
+          address = os.environ["TYPEDB_ADDRESS"].strip()
+          creds = Credentials(os.environ["TYPEDB_USERNAME"], os.environ["TYPEDB_PASSWORD"])
+          opts = DriverOptions(is_tls_enabled=True, tls_root_ca_path=None)
 
-          for i in range(60):
+          for i in range(20):
               try:
-                  with TypeDB.driver("localhost:1729", creds, opts) as driver:
-                      driver.databases.all()  # cheap call just to prove readiness
-                  print("TypeDB is ready")
+                  with TypeDB.driver(address, creds, opts) as driver:
+                      driver.databases.all()
+                  print("TypeDB Cloud is ready")
                   break
               except Exception as e:
-                  if i == 59:
+                  if i == 19:
                       raise
-                  time.sleep(2)
+                  time.sleep(5)
           PY
 
-      - name: Load TypeDB schema
+      - name: Load TypeDB schema (Cloud)
+        env:
+          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
+          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
+          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
+          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
         run: |
           python - <<'PY'
           import os
           from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
 
-          os.environ["TYPEDB_TLS_ENABLED"] = "false"
+          address = os.environ["TYPEDB_ADDRESS"].strip()
+          db = os.environ.get("TYPEDB_DATABASE", "scientific_knowledge").strip()
 
-          DB = "scientific_knowledge"
-          creds = Credentials(username="", password="")
-          opts = DriverOptions()
-          opts.tls_enabled = False
+          creds = Credentials(os.environ["TYPEDB_USERNAME"], os.environ["TYPEDB_PASSWORD"])
+          opts = DriverOptions(is_tls_enabled=True, tls_root_ca_path=None)
 
-          with TypeDB.driver("localhost:1729", creds, opts) as driver:
-              if not driver.databases.contains(DB):
-                  driver.databases.create(DB)
+          with TypeDB.driver(address, creds, opts) as driver:
+              if not driver.databases.contains(db):
+                  raise RuntimeError(f"Database '{db}' not found in cluster")
 
-              with driver.transaction(DB, TransactionType.SCHEMA) as tx:
+              with driver.transaction(db, TransactionType.SCHEMA) as tx:
                   with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
                       tx.query(f.read()).resolve()
                   tx.commit()
 
-          print("Schema loaded successfully")
+          print(f"Schema loaded successfully into {db}")
           PY
+
       - name: Run unit tests
-        run: |
-          pytest tests/unit/ -v --tb=short
+        run: pytest tests/unit/ -v --tb=short
         env:
-          TYPEDB_ADDRESS: localhost:1729
+          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
+          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
+          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
+          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
 
       - name: Run integration tests
-        run: |
-          pytest tests/integration/ -v --tb=short
+        run: pytest tests/integration/ -v --tb=short
         env:
-          TYPEDB_ADDRESS: localhost:1729
+          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
+          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
+          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
+          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
 
       - name: Run e2e tests
-        run: |
-          pytest tests/e2e/ -v --tb=short
+        run: pytest tests/e2e/ -v --tb=short
         env:
-          TYPEDB_ADDRESS: localhost:1729
+          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
+          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
+          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
+          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
 
       - name: Run security tests
-        run: |
-          pytest tests/security/ -v --tb=short
+        run: pytest tests/security/ -v --tb=short
         env:
-          TYPEDB_ADDRESS: localhost:1729
+          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
+          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
+          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
+          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
 
       - name: Upload test artifacts on failure
         if: failure()
@@ -124,7 +129,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - name: Install ruff
         run: pip install ruff
       - name: Run linter

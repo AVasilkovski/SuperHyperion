@@ -15,7 +15,7 @@ attribute scope-lock-id, value string;
 
 # --- Text Content ---
 attribute title, value string;
-attribute abstract, value string;
+attribute summary, value string;
 attribute name, value string;
 attribute affiliation, value string;
 attribute label, value string;
@@ -178,7 +178,7 @@ entity concept sub scientific-entity,
 entity publication,
     owns doi @key,
     owns title,
-    owns abstract,
+    owns summary,
     owns publication-date,
     plays authorship:work,
     plays citation:citing,

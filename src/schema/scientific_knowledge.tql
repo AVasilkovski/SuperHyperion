@@ -154,7 +154,7 @@ entity probabilistic-entity @abstract,
     owns last-updated,
     owns derivation-hash;
 
-entity scientific-entity sub probabilistic-entity @abstract,
+entity scientific-entity @abstract sub probabilistic-entity,
     owns display-label,
     owns definition,
     owns embedding;
@@ -473,7 +473,7 @@ relation causality sub probabilistic-relation,
     plays extraction:claim,
     plays belief-assertion:subject;
 
-relation interaction sub probabilistic-relation @abstract,
+relation interaction @abstract sub probabilistic-relation,
     owns mechanism-description,
     owns surface-form,
     plays extraction:claim,

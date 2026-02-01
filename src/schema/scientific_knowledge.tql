@@ -606,4 +606,5 @@ fun is-contradiction($c1: causality, $c2: causality) -> boolean:
         $c2 (cause: $x, effect: $y);
         $c1 has belief-state "verified";
         $c2 has belief-state "refuted";
-    return first true;
+        let $res = true;
+    return first $res;

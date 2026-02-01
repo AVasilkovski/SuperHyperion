@@ -146,7 +146,8 @@ attribute actor, value string;
 # ENTITY TYPES
 # ============================================================================
 
-entity probabilistic-entity @abstract,
+entity probabilistic-entity,
+    abstract,
     owns entity-id @key,
     owns confidence-score,
     owns evidence-weight,
@@ -154,7 +155,8 @@ entity probabilistic-entity @abstract,
     owns last-updated,
     owns derivation-hash;
 
-entity scientific-entity @abstract sub probabilistic-entity,
+entity scientific-entity sub probabilistic-entity,
+    abstract,
     owns display-label,
     owns definition,
     owns embedding;
@@ -446,7 +448,8 @@ entity template-lifecycle-event,
 # RELATION TYPES
 # ============================================================================
 
-relation probabilistic-relation @abstract,
+relation probabilistic-relation,
+    abstract,
     owns confidence-score,
     owns evidence-weight,
     owns dialectical-entropy,
@@ -473,7 +476,8 @@ relation causality sub probabilistic-relation,
     plays extraction:claim,
     plays belief-assertion:subject;
 
-relation interaction @abstract sub probabilistic-relation,
+relation interaction sub probabilistic-relation,
+    abstract,
     owns mechanism-description,
     owns surface-form,
     plays extraction:claim,
@@ -566,45 +570,3 @@ relation evidence-for-proposition, relates evidence, relates proposition;
 relation intent-has-status-event, relates write-intent, relates intent-status-event;
 relation session-has-speculative-hypothesis, relates session, relates hypothesis;
 relation speculative-hypothesis-targets-proposition, relates hypothesis, relates proposition;
-
-# ============================================================================
-# FUNCTIONS (TypeQL 3.x Pipeline Syntax)
-# ============================================================================
-
-
-
-fun expected-belief($h: hypothesis) -> double:
-    match
-        $h has beta-alpha $a;
-        $h has beta-beta $b;
-        let $mean = $a / ($a + $b);
-    return first $mean;
-
-fun needs-debate($h: hypothesis) -> boolean:
-  match
-    $h has beta-alpha $a;
-    $h has beta-beta $b;
-    let $total = $a + $b;
-    let $p = $a / $total;
-    $p > 0.3;
-    $p < 0.7;
-    $total < 10;
-    let $result = true;
-  return first $result;
-
-
-fun reputation-score($s: source-reputation) -> double:
-    match
-        $s has reputation-alpha $a;
-        $s has reputation-beta $b;
-        let $score = $a / ($a + $b);
-    return first $score;
-
-fun is-contradiction($c1: causality, $c2: causality) -> boolean:
-    match
-        $c1 (cause: $x, effect: $y);
-        $c2 (cause: $x, effect: $y);
-        $c1 has belief-state "verified";
-        $c2 has belief-state "refuted";
-        let $res = true;
-    return first $res;

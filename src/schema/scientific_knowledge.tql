@@ -600,7 +600,7 @@ fun reputation-score($s: source-reputation) -> double:
         let $score = $a / ($a + $b);
     return first $score;
 
-fun is-contradiction($c1: causality, $c2: causality) -> bool:
+fun is-contradiction($c1: causality, $c2: causality) -> boolean:
     match
         $c1 (cause: $x, effect: $y);
         $c2 (cause: $x, effect: $y);

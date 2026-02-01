@@ -687,8 +687,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict) -> str:
     # Build Query
     # ------------------------------------------------------------------
     conf = float(ev.get("confidence_score", ev.get("confidence", 0.0)) or 0.0)
-    evid_id = f'ev-{exec_id}' if exec_id else f'ev-{time.time_ns()}'
-    
+    evid_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)    
     # Prune excluded keys for JSON payload
     exclude = {
         "claim_id", "claim-id", "proposition_id",
@@ -766,6 +765,15 @@ def q_insert_speculative_hypothesis_targets_proposition(
     insert
       (hypothesis: $h, proposition: $p) isa speculative-hypothesis-targets-proposition;
     '''
+def make_evidence_id(session_id: str, claim_id: str, execution_id: str, template_qid: str) -> str:
+    payload = {
+        "sid": session_id or "",
+        "cid": claim_id or "",
+        "eid": execution_id or "",
+        "qid": template_qid or "",
+    }
+    s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return "ev-" + hashlib.md5(s.encode("utf-8")).hexdigest()
 
 # Global instance
 ontology_steward = OntologySteward()

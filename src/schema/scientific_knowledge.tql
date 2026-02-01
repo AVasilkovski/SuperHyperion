@@ -18,7 +18,7 @@ attribute title, value string;
 attribute summary, value string;
 attribute name, value string;
 attribute affiliation, value string;
-attribute label, value string;
+attribute display-label, value string;
 attribute definition, value string;
 attribute content, value string;
 attribute citation-context, value string;
@@ -155,7 +155,7 @@ entity probabilistic-entity @abstract,
     owns derivation-hash;
 
 entity scientific-entity sub probabilistic-entity @abstract,
-    owns label,
+    owns display-label,
     owns definition,
     owns embedding;
 

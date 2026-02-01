@@ -147,7 +147,7 @@ attribute actor, value string;
 # ============================================================================
 
 entity probabilistic-entity,
-    abstract,
+    abstract
     owns entity-id @key,
     owns confidence-score,
     owns evidence-weight,
@@ -156,7 +156,7 @@ entity probabilistic-entity,
     owns derivation-hash;
 
 entity scientific-entity sub probabilistic-entity,
-    abstract,
+    abstract
     owns label,
     owns definition,
     owns embedding;

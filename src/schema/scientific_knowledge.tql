@@ -580,13 +580,18 @@ fun expected-belief($h: hypothesis) -> double:
         let $mean = $a / ($a + $b);
     return first $mean;
 
-fun needs-debate($h: hypothesis) -> bool:
-    match
-        $h has beta-alpha $a;
-        $h has beta-beta $b;
-        let $total = $a + $b;
-        let $p = $a / $total;
-    return ($p > 0.3) and ($p < 0.7) and ($total < 10);
+fun needs-debate($h: hypothesis) -> boolean:
+  match
+    $h has beta-alpha $a;
+    $h has beta-beta $b;
+    let $total = $a + $b;
+    let $p = $a / $total;
+    $p > 0.3;
+    $p < 0.7;
+    $total < 10;
+    let $result = true;
+  return first $result;
+
 
 fun reputation-score($s: source-reputation) -> double:
     match

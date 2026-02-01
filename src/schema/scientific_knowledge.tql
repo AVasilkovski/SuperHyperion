@@ -586,8 +586,7 @@ fun needs-debate($h: hypothesis) -> bool:
         $h has beta-beta $b;
         let $total = $a + $b;
         let $p = $a / $total;
-        let $is_uncertain = $p > 0.3 and $p < 0.7 and $total < 10;
-    return first $is_uncertain;
+    return ($p > 0.3) and ($p < 0.7) and ($total < 10);
 
 fun reputation-score($s: source-reputation) -> double:
     match

@@ -146,8 +146,7 @@ attribute actor, value string;
 # ENTITY TYPES
 # ============================================================================
 
-entity probabilistic-entity,
-    abstract,
+entity probabilistic-entity @abstract,
     owns entity-id @key,
     owns confidence-score,
     owns evidence-weight,
@@ -155,8 +154,7 @@ entity probabilistic-entity,
     owns last-updated,
     owns derivation-hash;
 
-entity scientific-entity sub probabilistic-entity,
-    abstract,
+entity scientific-entity sub probabilistic-entity @abstract,
     owns display-label,
     owns definition,
     owns embedding;
@@ -448,8 +446,7 @@ entity template-lifecycle-event,
 # RELATION TYPES
 # ============================================================================
 
-relation probabilistic-relation,
-    abstract,
+relation probabilistic-relation @abstract,
     owns confidence-score,
     owns evidence-weight,
     owns dialectical-entropy,
@@ -476,8 +473,7 @@ relation causality sub probabilistic-relation,
     plays extraction:claim,
     plays belief-assertion:subject;
 
-relation interaction sub probabilistic-relation,
-    abstract,
+relation interaction sub probabilistic-relation @abstract,
     owns mechanism-description,
     owns surface-form,
     plays extraction:claim,

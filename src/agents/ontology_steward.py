@@ -105,26 +105,22 @@ class OntologySteward(BaseAgent):
         # 3b. Persist Full Evidence Objects (Phase 13)
         evidence_list = context.graph_context.get("evidence", [])
         for ev in evidence_list:
-             # handle dict vs object
-             ev_data = ev.model_dump() if hasattr(ev, "model_dump") else (asdict(ev) if hasattr(ev, "__dataclass_fields__") else ev)
-             
-             try:
-                 # Phase 14.5: Constitutional Seal
-                 # Must pass strict seal checks before we mint validation evidence
-                 self._seal_operator_before_mint(ev_data)
+            ev_data = ev.model_dump() if hasattr(ev, "model_dump") else (
+                asdict(ev) if hasattr(ev, "__dataclass_fields__") else ev
+            )
+           # Success-only policy: skip BEFORE calling seal
+            raw_success = ev_data.get("success", False)
+            success = (raw_success.strip().lower() == "true") if isinstance(raw_success, str) else bool(raw_success)
+            if not success:
+                continue
 
-                 self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data))
-                 
-                 # Phase 14 Hook: Freeze template on first evidence
-                 if ev_data.get("success") and ev_data.get("template_id"):
-                     self._freeze_template_on_evidence(
-                         template_id=ev_data["template_id"],
-                         evidence_id=f'ev-{ev_data.get("execution_id", "")}', # Match logic in q_insert
-                         claim_id=ev_data.get("claim_id") or ev_data.get("claim-id"),
-                         scope_lock_id=ev_data.get("scope_lock_id") or ev_data.get("scope-lock-id"),
-                     )
-             except Exception as e:
-                 logger.error(f"Evidence insert failed (id={ev_data.get('execution_id')}): {e}")
+            try:
+                evidence_id = self._seal_evidence_dict_before_mint(session_id, ev_data)
+                self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data, evidence_id=evidence_id))
+            except Exception as e:
+                logger.error(f"Evidence insert failed (id={ev_data.get('execution_id')}): {e}")
+                raise
+        
         # 4. Persist Epistemic Proposals
         proposals = context.graph_context.get("epistemic_update_proposal", [])
         for prop in proposals:
@@ -329,65 +325,99 @@ class OntologySteward(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to freeze template {template_id}: {e}")
 
-    def _seal_operator_before_mint(self, ev: Dict[str, Any]):
-        """
-        Constitutional Seal Operator (Phase 14.5).
-        
-        Enforces:
-        1. Scope Locks: Evidence must match claimed scope.
-        2. Template QID: Must be fully qualified (@version).
-        3. Strict Hash Parity: Stored hash == recomputed content hash.
-        
-        Raises ValueError (CRITICAL) if seal fails. Only successful evidence is sealed.
-        """
-        exec_id = ev.get("execution_id", "unknown")
-        
-        # 1. Scope Lock Check
-        # Hard requirement: Validation evidence must carry a scope lock ID.
-        scope_lock_id = ev.get("scope_lock_id") or ev.get("scope-lock-id")
-        if not scope_lock_id:
-            raise ValueError(f"CRITICAL: cannot mint evidence without scope_lock_id (exec_id={exec_id})")
-            
-        # 2. Template QID Check
-        # Hard requirement: Must be Qualified (e.g. bootstrap_ci@1.0.0)
-        template_qid = ev.get("template_qid") or ev.get("template-qid")
-        if not template_qid:
-             raise ValueError(f"CRITICAL: cannot mint evidence without template_qid (exec_id={exec_id})")
-        
-        if not QID_RE.match(template_qid.strip()):
-            raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}' (exec_id={exec_id})")
-        
-        # 3. Hash Parity (Strict)
-        # We recompute the hash of the 'result' and 'params' (provenance) and match
-        # against what the template execution (if available) or the evidence carries.
-        # Note: If evidence is fresh from verify_agent, it should be self-consistent.
-        # If it came from DB, we trust the DB record (but we are inserting here, so it is fresh).
-        
-        result_blob = ev.get("result", {})
-        # Flattened params lookup
-        params_blob = ev.get("provenance", {}).get("params", {})
-        
-        # Compute Strict
-        try:
-            comp_r = sha256_json_strict(result_blob)
-            comp_p = sha256_json_strict(params_blob)
-        except Exception as e:
-             raise ValueError(f"CRITICAL: Strict hash computation failed for {exec_id}: {e}")
-             
-        # Check against carried hashes if they exist (optional but good hygiene)
-        # Currently the AgentContext evidence might not carry explicit hash strings,
-        # but if it did, we would check them here.
-        # For now, we trust the computation succeeds (no NaN/Inf).
-        
-        # 4. Success Only Logic is handled in q_insert_validation_evidence selection,
-        # but we double check here to be sure we are sealing valid stuff.
-        if not ev.get("success"):
-            # This method shouldn't be called for failed evidence (Steward loop skips it),
-            # but if it is:
-            raise ValueError(f"CRITICAL: Attempted to seal failed evidence {exec_id}")
-            
-        # Seal Applied.
-        pass
+    def _seal_operator_before_mint(
+    self,
+    template_qid: str,
+    evidence_id: str,
+    claim_id: str,
+    scope_lock_id: str,
+) -> None:
+    """
+    Constitutional Seal Operator (Phase 14.5) — test-driven.
+
+    Checks:
+      - template_qid is qualified and matches QID_RE
+      - metadata exists and is not corrupt
+      - spec hash parity vs VERSIONED_REGISTRY.get_spec(qid)
+      - code hash parity vs compute_code_hash_strict(VERSIONED_REGISTRY.get(qid))
+      - freezes template on success (idempotent store call)
+    """
+    # Required fields
+    if not scope_lock_id:
+        raise ValueError("Seal failed: missing scope_lock_id")
+    if not claim_id:
+        raise ValueError("Seal failed: missing claim_id")
+    if not template_qid:
+        raise ValueError("Seal failed: missing template_qid")
+
+    qid = template_qid.strip()
+
+    # QID format: must be fully qualified
+    if not QID_RE.match(qid):
+        # tests assert malformed qid is rejected
+        raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
+
+    # Parse
+    template_id, version = qid.split("@", 1)
+    template_id = template_id.strip()
+    version = version.strip()
+    if not template_id or not version:
+        raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
+
+    # Store must exist
+    store = getattr(self, "template_store", None)
+    if store is None:
+        raise ValueError("Seal failed: template_store not configured")
+
+    # Fetch metadata
+    meta = store.get_metadata(template_id, version)
+    if meta is None:
+        raise ValueError(f"Seal failed: missing metadata for {qid}")
+
+    # Corrupt metadata (tests expect this exact phrase)
+    if not getattr(meta, "spec_hash", None) or not getattr(meta, "code_hash", None):
+        raise ValueError("Corrupt metadata")
+
+    # --- Spec hash parity ---
+    from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
+
+    spec = VERSIONED_REGISTRY.get_spec(qid)
+    actual_spec_hash = spec.spec_hash()
+    expected_spec_hash = meta.spec_hash
+    if actual_spec_hash != expected_spec_hash:
+        raise ValueError("Spec hash mismatch")
+
+    # --- Code hash parity ---
+    template_instance = VERSIONED_REGISTRY.get(qid)
+    if template_instance is None:
+        # tests match "Seal failed: Template instance .* not found"
+        raise ValueError(f"Seal failed: Template instance {qid} not found")
+
+    from src.montecarlo.template_metadata import compute_code_hash_strict
+
+    actual_code_hash = compute_code_hash_strict(template_instance)
+    expected_code_hash = meta.code_hash
+    if actual_code_hash != expected_code_hash:
+        raise ValueError("Code hash mismatch")
+
+    # Freeze (tests assert called once)
+    store.freeze(
+        template_id=template_id,
+        version=version,
+        evidence_id=evidence_id,
+        claim_id=claim_id,
+        scope_lock_id=scope_lock_id,
+        actor="system",
+    )
+def _seal_evidence_dict_before_mint(self, session_id: str, ev: Dict[str, Any]) -> str:
+    exec_id = (ev.get("execution_id") or "").strip()
+    claim_id = (ev.get("claim_id") or ev.get("claim-id") or "").strip()
+    template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
+    scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
+
+    evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
+    self._seal_operator_before_mint(template_qid, evidence_id, claim_id, scope_lock_id)
+    return evidence_id
 
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)
@@ -607,7 +637,7 @@ def q_insert_meta_critique(session_id: str, mc: dict) -> str:
       (session: $s, meta-critique: $m) isa session-has-meta-critique;
     '''
 
-def q_insert_validation_evidence(session_id: str, ev: dict) -> str:
+def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: str) -> str:
     # ------------------------------------------------------------------
     # Constitutional Gate (Phase 14.5)
     # ------------------------------------------------------------------
@@ -686,8 +716,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict) -> str:
     # ------------------------------------------------------------------
     # Build Query
     # ------------------------------------------------------------------
-    conf = float(ev.get("confidence_score", ev.get("confidence", 0.0)) or 0.0)
-    evid_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)    
+    conf = float(ev.get("confidence_score", ev.get("confidence", 0.0)) or 0.0) 
     # Prune excluded keys for JSON payload
     exclude = {
         "claim_id", "claim-id", "proposition_id",
@@ -703,7 +732,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict) -> str:
     match $p isa proposition, has entity-id "{escape(claim_id)}";
     insert
     $v isa validation-evidence,
-        has entity-id "{escape(evid_id)}",
+        has entity-id "{escape(evidence_id)}",
         has claim-id "{escape(claim_id)}",
         has execution-id "{escape(exec_id)}",
         has template-qid "{escape(template_qid)}",

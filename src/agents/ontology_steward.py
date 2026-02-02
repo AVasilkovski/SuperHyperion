@@ -324,15 +324,16 @@ class OntologySteward(BaseAgent):
             
         except Exception as e:
             logger.error(f"Failed to freeze template {template_id}: {e}")
+    
+    
 
-def _seal_operator_before_mint(
+    def _seal_operator_before_mint(
         elf,
         template_qid: str,
         evidence_id: str,
         claim_id: str,
         scope_lock_id: str,
-) -> None:
-        
+    ) -> None:
         """
         Constitutional Seal Operator (Phase 14.5) — test-driven.
 
@@ -343,75 +344,78 @@ def _seal_operator_before_mint(
          - code hash parity vs compute_code_hash_strict(VERSIONED_REGISTRY.get(qid))
          - freezes template on success (idempotent store call)
          """
-    if not scope_lock_id:
-        raise ValueError("Seal failed: missing scope_lock_id")
-    if not claim_id:
-        raise ValueError("Seal failed: missing claim_id")
-    if not template_qid:
-        raise ValueError("Seal failed: missing template_qid")
+        
+        if not scope_lock_id:
+            raise ValueError("Seal failed: missing scope_lock_id")
+        if not claim_id:
+            raise ValueError("Seal failed: missing claim_id")
+        if not template_qid:
+            raise ValueError("Seal failed: missing template_qid")
 
-    qid = template_qid.strip()
+        qid = template_qid.strip()
 
-     # QID format: must be fully qualified
-    if not QID_RE.match(qid):
-        raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
-    template_id, version = qid.split("@", 1)
-    template_id = template_id.strip()
-    version = version.strip()
-    if not template_id or not version:
-        raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
-    store = getattr(self, "template_store", None)
-    if store is None:
-        raise ValueError("Seal failed: template_store not configured")
+        # QID format: must be fully qualified
+        if not QID_RE.match(qid):
+            raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
+        template_id, version = qid.split("@", 1)
+        template_id = template_id.strip()
+        version = version.strip()
+        if not template_id or not version:
+            raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
+        store = getattr(self, "template_store", None)
+        if store is None:
+            raise ValueError("Seal failed: template_store not configured")
             
-    # Fetch metadata   
-    meta = store.get_metadata(template_id, version)
-    if meta is None:
-        raise ValueError(f"Seal failed: missing metadata for {qid}")
+        # Fetch metadata
+        meta = store.get_metadata(template_id, version)
+        if meta is None:
+            raise ValueError(f"Seal failed: missing metadata for {qid}")
             
-    # Corrupt metadata (tests expect this exact phrase)
-    if not getattr(meta, "spec_hash", None) or not getattr(meta, "code_hash", None):
-        raise ValueError("Corrupt metadata")
+        # Corrupt metadata (tests expect this exact phrase)
+        if not getattr(meta, "spec_hash", None) or not getattr(meta, "code_hash", None):
+            raise ValueError("Corrupt metadata")
             
-    # --- Spec hash parity ---
-    from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
+        # --- Spec hash parity ---
+        from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
 
-    spec = VERSIONED_REGISTRY.get_spec(qid)
-    actual_spec_hash = spec.spec_hash()
-    expected_spec_hash = meta.spec_hash
-    if actual_spec_hash != expected_spec_hash:
-        raise ValueError("Spec hash mismatch")
-    # --- Code hash parity ---
-    template_instance = VERSIONED_REGISTRY.get(qid)
-    if template_instance is None:
-    # tests match "Seal failed: Template instance .* not found"
-        raise ValueError(f"Seal failed: Template instance {qid} not found")
+        spec = VERSIONED_REGISTRY.get_spec(qid)
+        actual_spec_hash = spec.spec_hash()
+        expected_spec_hash = meta.spec_hash
+        if actual_spec_hash != expected_spec_hash:
+            raise ValueError("Spec hash mismatch")
             
-    from src.montecarlo.template_metadata import compute_code_hash_strict
+        # --- Code hash parity ---
+        template_instance = VERSIONED_REGISTRY.get(qid)
+        if template_instance is None:
+        # tests match "Seal failed: Template instance .* not found"
+            raise ValueError(f"Seal failed: Template instance {qid} not found")
+            
+        from src.montecarlo.template_metadata import compute_code_hash_strict
 
-    actual_code_hash = compute_code_hash_strict(template_instance)
-    expected_code_hash = meta.code_hash
-    if actual_code_hash != expected_code_hash:
-        raise ValueError("Code hash mismatch")
-    # Freeze (tests assert called once)
-    store.freeze(
-        template_id=template_id,
-        ersion=version,
-        evidence_id=evidence_id,
-        claim_id=claim_id,
-        scope_lock_id=scope_lock_id,
-        actor="system",
-    (
+        actual_code_hash = compute_code_hash_strict(template_instance)
+        expected_code_hash = meta.code_hash
+        if actual_code_hash != expected_code_hash:
+            raise ValueError("Code hash mismatch")
+        # Freeze (tests assert called once)
+        store.freeze(
+            template_id=template_id,
+            version=version,
+            evidence_id=evidence_id,
+            claim_id=claim_id,
+            scope_lock_id=scope_lock_id,
+            actor="system",
+        )
     
-def _seal_evidence_dict_before_mint(self, session_id: str, ev: Dict[str, Any]) -> str:
-    exec_id = (ev.get("execution_id") or "").strip()
-    claim_id = (ev.get("claim_id") or ev.get("claim-id") or "").strip()
-    template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
-    scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
+    
+    def _seal_evidence_dict_before_mint(self, session_id: str, ev: Dict[str, Any]) -> str:
+        exec_id = (ev.get("execution_id") or "").strip()
+        claim_id = (ev.get("claim_id") or ev.get("claim-id") or "").strip()
+        template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
+        scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
 
-    evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
-    self._seal_operator_before_mint(template_qid, evidence_id, claim_id, scope_lock_id)
-    return evidence_id
+        evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
+        self._seal_operator_before_mint(template_qid, evidence_id, claim_id, scope_lock_id)
+        return evidence_id
 
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)

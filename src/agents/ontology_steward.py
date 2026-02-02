@@ -325,24 +325,24 @@ class OntologySteward(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to freeze template {template_id}: {e}")
 
-    def _seal_operator_before_mint(
-    self,
-    template_qid: str,
-    evidence_id: str,
-    claim_id: str,
-    scope_lock_id: str,
+def _seal_operator_before_mint(
+        elf,
+        template_qid: str,
+        evidence_id: str,
+        claim_id: str,
+        scope_lock_id: str,
 ) -> None:
-    """
-    Constitutional Seal Operator (Phase 14.5) — test-driven.
+        
+        """
+        Constitutional Seal Operator (Phase 14.5) — test-driven.
 
-    Checks:
-      - template_qid is qualified and matches QID_RE
-      - metadata exists and is not corrupt
-      - spec hash parity vs VERSIONED_REGISTRY.get_spec(qid)
-      - code hash parity vs compute_code_hash_strict(VERSIONED_REGISTRY.get(qid))
-      - freezes template on success (idempotent store call)
-    """
-    # Required fields
+         Checks:
+         - template_qid is qualified and matches QID_RE
+         - metadata exists and is not corrupt
+         - spec hash parity vs VERSIONED_REGISTRY.get_spec(qid)
+         - code hash parity vs compute_code_hash_strict(VERSIONED_REGISTRY.get(qid))
+         - freezes template on success (idempotent store call)
+         """
     if not scope_lock_id:
         raise ValueError("Seal failed: missing scope_lock_id")
     if not claim_id:
@@ -352,32 +352,27 @@ class OntologySteward(BaseAgent):
 
     qid = template_qid.strip()
 
-    # QID format: must be fully qualified
+     # QID format: must be fully qualified
     if not QID_RE.match(qid):
-        # tests assert malformed qid is rejected
         raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
-
-    # Parse
     template_id, version = qid.split("@", 1)
     template_id = template_id.strip()
     version = version.strip()
     if not template_id or not version:
         raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
-
-    # Store must exist
     store = getattr(self, "template_store", None)
     if store is None:
         raise ValueError("Seal failed: template_store not configured")
-
-    # Fetch metadata
+            
+    # Fetch metadata   
     meta = store.get_metadata(template_id, version)
     if meta is None:
         raise ValueError(f"Seal failed: missing metadata for {qid}")
-
+            
     # Corrupt metadata (tests expect this exact phrase)
     if not getattr(meta, "spec_hash", None) or not getattr(meta, "code_hash", None):
         raise ValueError("Corrupt metadata")
-
+            
     # --- Spec hash parity ---
     from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
 
@@ -386,29 +381,28 @@ class OntologySteward(BaseAgent):
     expected_spec_hash = meta.spec_hash
     if actual_spec_hash != expected_spec_hash:
         raise ValueError("Spec hash mismatch")
-
     # --- Code hash parity ---
     template_instance = VERSIONED_REGISTRY.get(qid)
     if template_instance is None:
-        # tests match "Seal failed: Template instance .* not found"
+    # tests match "Seal failed: Template instance .* not found"
         raise ValueError(f"Seal failed: Template instance {qid} not found")
-
+            
     from src.montecarlo.template_metadata import compute_code_hash_strict
 
     actual_code_hash = compute_code_hash_strict(template_instance)
     expected_code_hash = meta.code_hash
     if actual_code_hash != expected_code_hash:
         raise ValueError("Code hash mismatch")
-
     # Freeze (tests assert called once)
     store.freeze(
         template_id=template_id,
-        version=version,
+        ersion=version,
         evidence_id=evidence_id,
         claim_id=claim_id,
         scope_lock_id=scope_lock_id,
         actor="system",
-    )
+    (
+    
 def _seal_evidence_dict_before_mint(self, session_id: str, ev: Dict[str, Any]) -> str:
     exec_id = (ev.get("execution_id") or "").strip()
     claim_id = (ev.get("claim_id") or ev.get("claim-id") or "").strip()

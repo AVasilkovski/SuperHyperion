@@ -355,13 +355,13 @@ class OntologySteward(BaseAgent):
         qid = template_qid.strip()
 
         # QID format: must be fully qualified
-        if not QID_RE.match(qid):
-            raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
+        if (not qid) or ("@" not in qid) or (not QID_RE.match(qid)):
+            raise ValueError("Invalid template_qid format for seal")
+            
         template_id, version = qid.split("@", 1)
-        template_id = template_id.strip()
-        version = version.strip()
+        template_id, version = template_id.strip(), version.strip()
         if not template_id or not version:
-            raise ValueError(f"CRITICAL: Malformed template_qid '{template_qid}'")
+            raise ValueError("Invalid template_qid format for seal")
         store = getattr(self, "template_store", None)
         if store is None:
             raise ValueError("Seal failed: template_store not configured")

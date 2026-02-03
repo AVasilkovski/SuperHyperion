@@ -108,7 +108,7 @@ class OntologySteward(BaseAgent):
             ev_data = ev.model_dump() if hasattr(ev, "model_dump") else (
                 asdict(ev) if hasattr(ev, "__dataclass_fields__") else ev
             )
-           # Success-only policy: skip BEFORE calling seal
+            # Success-only policy: skip BEFORE calling seal
             raw_success = ev_data.get("success", False)
             success = (raw_success.strip().lower() == "true") if isinstance(raw_success, str) else bool(raw_success)
             if not success:
@@ -328,7 +328,7 @@ class OntologySteward(BaseAgent):
     
 
     def _seal_operator_before_mint(
-        elf,
+        self,
         template_qid: str,
         evidence_id: str,
         claim_id: str,
@@ -635,7 +635,7 @@ def q_insert_meta_critique(session_id: str, mc: dict) -> str:
       (session: $s, meta-critique: $m) isa session-has-meta-critique;
     '''
 
-def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: str) -> str:
+def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optional[str] = None) -> str:
     # ------------------------------------------------------------------
     # Constitutional Gate (Phase 14.5)
     # ------------------------------------------------------------------
@@ -724,6 +724,9 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: str) ->
     base_json = ev.get("json") if isinstance(ev.get("json"), dict) else {}
     extra_fields = {k: v for k, v in ev.items() if k not in exclude}
     payload = {**base_json, **extra_fields}
+    
+    if not evidence_id:
+        evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
 
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}";

@@ -57,6 +57,7 @@ class TestClaimIdLineage:
             claim_id=atomic_claim_id,
             hypothesis="Test hypothesis",
             template_id="numeric_consistency",
+            scope_lock_id="scope-1",
             params={"value": 42},
         )
         

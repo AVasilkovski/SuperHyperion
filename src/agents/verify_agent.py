@@ -119,6 +119,8 @@ class VerifyAgent(BaseAgent):
                 claim_id=spec.claim_id,
                 execution_id=execution.execution_id,
                 template_id=spec.template_id,
+                template_qid=execution.template_qid,  # Phase 14.5: Qualified ID
+                scope_lock_id=spec.scope_lock_id,  # Phase 14.5: Scope lock
                 test_description=f"Template {spec.template_id}: {spec.hypothesis}",
                 
                 # Numeric Core
@@ -264,6 +266,7 @@ Do NOT include speculative content in the output.
                 claim_id=claim_id,
                 hypothesis=f"Verify that {content} holds",
                 template_id=template_id,
+                scope_lock_id=context.graph_context.get("scope_lock_id", f"scope-{claim_id}"),
                 params=params,
                 assumptions={"independence_assumed": True}
             )

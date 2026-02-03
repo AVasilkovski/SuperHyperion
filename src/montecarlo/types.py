@@ -3,6 +3,26 @@ from pydantic import BaseModel, Field, model_validator
 from typing import Dict, Any, Tuple, Optional, Literal, List
 import hashlib
 import json
+import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Constitutional Constants
+QID_RE = re.compile(r"^[a-z0-9_]+@\d+\.\d+\.\d+$")
+
+# Legacy Compatibility Shim (Time-boxed)
+# MAPS TO PINNED VERSIONS ONLY. NO "LATEST".
+LEGACY_TEMPLATE_TO_QID = {
+    "bootstrap_ci": "bootstrap_ci@1.0.0",
+    "bayesian_update": "bayesian_update@1.0.0",
+    "numeric_consistency": "numeric_consistency@1.0.0",
+    "sensitivity_suite": "sensitivity_suite@1.0.0",
+    "effect_direction": "effect_direction@1.0.0",
+    "citation_check": "citation_check@1.0.0",
+    "contradiction_detect": "contradiction_detect@1.0.0",
+    "threshold_check": "threshold_check@1.0.0",
+}
 
 
 # =============================================================================
@@ -103,19 +123,14 @@ class ExperimentSpec(BaseModel):
     INVARIANT: Must have scope_lock_id for grounded lineage.
     """
     claim_id: str
-    scope_lock_id: Optional[str] = None  # Required for grounded execution
+    scope_lock_id: str  # REQUIRED for grounded execution (Constitutional Invariant)
     hypothesis: str
 
-    template_id: Literal[
-        "bootstrap_ci",
-        "bayesian_update",
-        "numeric_consistency",
-        "sensitivity_suite",
-        "effect_direction",
-        "citation_check",
-        "contradiction_detect",
-        "threshold_check",
-    ]
+    # Canonical Field: Qualified ID
+    template_qid: str 
+    
+    # Legacy Field: Optional, used for input convenience but normalized to qid
+    template_id: Optional[str] = None
 
     params: Dict[str, Any] = Field(default_factory=dict)
 
@@ -128,49 +143,87 @@ class ExperimentSpec(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def reject_speculative_residue(cls, data: Any) -> Any:
+    def validate_constitutional_invariants(cls, data: Any) -> Any:
         """
-        Enforce no-residue invariant: speculative content must not leak into specs.
+        Single Constitutional Gate for ExperimentSpec.
         
-        This catches leakage BEFORE it reaches the Steward, failing fast.
+        ORDERING CRITICAL:
+        1. Reject Speculative Residue (Fast Tripwire)
+        2. Normalize & Canonicalize (Whitespace hygiene)
+        3. Enforce Invariants (QID, Scope Lock)
         """
+        if not isinstance(data, dict):
+             return data
+
+        # ---------------------------------------------------------
+        # 1. Speculative Residue Check (Fail Fast)
+        # ---------------------------------------------------------
         def contains_speculative(obj: Any, path: str = "") -> Optional[str]:
-            """Recursively check for speculative markers at any depth."""
             if isinstance(obj, dict):
-                # Check for speculative status
                 if obj.get("epistemic_status") == "speculative":
                     return f"{path} contains epistemic_status='speculative'"
-                # Check for forbidden fields
                 for field in SPECULATIVE_RESIDUE_FIELDS:
                     if field in obj:
                         return f"{path}.{field}" if path else field
-                # Recurse into values
                 for key, value in obj.items():
                     result = contains_speculative(value, f"{path}.{key}" if path else key)
-                    if result:
-                        return result
+                    if result: return result
             elif isinstance(obj, list):
                 for i, item in enumerate(obj):
                     result = contains_speculative(item, f"{path}[{i}]")
-                    if result:
-                        return result
+                    if result: return result
             return None
+
+        # Top-level check
+        for field in SPECULATIVE_RESIDUE_FIELDS:
+            if field in data:
+                raise ValueError(f"INVARIANT VIOLATION: ExperimentSpec cannot contain '{field}'.")
         
-        if isinstance(data, dict):
-            # Top-level forbidden field check
-            for field in SPECULATIVE_RESIDUE_FIELDS:
-                if field in data:
-                    raise ValueError(
-                        f"INVARIANT VIOLATION: ExperimentSpec cannot contain '{field}'. "
-                        f"Speculative content must not leak into grounded artifacts."
-                    )
-            # Recursive check for nested speculative content
-            violation = contains_speculative(data)
-            if violation:
-                raise ValueError(
-                    f"INVARIANT VIOLATION: ExperimentSpec contains speculative content at '{violation}'. "
-                    f"Speculative content must not leak into grounded artifacts."
-                )
+        # Recursive check
+        violation = contains_speculative(data)
+        if violation:
+            raise ValueError(f"INVARIANT VIOLATION: Speculative content found at '{violation}'.")
+
+        # ---------------------------------------------------------
+        # 2. Hygiene & Normalization
+        # ---------------------------------------------------------
+        # Strip whitespace (Hygiene)
+        qid = data.get("template_qid") or data.get("template-qid")
+        tid = data.get("template_id") or data.get("template-id")
+        sid = data.get("scope_lock_id") or data.get("scope-lock-id")
+
+        if isinstance(qid, str): qid = qid.strip() or None
+        if isinstance(tid, str): tid = tid.strip() or None
+        if isinstance(sid, str): sid = sid.strip() or None
+
+        # Normalize Legacy ID -> QID
+        if not qid:
+            if tid and tid in LEGACY_TEMPLATE_TO_QID:
+                qid = LEGACY_TEMPLATE_TO_QID[tid]
+                logger.warning(f"LEGACY_TEMPLATE_ID_USED: Mapped '{tid}' to '{qid}'. Update generator!")
+            elif tid:
+                 # If tid present but not in map, we let it pass to regex check below which will fail
+                 pass
+            
+        # Write back normalized values
+        if qid: data["template_qid"] = qid
+        if sid: data["scope_lock_id"] = sid
+        
+        # ---------------------------------------------------------
+        # 3. Constitutional Invariants
+        # ---------------------------------------------------------
+        
+        # A. Template Identity
+        if not qid:
+             raise ValueError(f"Missing or invalid template_qid. Legacy id '{tid}' not in pinned map.")
+        
+        if not QID_RE.match(qid):
+             raise ValueError(f"Invalid template_qid format: {qid} (expected name@X.Y.Z)")
+
+        # B. Scope Lock
+        if not sid:
+            raise ValueError("Constitutional Error: scope_lock_id is REQUIRED for grounded execution.")
+
         return data
 
 

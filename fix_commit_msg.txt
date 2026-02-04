@@ -1,0 +1,4 @@
+fix: move logging init to main block and verify schema
+
+- Moves `logging.basicConfig` in `src/api/main.py` out of global scope to prevent "logging already initialized" errors during tests.
+- Verified `src/schema/scientific_knowledge.tql`: `validation-evidence` correctly inherits `entity-id` from `evidence` and does not redeclare it. No duplicate definitions found.

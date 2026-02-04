@@ -17,12 +17,12 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 
+from src.utils.logging_setup import setup_logging
+
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(message)s",
-    datefmt="%H:%M:%S"
-)
+if __name__ == "__main__":
+    setup_logging()
+
 logger = logging.getLogger(__name__)
 
 

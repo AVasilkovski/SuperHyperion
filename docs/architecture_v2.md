@@ -403,8 +403,24 @@ Each phase introduces strictly bounded capabilities with explicit epistemic guar
 3. Create missing schema files or fix paths
 
 ------------------------------------------------------------
-## PHASE 16 — BRAINSTORM → MC DESIGN BRIDGE
 ------------------------------------------------------------
+## PHASE 16 — PROGRAMMATIC EPISTEMOLOGY (16.0–16.5)
+------------------------------------------------------------
+> **Evolution Note:** Originally "Brainstorm Bridge", this phase expanded into the core epistemic governance layer (Evidence, Theory, Reproducibility).
+
+### PHASE 16 INVARIANTS (The "5 Tighteners")
+1. **Lane Governance**: Enforced in `WriteIntent` envelope (not payload).
+2. **Constitutional Seal**: Applied to all evidence before minting.
+3. **Deterministic IDs**: Evidence IDs derived from content hash (no `nev-` prefix logic).
+4. **Typed Channel Discipline**: Validation=Success, Negative=Failure (enforced by schema).
+5. **Proposal-Only Mutation**: All theory changes require HITL `write-intent` (no direct writes).
+
+### REMAINING RISKS (Pre-16.4/16.5)
+* **Retrieval Drift**: No snapshot capsule yet (re-runs may differ).
+* **Sequential Inserts**: No transactional batcher (potential partial failures).
+* **Blind Spots**: No evaluation harness for calibration/oscillation.
+
+### PHASE 16.0 — BRAINSTORM → MC DESIGN BRIDGE
 **Goal:**
 - Formalize the typed interface between speculative hypothesis generation and experiment design
 
@@ -437,20 +453,77 @@ SpeculativeAgent           ExperimentHints           VerifyAgent
 |------|-----------|
 | `test_experiment_hints_type_creation` | Hints created with tight typing |
 | `test_experiment_hints_digest_is_stable` | Digest reproducible |
-| `test_experiment_hints_digest_differs_for_different_content` | Digest discriminates |
 | `test_experiment_spec_rejects_experiment_hints_field` | No residue top-level |
 | `test_experiment_spec_rejects_speculative_context_field` | No speculative_context |
-| `test_experiment_spec_rejects_epistemic_status_field` | No epistemic_status |
-| `test_experiment_spec_rejects_nested_speculative_content` | No residue nested |
-| `test_experiment_spec_accepts_clean_spec` | Clean specs accepted |
-| `test_speculative_agent_extract_experiment_hints` | Extraction works |
-| `test_speculative_agent_hints_have_digests` | Digests computable |
 | `test_steward_rejects_experiment_hints_in_evidence_via_epistemic_status` | Steward catches |
-| `test_steward_rejects_raw_speculative_context_in_evidence` | Steward catches |
-| `test_verify_agent_design_uses_hints_for_template_selection` | Hints inform design |
-| `test_verify_agent_design_falls_back_without_hints` | Fallback works |
 
 **Status:** ✅ COMPLETE
+
+---
+
+### PHASE 16.1 — EVIDENCE SEMANTICS
+**Goal:** Make evidence meaning explicit, typed, and governable.
+
+**Key Additions:**
+* `evidence` supertype with `validation-evidence` and `negative-evidence`
+* Typed `evidence-role` (support / refute / undercut / replicate)
+* Failure modes and refutation strength
+* Deterministic evidence IDs + constitutional seal
+* Channel discipline (no support in negative lane)
+
+**Status:** ✅ COMPLETE
+**Enforced by:** schema + steward guards + 40+ tests
+
+---
+
+### PHASE 16.2 — THEORY CHANGE OPERATOR & GOVERNANCE
+**Goal:** Deterministic, reviewable theory updates.
+
+**Key Components:**
+* `theory_change_operator.py`
+* Deterministic action selection: REVISE / FORK / QUARANTINE / HOLD
+* Proposal-only mode (no direct mutation)
+* Normative `intent_registry.py`
+* Lane governance moved to WriteIntent envelope
+
+**Status:** ✅ COMPLETE
+
+---
+
+### PHASE 16.3 — END-TO-END INTEGRATION (CURRENT)
+**Goal:** Make theory change operationally safe and repeatable.
+
+**In Progress:**
+* Deterministic `proposal-id` for idempotency
+* Session-level observability
+* Contract integration test (DB → proposal → intent)
+
+**Status:** 🟡 IN PROGRESS
+
+---
+
+### PHASE 16.4 — REPRODUCIBILITY CAPSULE (PLANNED)
+**Goal:** Eliminate retrieval-induced epistemic drift.
+
+**Planned:**
+* Retrieval snapshot digests
+* Replayable runs
+* Capsule integrity checks
+
+**Status:** 🔴 NOT STARTED
+
+---
+
+### PHASE 16.5 — EVALUATION HARNESS (PLANNED)
+**Goal:** Make epistemic quality measurable.
+
+**Planned Metrics:**
+* Drift rate
+* Oscillation frequency
+* Calibration (Brier / log loss)
+* Governance latency
+
+**Status:** 🔴 NOT STARTED
 
 ------------------------------------------------------------
 ## TEST PHASE ALIGNMENT SUMMARY

@@ -25,7 +25,35 @@ from src.hitl.intent_service import (
 )
 
 
+from unittest.mock import patch
+from src.hitl.intent_registry import IntentSpec, ScopeLockPolicy, ApprovalPolicy
+
+# Define a permissible test spec
+TEST_INTENT_SPEC = IntentSpec(
+    intent_type="test",
+    allowed_fields=frozenset({"v", "claim_id"}),
+    required_fields=frozenset(),
+    required_id_fields=frozenset(),
+    allowed_lanes=frozenset({"grounded", "speculative"}),
+    scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+    approval_by_lane={"grounded": ApprovalPolicy.HITL, "speculative": ApprovalPolicy.HITL},
+    description="Test intent"
+)
+
+# Define update_epistemic_status mock (strict)
+STRICT_INTENT_SPEC = IntentSpec(
+    intent_type="update_epistemic_status",
+    allowed_fields=frozenset({"claim_id"}),
+    required_fields=frozenset({"claim_id"}),
+    required_id_fields=frozenset({"claim_id"}),
+    allowed_lanes=frozenset({"grounded"}),
+    scope_lock_by_lane={"grounded": ScopeLockPolicy.REQUIRED},
+    approval_by_lane={"grounded": ApprovalPolicy.HITL},
+    description="Strict intent"
+)
+
 class TestIntentStatus:
+    # ... (existing content, simplified for brevity in replacement if needed, but replace tool handles chunks)
     """Tests for IntentStatus enum and state machine rules."""
 
     def test_terminal_states_are_defined(self):
@@ -62,6 +90,24 @@ class TestIntentStatus:
 class TestWriteIntentService:
     """Tests for WriteIntentService lifecycle operations."""
 
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        """Mock the registry with test intents."""
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {
+            "test": TEST_INTENT_SPEC,
+            "update_epistemic_status": STRICT_INTENT_SPEC,
+            "housekeeping": IntentSpec(
+                intent_type="housekeeping",
+                allowed_fields=frozenset(),
+                required_fields=frozenset(),
+                required_id_fields=frozenset(),
+                allowed_lanes=frozenset({"grounded"}),
+                scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
+                approval_by_lane={"grounded": ApprovalPolicy.AUTO},
+            )
+        }):
+            yield
+
     @pytest.fixture
     def service(self):
         """Fresh service instance for each test."""
@@ -70,13 +116,13 @@ class TestWriteIntentService:
     def test_stage_creates_intent_in_staged_status(self, service):
         """Staging creates intent with STAGED status."""
         intent = service.stage(
-            intent_type="update_epistemic_status",
+            intent_type="test",  # switch to test
             payload={"claim_id": "claim-001"},
             impact_score=0.5,
         )
         
         assert intent.status == IntentStatus.STAGED
-        assert intent.intent_type == "update_epistemic_status"
+        assert intent.intent_type == "test"
         assert intent.impact_score == 0.5
 
     def test_stage_sets_default_expiry(self, service):
@@ -150,6 +196,11 @@ class TestWriteIntentService:
 class TestIllegalTransitions:
     """Tests for illegal transition enforcement."""
 
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {"test": TEST_INTENT_SPEC}):
+            yield
+
     @pytest.fixture
     def service(self):
         return WriteIntentService()
@@ -179,6 +230,11 @@ class TestIllegalTransitions:
 
 class TestTerminalStateInvariants:
     """Tests for terminal state immutability."""
+
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {"test": TEST_INTENT_SPEC}):
+            yield
 
     @pytest.fixture
     def service(self):
@@ -231,6 +287,11 @@ class TestTerminalStateInvariants:
 class TestExecutedRequiresApproved:
     """Tests for the critical invariant: executed requires prior approved."""
 
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {"test": TEST_INTENT_SPEC}):
+            yield
+
     @pytest.fixture
     def service(self):
         return WriteIntentService()
@@ -277,22 +338,35 @@ class TestExecutedRequiresApproved:
 class TestScopeLockRequired:
     """Tests for scope_lock_id requirement enforcement."""
 
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {
+            "test": TEST_INTENT_SPEC,
+            "update_epistemic_status": STRICT_INTENT_SPEC,
+            "housekeeping": IntentSpec(
+                intent_type="housekeeping",
+                allowed_fields=frozenset(),
+                required_fields=frozenset(),
+                required_id_fields=frozenset(),
+                allowed_lanes=frozenset({"grounded"}),
+                scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
+                approval_by_lane={"grounded": ApprovalPolicy.AUTO},
+            )
+        }):
+            yield
+
     @pytest.fixture
     def service(self):
         return WriteIntentService()
 
-    def test_execute_requires_scope_lock_for_epistemic_update(self, service):
-        """Epistemic updates require scope_lock_id."""
-        intent = service.stage(
-            intent_type="update_epistemic_status",
-            payload={"claim_id": "claim-001"},
-            # No scope_lock_id
-        )
-        service.submit_for_review(intent.intent_id)
-        service.approve(intent.intent_id, "human", "reason")
-        
+    def test_stage_fails_missing_scope_lock_strict(self, service):
+        """Strict intent fails at stage if scope_lock missing."""
         with pytest.raises(ScopeLockRequiredError):
-            service.execute(intent.intent_id, "exec-001")
+            service.stage(
+                intent_type="update_epistemic_status",
+                payload={"claim_id": "claim-001"},
+                # No scope_lock_id
+            )
 
     def test_execute_succeeds_with_scope_lock(self, service):
         """Execution succeeds when scope_lock_id is provided."""
@@ -312,7 +386,6 @@ class TestScopeLockRequired:
         intent = service.stage(
             intent_type="housekeeping",
             payload={},
-            # No scope_lock_id
         )
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
@@ -324,6 +397,11 @@ class TestScopeLockRequired:
 
 class TestEventAuditTrail:
     """Tests for append-only event logging."""
+
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {"test": TEST_INTENT_SPEC}):
+            yield
 
     @pytest.fixture
     def service(self):
@@ -407,6 +485,11 @@ class TestEventAuditTrail:
 class TestExpiration:
     """Tests for expiration behavior."""
 
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {"test": TEST_INTENT_SPEC}):
+            yield
+
     @pytest.fixture
     def service(self):
         return WriteIntentService()
@@ -443,6 +526,11 @@ class TestExpiration:
 class TestDeferredReactivation:
     """Tests for deferred intent reactivation."""
 
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {"test": TEST_INTENT_SPEC}):
+            yield
+
     @pytest.fixture
     def service(self):
         return WriteIntentService()
@@ -464,6 +552,11 @@ class TestDeferredReactivation:
 
 class TestSupersedes:
     """Tests for intent supersession (back from Bali scenario)."""
+
+    @pytest.fixture(autouse=True)
+    def mock_registry(self):
+        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {"test": TEST_INTENT_SPEC}):
+            yield
 
     @pytest.fixture
     def service(self):

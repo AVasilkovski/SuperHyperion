@@ -42,6 +42,7 @@ class IntentStore(ABC):
         self,
         intent_id: str,
         intent_type: str,
+        lane: str,
         payload: Dict[str, Any],
         impact_score: float,
         status: str,
@@ -133,6 +134,7 @@ class InMemoryIntentStore(IntentStore):
         self,
         intent_id: str,
         intent_type: str,
+        lane: str,
         payload: Dict[str, Any],
         impact_score: float,
         status: str,
@@ -147,6 +149,7 @@ class InMemoryIntentStore(IntentStore):
         self._intents[intent_id] = {
             "intent_id": intent_id,
             "intent_type": intent_type,
+            "lane": lane,
             "payload": payload,
             "impact_score": impact_score,
             "status": status,
@@ -277,7 +280,9 @@ class TypeDBIntentStore(IntentStore):
     def insert_intent(
         self,
         intent_id: str,
+
         intent_type: str,
+        lane: str,
         payload: Dict[str, Any],
         impact_score: float,
         status: str,

@@ -246,7 +246,7 @@ def test_guard_speculative_evidence():
     """
     Unit: ValueError on speculative evidence in validation evidence builder.
     """
-    ev = {"claim_id": "c1", "content": "spec", "epistemic_status": "speculative"}
+    ev = {"claim_id": "c1", "content": "spec", "template_qid": "q1", "scope_lock_id": "sl-1", "epistemic_status": "speculative"}
     with pytest.raises(ValueError, match="CRITICAL.*speculative"):
         q_insert_validation_evidence("sess-fail", ev)
 
@@ -255,7 +255,7 @@ def test_guard_nested_speculative():
     """
     Unit: ValueError on nested speculative marker inside JSON.
     """
-    ev = {"claim_id": "c1", "content": "nested", "json": {"epistemic_status": "speculative"}}
+    ev = {"claim_id": "c1", "content": "nested", "template_qid": "q1", "scope_lock_id": "sl-1", "json": {"epistemic_status": "speculative"}}
     with pytest.raises(ValueError, match="CRITICAL.*speculative"):
         q_insert_validation_evidence("sess-fail", ev)
 
@@ -273,6 +273,6 @@ def test_guard_kebab_case_speculative():
     """
     Unit: ValueError on kebab-case speculative marker (key drift protection).
     """
-    ev = {"claim_id": "c1", "content": "kebab", "epistemic-status": "speculative"}
+    ev = {"claim_id": "c1", "content": "kebab", "template_qid": "q1", "scope_lock_id": "sl-1", "epistemic-status": "speculative"}
     with pytest.raises(ValueError, match="CRITICAL.*speculative"):
         q_insert_validation_evidence("sess-fail", ev)

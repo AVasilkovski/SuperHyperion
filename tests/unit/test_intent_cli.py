@@ -14,6 +14,44 @@ from src.cli.main import app
 from src.cli import wiring
 from src.hitl.intent_store import InMemoryIntentStore
 from src.hitl.intent_service import WriteIntentService, IntentStatus
+from src.hitl.intent_registry import IntentSpec, ScopeLockPolicy, ApprovalPolicy
+from unittest.mock import patch
+
+# Define a permissible test spec
+TEST_INTENT_SPEC = IntentSpec(
+    intent_type="test",
+    allowed_fields=frozenset({"v", "claim_id"}),
+    required_fields=frozenset(),
+    required_id_fields=frozenset(),
+    allowed_lanes=frozenset({"grounded", "speculative"}),
+    scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+    approval_by_lane={"grounded": ApprovalPolicy.HITL, "speculative": ApprovalPolicy.HITL},
+    description="Test intent"
+)
+
+# Define generic test_type spec
+TEST_TYPE_SPEC = IntentSpec(
+    intent_type="test_type",
+    allowed_fields=frozenset({"claim_id"}),
+    required_fields=frozenset(),
+    required_id_fields=frozenset(),
+    allowed_lanes=frozenset({"grounded"}),
+    scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
+    approval_by_lane={"grounded": ApprovalPolicy.HITL},
+    description="Test type"
+)
+
+# Define update_epistemic_status mock (strict)
+STRICT_INTENT_SPEC = IntentSpec(
+    intent_type="update_epistemic_status",
+    allowed_fields=frozenset({"claim_id"}),
+    required_fields=frozenset({"claim_id"}),
+    required_id_fields=frozenset({"claim_id"}),
+    allowed_lanes=frozenset({"grounded"}),
+    scope_lock_by_lane={"grounded": ScopeLockPolicy.REQUIRED},
+    approval_by_lane={"grounded": ApprovalPolicy.HITL},
+    description="Strict intent"
+)
 
 
 runner = CliRunner()
@@ -21,10 +59,16 @@ runner = CliRunner()
 
 @pytest.fixture
 def test_service():
-    """Create a fresh test service with InMemory store."""
+    """Create a fresh test service with InMemory store and mocked registry."""
     store = InMemoryIntentStore()
-    service = WriteIntentService(store=store)
-    return service
+    
+    with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {
+        "test": TEST_INTENT_SPEC,
+        "test_type": TEST_TYPE_SPEC,
+        "update_epistemic_status": STRICT_INTENT_SPEC,
+    }):
+        service = WriteIntentService(store=store)
+        yield service
 
 
 @pytest.fixture(autouse=True)

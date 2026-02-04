@@ -107,6 +107,7 @@ class WriteIntent:
     """A write-intent record."""
     intent_id: str
     intent_type: str  # "update_epistemic_status", "create_proposition", etc.
+    lane: str  # "grounded" | "speculative" - Envelope metadata
     payload: Dict[str, Any]
     impact_score: float
     status: IntentStatus
@@ -132,20 +133,20 @@ class WriteIntent:
     
     def requires_scope_lock(self) -> bool:
         """Check if this intent type requires a scope_lock_id."""
-        # Types that require scope lock for execution
-        REQUIRES_SCOPE_LOCK = {
-            "update_epistemic_status",
-            "create_proposition",
-            "refute_proposition",
-            "ontology_mutation",
-            "operator_approval",
-        }
-        return self.intent_type in REQUIRES_SCOPE_LOCK
+        # Delegate to registry (single source of truth)
+        from .intent_registry import requires_scope_lock as registry_requires_scope_lock
+        
+        try:
+            return registry_requires_scope_lock(self.intent_type, self.lane)
+        except ValueError:
+            # Unknown intent type - fail safe (require scope lock)
+            return True
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             "intent_id": self.intent_id,
             "intent_type": self.intent_type,
+            "lane": self.lane,
             "payload": self.payload,
             "impact_score": self.impact_score,
             "status": self.status.value,
@@ -320,6 +321,7 @@ class WriteIntentService:
         self,
         intent_type: str,
         payload: Dict[str, Any],
+        lane: str = "grounded",
         impact_score: float = 0.0,
         scope_lock_id: Optional[str] = None,
         supersedes_intent_id: Optional[str] = None,
@@ -328,29 +330,70 @@ class WriteIntentService:
         """
         Stage a new write-intent.
         
+        New in 16.2: 
+        - lane is envelope metadata (removed from payload if present)
+        - full policy enforcement at stage time (registry validation + scope lock check)
+        
         Returns a new intent in STAGED status.
         """
+        from .intent_registry import validate_intent_payload, get_intent_spec, ScopeLockPolicy
+        
+        # 1. Enforce envelope lane invariant (strip from payload if matched)
+        if "lane" in payload:
+            if payload["lane"] != lane:
+                raise ValueError(f"Payload lane '{payload['lane']}' mismatch envelope lane '{lane}'")
+            # Remove from payload (it's envelope only now)
+            payload = {k: v for k, v in payload.items() if k != "lane"}
+            
+        # 1b. Strip scope_lock_id from payload (envelope invariant)
+        if "scope_lock_id" in payload:
+            # If provided in payload but NOT in arg, we could lift it?
+            # But safer to require argument usage. For now just strip to satisfy registry.
+            # Actually, let's verify if arg is missing, we take from payload?
+            # The refactor plan implies explicit args. Let's strictly strip to force envelope usage.
+            payload = {k: v for k, v in payload.items() if k != "scope_lock_id"}
+            
+        # 2. Validate payload against registry (using envelope lane)
+        validate_intent_payload(intent_type, payload, lane)
+        
+        # 3. Enforce scope-lock policy strictly
+        spec = get_intent_spec(intent_type)
+        sl_policy = spec.get_scope_lock_policy(lane)
+        has_sl = bool(scope_lock_id)
+        
+        if sl_policy == ScopeLockPolicy.REQUIRED and not has_sl:
+            raise ScopeLockRequiredError(f"{intent_type} requires scope_lock_id in lane={lane}")
+        if sl_policy == ScopeLockPolicy.FORBIDDEN and has_sl:
+            raise ValueError(f"{intent_type} forbids scope_lock_id in lane={lane}")
+            
         intent_id = f"intent_{uuid.uuid4().hex[:12]}"
         now = datetime.now()
         expires_at = now + timedelta(days=expires_in_days)
         
-        # Persist to store
+        # Persist to store (schema may need update to store lane)
+        # For now, we'll store it as part of persisted record but need to handle backend compatibility
+        # If DB schema doesn't have 'lane' column yet, store it in payload structure for persistence
+        # or rely on backend to support it. 
+        # Assuming store interface is flexible dictionary-based:
+        
         self._store.insert_intent(
             intent_id=intent_id,
             intent_type=intent_type,
-            payload=payload,
+            payload=payload,  # CLEAN payload (no lane)
             impact_score=impact_score,
             status=IntentStatus.STAGED.value,
             created_at=now,
             expires_at=expires_at,
             scope_lock_id=scope_lock_id,
             supersedes_intent_id=supersedes_intent_id,
+            lane=lane,  # Pass lane to store if supported, or pack it
         )
         
         # Create and cache intent object
         intent = WriteIntent(
             intent_id=intent_id,
             intent_type=intent_type,
+            lane=lane,
             payload=payload,
             impact_score=impact_score,
             status=IntentStatus.STAGED,
@@ -361,7 +404,7 @@ class WriteIntentService:
         )
         self._intent_cache[intent_id] = intent
         
-        logger.info(f"Intent staged: {intent_id} (type={intent_type})")
+        logger.info(f"Intent staged: {intent_id} (type={intent_type}, lane={lane})")
         return intent
     
     def submit_for_review(
@@ -655,6 +698,7 @@ class WriteIntentService:
         intent = WriteIntent(
             intent_id=data["intent_id"],
             intent_type=data["intent_type"],
+            lane=data.get("lane", "grounded"),  # Fallback for old records
             payload=data.get("payload", {}),
             impact_score=data.get("impact_score", 0.0),
             status=IntentStatus(data["status"]),

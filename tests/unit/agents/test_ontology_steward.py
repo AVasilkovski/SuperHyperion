@@ -157,6 +157,8 @@ def test_v22_p11_guard_json_string_speculative():
         "claim_id": "claim-1",
         "execution_id": "exec-1",
         "template_id": "bootstrap_ci",
+        "template_qid": "bootstrap_ci@v1",
+        "scope_lock_id": "lock-1",
         "success": True,
         "confidence_score": 0.9,
         # bypass attempt: speculative marker hidden in JSON string
@@ -175,6 +177,8 @@ def test_v22_p11_guard_json_string_kebab_speculative():
         "claim_id": "claim-2",
         "execution_id": "exec-2",
         "template_id": "bootstrap_ci",
+        "template_qid": "bootstrap_ci@v1",
+        "scope_lock_id": "lock-2",
         "success": True,
         "confidence_score": 0.9,
         # kebab-case variant in string
@@ -193,6 +197,8 @@ def test_v22_p11_claim_id_kebab_case_accepted():
         "claim-id": "claim-kebab",
         "execution_id": "exec-3",
         "template_id": "bootstrap_ci",
+        "template_qid": "bootstrap_ci@v1",
+        "scope_lock_id": "lock-3",
         "success": True,
         "confidence_score": 0.9,
         "content": "ok",

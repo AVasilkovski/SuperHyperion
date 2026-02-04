@@ -41,7 +41,9 @@ from .template_metadata import (
     TemplateCapability,
     TemplateStatus,
     TemplateMetadata,
+    TemplateMetadata,
     VersionedTemplateRegistry,
+    EpistemicSemantics,
 )
 
 
@@ -74,6 +76,12 @@ BOOTSTRAP_CI_SPEC = TemplateSpec(
         "contract.ci_bounds_correct",
     ],
     deterministic=True,
+    epistemic=EpistemicSemantics(
+        instrument="replication",
+        negative_role_on_fail="replicate",
+        default_failure_mode="null_effect",
+        strength_model="ci_proximity_to_null",
+    ),
 )
 
 BAYESIAN_UPDATE_SPEC = TemplateSpec(
@@ -114,6 +122,12 @@ THRESHOLD_CHECK_SPEC = TemplateSpec(
         "contract.threshold_logic_correct",
     ],
     deterministic=True,
+    epistemic=EpistemicSemantics(
+        instrument="falsification",
+        negative_role_on_fail="refute",
+        default_failure_mode="sign_flip",
+        strength_model="binary_default",
+    ),
 )
 
 NUMERIC_CONSISTENCY_SPEC = TemplateSpec(
@@ -133,6 +147,12 @@ NUMERIC_CONSISTENCY_SPEC = TemplateSpec(
         "contract.consistency_logic_correct",
     ],
     deterministic=True,
+    epistemic=EpistemicSemantics(
+        instrument="consistency_check",
+        negative_role_on_fail="undercut",
+        default_failure_mode="violated_assumption",
+        strength_model="binary_default",
+    ),
 )
 
 SENSITIVITY_SUITE_SPEC = TemplateSpec(
@@ -174,6 +194,12 @@ CONTRADICTION_DETECT_SPEC = TemplateSpec(
         "contract.contradiction_detection_correct",
     ],
     deterministic=True,
+    epistemic=EpistemicSemantics(
+        instrument="method_audit",
+        negative_role_on_fail="undercut",
+        default_failure_mode="violated_assumption",
+        strength_model="binary_default",
+    ),
 )
 
 CITATION_CHECK_SPEC = TemplateSpec(

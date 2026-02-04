@@ -211,6 +211,8 @@ def test_steward_rejects_experiment_hints_in_evidence_via_epistemic_status():
         "claim_id": "claim-1",
         "execution_id": "exec-1",
         "template_id": "numeric_consistency",
+        "template_qid": "numeric_consistency@v1",
+        "scope_lock_id": "lock-1",
         "success": True,
         "confidence_score": 0.9,
         # Leaking hints into evidence (should be caught)
@@ -233,6 +235,8 @@ def test_steward_rejects_raw_speculative_context_in_evidence():
         "claim_id": "claim-1",
         "execution_id": "exec-1",
         "template_id": "numeric_consistency",
+        "template_qid": "numeric_consistency@v1",
+        "scope_lock_id": "lock-1",
         "success": True,
         "speculative_context": {
             "alternatives": [],

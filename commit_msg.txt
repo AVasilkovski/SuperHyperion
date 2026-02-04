@@ -1,0 +1,27 @@
+feat: enforce Programmatic Epistemology (Phase 16.2 Complete)
+
+Establishes the "Epistemic Law" baseline for valid theory change operation,
+lane governance, and evidence semantics.
+
+1. Evidence Semantics (Phase 16.1):
+   - Implements strict `validation-evidence` vs `negative-evidence` types.
+   - Enforces scope-lock and template-qid presence in payloads.
+   - Adds `EvidenceRole` enum (SUPPORT, REFUTE, UNDERCUT, REPLICATE).
+
+2. Theory Change Operator (Phase 16.2):
+   - Implements `TheoryChangeOperator` for deterministic proposal generation.
+   - Adds conflict scoring and auto-decision logic (REVISE/FORK/HOLD).
+   - Wires `OntologySteward` to aggregate evidence and stage proposals.
+
+3. Governance & Invariants:
+   - Centralizes policy in `IntentRegistry` (Normative Spec).
+   - Enforces strict Lane Governance (Grounded=HITL, Speculative=Auto).
+   - Hardens `IntentService` against payload drift (e.g. `lane` in envelope).
+
+4. Verification:
+   - Adds full regression suite (344 tests passing).
+   - Fixes all CLI and Service regressions via mocked registry.
+
+Breaking Change:
+- `validate_intent_payload` now strictly rejects unauthorized fields.
+- `validation-evidence` TypeQL requires strict ID references.

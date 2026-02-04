@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 import json
 import logging
 import uuid
+import hashlib
+import re
 
 from .template_metadata import TemplateMetadata, TemplateVersion, TemplateStatus
 
@@ -31,6 +33,24 @@ def _escape(s: str) -> str:
 def _iso_now() -> str:
     """Return ISO format string compatible with TypeDB (no microseconds, UTC 'Z')."""
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+def _make_template_event_id(
+    template_id: str,
+    version: str,
+    event_type: str,
+    evidence_id: Optional[str] = None,
+) -> str:
+    """
+    Deterministic lifecycle event ID.
+    Prevents duplicate events under concurrent freeze/taint calls.
+    Uses schema key: template-lifecycle-event owns entity-id @key
+    Format: tevt-{event_type[:4]}-{hash(tuple)[:12]}
+    """
+    # Deterministic seed tuple
+    seed = f"{template_id}@{version}:{event_type}:{evidence_id or ''}"
+    h = hashlib.md5(seed.encode("utf-8")).hexdigest()[:12]
+    # Prefix helps with readability/debugging
+    return f"tevt-{event_type[:4]}-{h}"
 
 
 class TemplateStore(ABC):
@@ -318,68 +338,71 @@ class TypeDBTemplateStore(TemplateStore):
         scope_lock_id: Optional[str] = None,
         actor: str = "system",
     ) -> None:
-        # Idempotent: check if already frozen
-        meta = self.get_metadata(template_id, version)
-        if meta and meta.frozen:
-            return
+        """
+        Freeze a template on first evidence.
 
+        HARDENED (concurrency-safe + atomic audit):
+        - No pre-read outside the transaction.
+        - Only transitions frozen=false -> frozen=true.
+        - Lifecycle event is inserted in the same write transaction.
+        - If already frozen, this becomes a no-op (no duplicate events).
+        """
         now = _iso_now()
+        # Deterministic event ID for idempotency
+        evt_id = _make_template_event_id(template_id, version, "frozen", evidence_id)
+
+        extra_json = {
+            "evidence_id": evidence_id,
+            "claim_id": claim_id,
+            "scope_lock_id": scope_lock_id,
+        }
+        json_str = json.dumps(extra_json, sort_keys=True)
         
         from typedb.driver import SessionType, TransactionType
         
-        # Correctly manage attributes: delete 'frozen false', insert 'frozen true'
-        # Fix 1: attribute type specified in delete
-        delete_query = f'''
-            match $m isa template-metadata,
-                has template-id "{_escape(template_id)}",
-                has version "{_escape(version)}",
-                has frozen $old_frozen;
-            delete $m has frozen $old_frozen;
-        '''
+        # NOTE: This relies on the invariant that template-metadata always has an explicit
+        # frozen attribute at creation time (insert_metadata sets has frozen false).
+        # Therefore, "match has frozen false" is a complete guard.
         
-        # Fix 2: single insert clause with comma separation
-        insert_attrs = [
-            f'has frozen true',
-            f'has frozen-at {now}',
-            f'has first-evidence-id "{_escape(evidence_id)}"'
-        ]
-        if claim_id:
-            insert_attrs.append(f'has freeze-claim-id "{_escape(claim_id)}"')
-        if scope_lock_id:
-            insert_attrs.append(f'has freeze-scope-lock-id "{_escape(scope_lock_id)}"')
-            
-        attr_block = ",\n                ".join(insert_attrs)
-        
-        insert_query = f'''
-            match $m isa template-metadata,
-                has template-id "{_escape(template_id)}",
-                has version "{_escape(version)}";
-            insert $m 
-                {attr_block};
+        # Single atomic query for mutation + audit
+        query = f'''
+            match
+              $m isa template-metadata,
+                 has template-id "{_escape(template_id)}",
+                 has version "{_escape(version)}",
+                 has frozen false;
+
+            delete
+              $m has frozen false;
+
+            insert
+              $m has frozen true,
+                 has frozen-at {now},
+                 has first-evidence-id "{_escape(evidence_id)}"
+                 {',' if claim_id else ''}{f' has freeze-claim-id "{_escape(claim_id)}"' if claim_id else ''}
+                 {',' if scope_lock_id else ''}{f' has freeze-scope-lock-id "{_escape(scope_lock_id)}"' if scope_lock_id else ''};
+
+              $e isa template-lifecycle-event,
+                 has entity-id "{evt_id}",
+                 has template-id "{_escape(template_id)}",
+                 has version "{_escape(version)}",
+                 has event-type "frozen",
+                 has actor "{_escape(actor)}",
+                 has rationale "{_escape(f"Frozen on first evidence {evidence_id}")}",
+                 has json "{_escape(json_str)}",
+                 has created-at {now};
+
+              ($m, $e) isa template-has-lifecycle-event;
         '''
             
         # Execute in transaction
         with self.driver.session(self.database, SessionType.DATA) as session:
             with session.transaction(TransactionType.WRITE) as tx:
-                tx.query.delete(delete_query)
-                tx.query.insert(insert_query)
+                # Use a single insert query containing match/delete/insert so it is atomic.
+                tx.query.insert(query)
                 tx.commit()
                 
-        logger.info(f"FROZEN template {template_id}@{version} on evidence {evidence_id}")
-        
-        # Log event
-        self.append_event(
-            template_id,
-            version,
-            "frozen",
-            actor,
-            rationale=f"Frozen on first evidence {evidence_id}",
-            extra_json={
-                "evidence_id": evidence_id,
-                "claim_id": claim_id,
-                "scope_lock_id": scope_lock_id
-            }
-        )
+        logger.info(f"Freeze attempted for {template_id}@{version} on evidence {evidence_id} (guarded)")
 
     def taint(
         self,

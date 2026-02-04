@@ -1,8 +1,8 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import time
 import json
-import hashlib
 import logging
+import math
 from dataclasses import asdict
 
 from src.agents.base_agent import BaseAgent, AgentContext
@@ -11,6 +11,17 @@ from src.montecarlo.versioned_registry import VERSIONED_REGISTRY, get_latest_tem
 
 from src.montecarlo.template_metadata import sha256_json_strict
 from src.montecarlo.types import QID_RE
+
+# Phase 16.1: Import from governance module
+from src.governance.fingerprinting import make_evidence_id, make_negative_evidence_id
+from src.epistemology.evidence_roles import (
+    validate_evidence_role,
+    validate_failure_mode,
+    require_evidence_role,
+    clamp_probability,
+    FailureMode,
+    EvidenceRole,
+)
 
 logger = logging.getLogger(__name__)
 class OntologySteward(BaseAgent):
@@ -108,18 +119,48 @@ class OntologySteward(BaseAgent):
             ev_data = ev.model_dump() if hasattr(ev, "model_dump") else (
                 asdict(ev) if hasattr(ev, "__dataclass_fields__") else ev
             )
-            # Success-only policy: skip BEFORE calling seal
-            raw_success = ev_data.get("success", False)
-            success = (raw_success.strip().lower() == "true") if isinstance(raw_success, str) else bool(raw_success)
-            if not success:
-                continue
-
             try:
-                evidence_id = self._seal_evidence_dict_before_mint(session_id, ev_data)
+                evidence_id = self._seal_evidence_dict_before_mint(session_id, ev_data, channel="positive")
                 self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data, evidence_id=evidence_id))
             except Exception as e:
                 logger.error(f"Evidence insert failed (id={ev_data.get('execution_id')}): {e}")
                 raise
+
+        # 3c. Persist Negative Evidence Objects (Phase 16.1)
+        negative_evidence_list = context.graph_context.get("negative_evidence", [])
+        for neg_ev in negative_evidence_list:
+            neg_ev_data = neg_ev.model_dump() if hasattr(neg_ev, "model_dump") else (
+                asdict(neg_ev) if hasattr(neg_ev, "__dataclass_fields__") else neg_ev
+            )
+            evidence_role = neg_ev_data.get("evidence_role") or neg_ev_data.get("evidence-role") or "refute"
+            try:
+                evidence_id = self._seal_evidence_dict_before_mint(
+                    session_id, neg_ev_data, channel="negative"
+                )
+                self.insert_to_graph(
+                    q_insert_negative_evidence(
+                        session_id,
+                        neg_ev_data,
+                        evidence_id=evidence_id,
+                        evidence_role=evidence_role,
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    "Negative evidence insert failed: "
+                    f"claim_id={neg_ev_data.get('claim_id') or neg_ev_data.get('claim-id') or neg_ev_data.get('proposition_id')}, "
+                    f"execution_id={neg_ev_data.get('execution_id') or neg_ev_data.get('execution-id')}, "
+                    f"template_qid={neg_ev_data.get('template_qid') or neg_ev_data.get('template-qid')}, "
+                    f"role={evidence_role}. error={e}"
+                )
+                raise
+        
+        # 3d. Theory Change Operator (Phase 16.2) — proposal-only
+        try:
+            self._generate_and_stage_proposals(session_id)
+        except Exception as e:
+            logger.error(f"Phase 16.2 proposal generation failed (session={session_id}): {e}")
+            # Non-fatal: don't block the rest of the pipeline
         
         # 4. Persist Epistemic Proposals
         proposals = context.graph_context.get("epistemic_update_proposal", [])
@@ -407,15 +448,225 @@ class OntologySteward(BaseAgent):
         )
     
     
-    def _seal_evidence_dict_before_mint(self, session_id: str, ev: Dict[str, Any]) -> str:
-        exec_id = (ev.get("execution_id") or "").strip()
-        claim_id = (ev.get("claim_id") or ev.get("claim-id") or "").strip()
+    def _seal_evidence_dict_before_mint(
+        self,
+        session_id: str,
+        ev: Dict[str, Any],
+        *,
+        channel: str = "positive",
+    ) -> str:
+        exec_id = (ev.get("execution_id") or ev.get("execution-id") or "").strip()
+        claim_id = (
+            ev.get("claim_id")
+            or ev.get("claim-id")
+            or ev.get("proposition_id")
+            or ""
+        ).strip()
         template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
         scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
 
-        evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
+        if channel == "negative":
+            evidence_id = make_negative_evidence_id(session_id, claim_id, exec_id, template_qid)
+        elif channel == "positive":
+            evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
+        else:
+            raise ValueError(f"Invalid evidence channel: {channel!r}")
+
         self._seal_operator_before_mint(template_qid, evidence_id, claim_id, scope_lock_id)
         return evidence_id
+
+    # =========================================================================
+    # Phase 16.2: Theory Change Proposal Helpers
+    # =========================================================================
+
+    def _fetch_session_evidence(self, session_id: str) -> List[Dict[str, Any]]:
+        """
+        Fetch all evidence for a session from TypeDB in 2 queries (base + negative).
+        
+        Returns list of dicts with keys:
+        - eid, cid, slid, conf, role (from DB variables)
+        - fm, rs (for negative-evidence only)
+        """
+        # Query A: Base Evidence fields for ALL evidence
+        query_base = f'''
+        match
+            $s isa run-session, has session-id "{escape(session_id)}";
+            (session: $s, evidence: $e) isa session-has-evidence;
+            $e isa evidence,
+                has entity-id $eid,
+                has claim-id $cid,
+                has scope-lock-id $slid,
+                has confidence-score $conf;
+            (evidence: $e, proposition: $p) isa evidence-for-proposition,
+                has evidence-role $role;
+            $p isa proposition, has entity-id $pid;
+        get $eid, $cid, $slid, $conf, $role, $pid;
+        '''
+        
+        try:
+            base_rows = self._read_query(query_base)
+        except Exception as e:
+            logger.warning(f"Evidence fetch (base) failed (session={session_id}): {e}")
+            return []
+
+        # Query B: Negative Evidence specific fields (Bulk fetch)
+        # We fetch only negative-evidence nodes that have these fields
+        query_neg = f'''
+        match
+            $s isa run-session, has session-id "{escape(session_id)}";
+            (session: $s, evidence: $e) isa session-has-evidence;
+            $e isa negative-evidence, 
+                has entity-id $eid,
+                has failure-mode $fm,
+                has refutation-strength $rs;
+        get $eid, $fm, $rs;
+        '''
+        
+        neg_map = {}
+        try:
+            neg_rows = self._read_query(query_neg)
+            for r in neg_rows:
+                if "eid" in r:
+                    neg_map[r["eid"]] = r
+        except Exception as e:
+            logger.warning(f"Evidence fetch (negative) failed (session={session_id}): {e}")
+            # Non-fatal: just implies no negative fields available
+            
+        # Merge negative fields into base rows
+        enriched = []
+        for row in base_rows:
+            eid = row.get("eid")
+            if eid and eid in neg_map:
+                row["fm"] = neg_map[eid].get("fm")
+                row["rs"] = neg_map[eid].get("rs")
+            enriched.append(row)
+        
+        return enriched
+
+    def _to_operator_tuples(
+        self, ev_rows: List[Dict[str, Any]]
+    ) -> List[tuple]:
+        """
+        Convert evidence rows to (ev_dict, EvidenceRole, channel) tuples.
+        
+        Channel inference: presence of fm/rs/failure-mode ⟹ negative
+        """
+        from src.epistemology.evidence_roles import validate_evidence_role
+        
+        out = []
+        for r in ev_rows:
+            # Role from DB variable or legacy keys
+            role_raw = r.get("role") or r.get("evidence-role") or r.get("evidence_role")
+            try:
+                role = validate_evidence_role(role_raw)
+            except (ValueError, TypeError):
+                logger.debug(f"Skipping evidence with invalid role: {role_raw}")
+                continue
+            if role is None:
+                logger.debug(f"Skipping evidence with invalid role: {role_raw}")
+                continue
+            
+            # Channel from subtype markers (fm/rs presence ⟹ negative)
+            is_negative = bool(
+                r.get("fm") or r.get("rs") 
+                or r.get("failure-mode") or r.get("failure_mode")
+                or r.get("refutation-strength") or r.get("refutation_strength")
+            )
+            channel = "negative" if is_negative else "validation"
+            
+            out.append((r, role, channel))
+        return out
+
+    def _derive_scope_lock_id(self, evidence_list: List[Dict[str, Any]]) -> Optional[str]:
+        """
+        Derive scope-lock from evidence using deterministic rule.
+        
+        Rule: max confidence, tie-break on evidence entity-id ascending.
+        """
+        from src.epistemology.theory_change_operator import (
+            get_evidence_entity_id, get_confidence_value
+        )
+        
+        def _extract_slid(ev):
+            val = (
+                ev.get("slid") 
+                or ev.get("scope_lock_id") 
+                or ev.get("scope-lock-id")
+            )
+            return str(val).strip() if val else ""
+        
+        scored = []
+        for ev in evidence_list:
+            slid = _extract_slid(ev)
+            if not slid:
+                continue
+            evid = get_evidence_entity_id(ev)
+            conf = get_confidence_value(ev)
+            scored.append((conf, evid, slid))
+        
+        if not scored:
+            return None
+        
+        # Sort: max confidence first, then lexicographic by evid (deterministic)
+        scored.sort(key=lambda t: (-t[0], t[1]))
+        return scored[0][2]
+
+    def _generate_and_stage_proposals(self, session_id: str) -> None:
+        """
+        Fetch session evidence, generate proposals, and stage intents.
+        
+        Phase 16.2: Proposal-only mode (no direct mutations).
+        """
+        from src.epistemology.theory_change_operator import (
+            generate_proposal, get_claim_id, TheoryAction
+        )
+        from src.hitl.intent_service import write_intent_service
+        
+        # 1. Fetch evidence
+        session_evidence = self._fetch_session_evidence(session_id)
+        if not session_evidence:
+            logger.debug(f"No evidence to process for session {session_id}")
+            return
+        
+        # 2. Group by claim
+        by_claim: Dict[str, List[Dict[str, Any]]] = {}
+        for ev in session_evidence:
+            cid = get_claim_id(ev)
+            if not cid:
+                continue
+            by_claim.setdefault(cid, []).append(ev)
+        
+        # 3. Generate and stage proposals
+        staged_count = 0
+        for claim_id, ev_list in by_claim.items():
+            tuples = self._to_operator_tuples(ev_list)
+            if not tuples:
+                continue
+            
+            proposal = generate_proposal(claim_id, tuples)
+            
+            # Skip HOLD actions (insufficient evidence)
+            if proposal.action == TheoryAction.HOLD:
+                logger.debug(f"Skipping HOLD proposal for claim {claim_id}")
+                continue
+            
+            # Derive scope-lock deterministically
+            scope_lock_id = self._derive_scope_lock_id(ev_list)
+            
+            # Stage proposal intent (AUTO approval for audit)
+            try:
+                write_intent_service.stage(
+                    intent_type="stage_epistemic_proposal",
+                    payload=proposal.to_intent_payload(),
+                    lane="grounded",
+                    scope_lock_id=scope_lock_id,
+                    impact_score=proposal.conflict_score,
+                )
+                staged_count += 1
+            except Exception as e:
+                logger.error(f"Failed to stage proposal for claim {claim_id}: {e}")
+        
+        logger.info(f"Phase 16.2: Staged {staged_count} proposal(s) for session {session_id}")
 
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)
@@ -639,7 +890,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     # ------------------------------------------------------------------
     # Constitutional Gate (Phase 14.5)
     # ------------------------------------------------------------------
-    exec_id = ev.get("execution_id", "")
+    exec_id = (ev.get("execution_id") or ev.get("execution-id") or "").strip()
     
     # 1. Extract IDs first (needed for error messages)
     claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or "").strip()
@@ -650,6 +901,12 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     # 2. Claim ID is REQUIRED (must check before other guards)
     if not claim_id:
         raise ValueError(f"CRITICAL: Validation evidence missing claim_id! (exec_id={exec_id})")
+
+    # 2b. Seal parity invariants (function-boundary safety)
+    if not scope_lock_id:
+        raise ValueError(f"CRITICAL: Validation evidence missing scope_lock_id! (exec_id={exec_id})")
+    if not template_qid:
+        raise ValueError(f"CRITICAL: Validation evidence missing template_qid! (exec_id={exec_id})")
 
     # ------------------------------------------------------------------
     # 3. Speculative Guard (Phase 11) - Must run before success-only
@@ -714,7 +971,9 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     # ------------------------------------------------------------------
     # Build Query
     # ------------------------------------------------------------------
-    conf = float(ev.get("confidence_score", ev.get("confidence", 0.0)) or 0.0) 
+    conf_raw = ev.get("confidence_score", ev.get("confidence", 0.0)) or 0.0
+    conf = clamp_probability(conf_raw, "confidence_score")
+    
     # Prune excluded keys for JSON payload
     exclude = {
         "claim_id", "claim-id", "proposition_id",
@@ -744,7 +1003,9 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
         has json "{escape(json.dumps(payload, sort_keys=True))}",
         has created-at {iso_now()};
     (session: $s, evidence: $v) isa session-has-evidence;
-    (evidence: $v, proposition: $p) isa evidence-for-proposition;
+    (evidence: $v, proposition: $p) isa evidence-for-proposition,
+        has evidence-role "support";
+
 
     '''
 
@@ -795,15 +1056,115 @@ def q_insert_speculative_hypothesis_targets_proposition(
     insert
       (hypothesis: $h, proposition: $p) isa speculative-hypothesis-targets-proposition;
     '''
-def make_evidence_id(session_id: str, claim_id: str, execution_id: str, template_qid: str) -> str:
-    payload = {
-        "sid": session_id or "",
-        "cid": claim_id or "",
-        "eid": execution_id or "",
-        "qid": template_qid or "",
+# Note: make_evidence_id and make_negative_evidence_id are now imported from src.governance.fingerprinting
+
+
+def q_insert_negative_evidence(
+    session_id: str,
+    ev: dict,
+    evidence_id: Optional[str] = None,
+    evidence_role: str = "refute",
+) -> str:
+    """
+    Build TypeQL query to insert negative evidence (Phase 16.1).
+    
+    Negative evidence represents failed validations, refutations,
+    or methodological failures. Uses the same fingerprint protocol
+    as validation-evidence but with a different prefix (nev-).
+    
+    CRITICAL SEMANTICS:
+    - success=true means "execution succeeded" (template ran validly)
+    - evidence-role="refute" means "claim was refuted"
+    - This preserves backward compatibility with success-only filters
+    
+    Phase 16.2 safeguards:
+    - negative-evidence cannot have role=support (channel discipline)
+    - replicate role IS allowed (represents replication failure/null effect)
+    - numeric fields are clamped to [0,1] and checked for NaN/inf
+    - role validation is strict (typos raise errors immediately)
+    """
+    # Extract required fields
+    claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or "").strip()
+    exec_id = (ev.get("execution_id") or ev.get("execution-id") or "").strip()
+    template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
+    template_id = (ev.get("template_id") or ev.get("template-id") or "").strip()
+    scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
+    
+    # Validate claim_id (same invariant as positive evidence)
+    if not claim_id:
+        raise ValueError(f"CRITICAL: Negative evidence missing claim_id! (exec_id={exec_id})")
+    
+    # Validate and normalize evidence role (Phase 16.2: strict mode)
+    role_enum = require_evidence_role(evidence_role, default=EvidenceRole.REFUTE, strict=True)
+    
+    # Phase 16.2: Prevent channel misuse
+    # SUPPORT is forbidden (use validation-evidence instead)
+    # REFUTE, UNDERCUT, REPLICATE are allowed
+    if role_enum == EvidenceRole.SUPPORT:
+        raise ValueError(
+            f"CRITICAL: negative-evidence cannot have role='support'. "
+            f"Use validation-evidence for supporting evidence. (exec_id={exec_id})"
+        )
+    
+    role_value = role_enum.value
+    
+    # Validate and normalize failure mode
+    failure_mode_raw = ev.get("failure_mode") or ev.get("failure-mode")
+    if role_enum == EvidenceRole.REPLICATE and not failure_mode_raw:
+        logger.warning(
+            f"replicate negative-evidence missing failure-mode; defaulting to null_effect "
+            f"(exec_id={exec_id}, claim_id={claim_id})"
+        )
+    failure_mode_raw = failure_mode_raw or "null_effect"
+    failure_mode_enum = validate_failure_mode(failure_mode_raw) or FailureMode.NULL_EFFECT
+    failure_mode_value = failure_mode_enum.value
+    
+    # Phase 16.2: Clamp numeric fields to [0,1]
+    refutation_strength_raw = float(ev.get("refutation_strength") or ev.get("refutation-strength") or 0.5)
+    refutation_strength = clamp_probability(refutation_strength_raw, "refutation_strength")
+    
+    conf_raw = float(ev.get("confidence_score") or ev.get("confidence-score") or 0.5)
+    conf = clamp_probability(conf_raw, "confidence_score")
+    
+    # Generate deterministic ID if not provided
+    if not evidence_id:
+        evidence_id = make_negative_evidence_id(session_id, claim_id, exec_id, template_qid)
+    
+    # Prune excluded keys for JSON payload (same as validation-evidence)
+    exclude = {
+        "claim_id", "claim-id", "proposition_id",
+        "execution_id", "template_id", "template_qid", "scope_lock_id",
+        "success", "confidence_score", "confidence", "failure_mode", "failure-mode",
+        "refutation_strength", "refutation-strength", "json"
     }
-    s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return "ev-" + hashlib.md5(s.encode("utf-8")).hexdigest()
+    base_json = ev.get("json") if isinstance(ev.get("json"), dict) else {}
+    extra_fields = {k: v for k, v in ev.items() if k not in exclude}
+    payload = {**base_json, **extra_fields}
+    
+    return f'''
+    match $s isa run-session, has session-id "{escape(session_id)}";
+    match $p isa proposition, has entity-id "{escape(claim_id)}";
+    insert
+    $v isa negative-evidence,
+        has entity-id "{escape(evidence_id)}",
+        has claim-id "{escape(claim_id)}",
+        has execution-id "{escape(exec_id)}",
+        has template-qid "{escape(template_qid)}",
+        has template-id "{escape(template_id)}",
+        has scope-lock-id "{escape(scope_lock_id)}",
+        has success true,
+        has failure-mode "{escape(failure_mode_value)}",
+        has refutation-strength {refutation_strength},
+        has confidence-score {conf},
+        has json "{escape(json.dumps(payload, sort_keys=True))}",
+        has created-at {iso_now()};
+    (session: $s, evidence: $v) isa session-has-evidence;
+    (evidence: $v, proposition: $p) isa evidence-for-proposition,
+        has evidence-role "{escape(role_value)}";
+
+    '''
+
 
 # Global instance
 ontology_steward = OntologySteward()
+

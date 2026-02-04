@@ -91,6 +91,8 @@ class TestClaimIdLineage:
             "claim_id": claim_id,
             "execution_id": "exec-lineage-1",
             "template_id": "numeric_consistency",
+            "template_qid": "numeric_consistency@v1.0.0",
+            "scope_lock_id": "sl-lineage-1",
             "success": True,
             "confidence_score": 0.95,
         }
@@ -141,6 +143,8 @@ class TestLaneSentinel:
         ev = {
             "claim_id": "claim-sentinel-1",
             "execution_id": "exec-sentinel-1",
+            "template_qid": "qid-sentinel",
+            "scope_lock_id": "sl-sentinel-1",
             "lane": "speculative",
             "success": True,
         }
@@ -156,6 +160,8 @@ class TestLaneSentinel:
         ev = {
             "claim_id": "claim-nested-1",
             "execution_id": "exec-nested-1", 
+            "template_qid": "qid-nested",
+            "scope_lock_id": "sl-nested-1",
             "metadata": {
                 "source": {
                     "lane": "speculative"

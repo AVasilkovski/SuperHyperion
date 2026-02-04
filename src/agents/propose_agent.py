@@ -30,6 +30,7 @@ class WriteIntent:
     """Staged write intent (executed only by OntologySteward)."""
     intent_id: str
     intent_type: str  # "create_claim" | "update_status" | "link_hypothesis" | "supports" | "refutes"
+    lane: str       # "grounded" | "speculative"
     payload: Dict[str, Any]
     impact_score: Optional[float] = None
     provenance: Dict[str, Any] = field(default_factory=dict)
@@ -39,6 +40,7 @@ class WriteIntent:
         return {
             "intent_id": self.intent_id,
             "intent_type": self.intent_type,
+            "lane": self.lane,
             "payload": self.payload,
             "impact_score": self.impact_score,
             "provenance": self.provenance,
@@ -152,7 +154,8 @@ class ProposeAgent(BaseAgent):
             # Create staged write intent
             intent = WriteIntent(
                 intent_id=f"intent-{claim_id}-{len(write_intents)}",
-                intent_type="update_status",
+                intent_type="update_epistemic_status",  # Aligned with registry
+                lane="grounded",
                 payload={
                     "claim_id": claim_id,
                     "new_status": final_status,

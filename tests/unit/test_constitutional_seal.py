@@ -159,8 +159,8 @@ async def test_steward_succeeds_if_seal_passes():
     assert len(validation_calls) == 1
 
 @pytest.mark.asyncio
-async def test_steward_skips_failed_evidence():
-    """Verify failed evidence is ignored (Success-Only Policy)."""
+async def test_steward_rejects_failed_evidence():
+    """Verify failed evidence raises policy violation (Phase 16.1: reject loud, not silent skip)."""
     steward = OntologySteward()
     steward.insert_to_graph = MagicMock()
     steward._seal_operator_before_mint = MagicMock()
@@ -173,20 +173,16 @@ async def test_steward_skips_failed_evidence():
             "execution_id": "e1",
             "template_qid": "t@1.0.0",
             "scope_lock_id": "s1",
-            "success": False, # Failed
+            "success": False,  # Failed evidence
             "json": {"foo": "bar"}
         }]
     }
     
-    await steward.run(context)
+    # Phase 16.1: Failed evidence should raise ValueError (reject loud, not silent skip)
+    with pytest.raises(ValueError) as exc_info:
+        await steward.run(context)
     
-    # Seal should NOT be called
-    steward._seal_operator_before_mint.assert_not_called()
-    
-    # Insert should NOT be called for validation-evidence
-    calls = steward.insert_to_graph.call_args_list
-    validation_calls = [c.args[0] for c in calls if "validation-evidence" in str(c.args[0])]
-    assert len(validation_calls) == 0
+    assert "success-only" in str(exc_info.value).lower() or "policy violation" in str(exc_info.value).lower()
 
 @pytest.mark.asyncio
 async def test_seal_method_checks_hash_parity():

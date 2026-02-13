@@ -19,7 +19,6 @@ from sse_starlette.sse import EventSourceResponse
 from src.graph import run_query
 from src.config import config
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ============================================
@@ -324,6 +323,8 @@ async def delete_job(job_id: str):
 # ============================================
 
 if __name__ == "__main__":
+    from src.utils.logging_setup import setup_logging
+    setup_logging()
     import uvicorn
     uvicorn.run(
         "src.api.main:app",

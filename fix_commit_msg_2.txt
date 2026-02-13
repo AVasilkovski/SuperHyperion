@@ -1,0 +1,5 @@
+fix: systemic logging initialization and clean schema verification
+
+- **Logging**: Implemented `src/utils/logging_setup.py` with idempotent `setup_logging()`.
+- **Refactor**: Updated `src/api/main.py` and `scripts/audit_replay.py` to use `setup_logging`.
+- **Schema**: Exhaustively verified `scientific_knowledge.tql` is clean. Removed any potential redundant logging configurations.

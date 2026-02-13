@@ -41,6 +41,11 @@ attribute causal-strength, value double;
 attribute conditional-probability, value double;
 attribute conflict-strength, value double;
 
+# --- Evidence Semantics (Phase 16.1) ---
+attribute evidence-role, value string;         # support | refute | undercut | replicate
+attribute failure-mode, value string;          # null_effect | sign_flip | violated_assumption | nonidentifiable
+attribute refutation-strength, value double;   # calibrated strength 0..1
+
 # --- Bayesian Parameters ---
 attribute beta-alpha, value double;
 attribute beta-beta, value double;
@@ -342,9 +347,13 @@ entity write-intent,
     plays session-has-write-intent:write-intent,
     plays intent-has-status-event:write-intent;
 
-entity validation-evidence,
+#
+# Evidence abstraction (Phase 16.1)
+# - Provides a stable supertype for all grounded evidence channels.
+# - Preserves entity-id @key discipline and keeps relations unchanged.
+#
+entity evidence @abstract,
     owns entity-id @key,
-    owns content,
     owns template-id,
     owns template-qid,
     owns execution-id,
@@ -356,6 +365,13 @@ entity validation-evidence,
     owns created-at,
     plays session-has-evidence:evidence,
     plays evidence-for-proposition:evidence;
+
+entity validation-evidence sub evidence,
+    owns content;
+
+entity negative-evidence sub evidence,
+    owns failure-mode,
+    owns refutation-strength;
 
 entity intent-status-event,
     owns entity-id @key,
@@ -562,7 +578,15 @@ relation session-has-scope-draft, relates session, relates draft;
 relation session-has-scope-lock, relates session, relates lock;
 relation session-has-meta-oversight, relates session, relates report;
 relation proposal-targets-proposition, relates proposal, relates proposition;
-relation evidence-for-proposition, relates evidence, relates proposition;
+#
+# Evidence semantics (Phase 16.1)
+# evidence-role attaches semantic intent to the evidence→proposition edge
+# without adding new relations or increasing join cardinality.
+#
+relation evidence-for-proposition,
+    relates evidence,
+    relates proposition,
+    owns evidence-role;
 relation intent-has-status-event, relates write-intent, relates intent-status-event;
 relation session-has-speculative-hypothesis, relates session, relates hypothesis;
 relation speculative-hypothesis-targets-proposition, relates hypothesis, relates proposition;

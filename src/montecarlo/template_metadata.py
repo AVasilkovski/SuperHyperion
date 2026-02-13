@@ -14,7 +14,8 @@ import ast
 import hashlib
 import inspect
 import json
-from dataclasses import dataclass, field, replace
+import logging
+from dataclasses import dataclass, field, replace, asdict
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Literal, TYPE_CHECKING
@@ -63,6 +64,31 @@ class TemplateVersion:
         if other.minor == self.minor and other.patch > self.patch:
             return True
         return False
+
+
+# =============================================================================
+# Epistemic Semantics (Phase 16.2)
+# =============================================================================
+
+@dataclass
+class EpistemicSemantics:
+    """
+    Governed epistemic semantics for a template.
+    Included in spec_hash.
+    """
+    instrument: str = "confirmatory"  # confirmatory, falsification, replication, method_audit, consistency_check
+    negative_role_on_fail: str = "none"  # refute, undercut, replicate, none
+    default_failure_mode: str = "null_effect"  # null_effect, sign_flip, violated_assumption, nonidentifiable
+    strength_model: str = "binary_default"  # binary_default, ci_proximity_to_null
+
+    def to_canonical_dict(self) -> Dict[str, str]:
+        return {
+            "instrument": self.instrument,
+            "negative_role_on_fail": self.negative_role_on_fail,
+            "default_failure_mode": self.default_failure_mode,
+            "strength_model": self.strength_model,
+        }
+
 
 
 # =============================================================================
@@ -124,6 +150,10 @@ class TemplateSpec:
     # Determinism
     deterministic: bool = True
     
+    # Phase 16.2: Governed epistemic semantics
+    epistemic: EpistemicSemantics = field(default_factory=EpistemicSemantics)
+
+    
     def to_canonical_json(self) -> str:
         """Return canonical JSON for hashing (sorted keys, no whitespace)."""
         data = {
@@ -137,6 +167,7 @@ class TemplateSpec:
             "capabilities": sorted(c.value for c in self.capabilities),
             "required_tests": sorted(self.required_tests),
             "deterministic": self.deterministic,
+            "epistemic": self.epistemic.to_canonical_dict(),
         }
         return json.dumps(data, sort_keys=True, separators=(",", ":"))
     
@@ -296,6 +327,12 @@ class TemplateMetadata:
 # Versioned Template Registry
 # =============================================================================
 
+# =============================================================================
+# Versioned Template Registry
+# =============================================================================
+
+logger = logging.getLogger(__name__)
+
 class VersionedTemplateRegistry:
     """
     Explicit registry of versioned templates.
@@ -408,7 +445,15 @@ class VersionedTemplateRegistry:
             raise ValueError(f"Template not found: {qualified_id}")
         
         if metadata.frozen:
-            raise ValueError(f"Template already frozen: {qualified_id}")
+            # Idempotent freeze: return existing if frozen
+            # Log warning if provenance drifts (e.g. different evidence ID)
+            if metadata.first_evidence_id and evidence_id and metadata.first_evidence_id != evidence_id:
+                logger.warning(
+                    "Registry freeze called for already-frozen template with different evidence_id. "
+                    "Keeping original first_evidence_id. qualified_id=%s frozen_first=%s new=%s",
+                    qualified_id, metadata.first_evidence_id, evidence_id
+                )
+            return metadata
         
         new_meta = replace(
             metadata,

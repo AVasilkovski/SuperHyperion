@@ -18,6 +18,8 @@ from src.agents.base_agent import BaseAgent, AgentContext
 from src.graph.state import Evidence
 from src.montecarlo.templates import registry, TemplateExecution, sha256_json
 from src.montecarlo.types import ExperimentSpec, MCResult
+from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,8 @@ class VerifyAgent(BaseAgent):
             context.graph_context["template_executions"] = []
         if "evidence" not in context.graph_context:
             context.graph_context["evidence"] = []
+        if "negative_evidence" not in context.graph_context:
+            context.graph_context["negative_evidence"] = []
             
         # Process each claim through the MC pipeline
         for claim in claims:
@@ -114,6 +118,43 @@ class VerifyAgent(BaseAgent):
                 mc_result.is_fragile = True
             
             # 4) PACK EVIDENCE
+            # 4) PACK EVIDENCE
+            
+            # --- Phase 16.1: Negative Evidence Branch ---
+            if not mc_result.supports_claim:
+                # Retrieve governed semantics from Registry
+                # Use execution.template_qid (canonical) if available, else fallback
+                qid = execution.template_qid or f"{spec.template_id}@1.0.0" 
+                template_spec = VERSIONED_REGISTRY.get_spec(qid)
+                
+                if template_spec:
+                    epi = template_spec.epistemic
+                    negative_strength = self._compute_negative_strength(epi, mc_result)
+                    
+                    if epi.negative_role_on_fail != "none":
+                        neg_evidence = {
+                            "claim_id": spec.claim_id,
+                            "template_qid": qid,
+                            "evidence_id": f"neg-{execution.execution_id}",  # Provisional ID
+                            "role": epi.negative_role_on_fail,
+                            "failure_mode": epi.default_failure_mode,
+                            "strength": negative_strength,
+                            "diagnostics": mc_result.diagnostics,
+                            "metrics": self._extract_metrics(execution.result),
+                            "provenance": {
+                                "template": spec.template_id, 
+                                "params": execution.params,
+                                "epistemic_context": epi.to_canonical_dict()
+                            }
+                        }
+                        context.graph_context["negative_evidence"].append(neg_evidence)
+                        logger.info(f"Emitted NEGATIVE evidence for {spec.claim_id} (role={epi.negative_role_on_fail})")
+                        
+                        # Return early? Or emit both?
+                        # Contract: If refuting, we do NOT emit positive evidence.
+                        return
+
+            # --- Positive Evidence Path ---
             evidence = Evidence(
                 hypothesis_id=context.graph_context.get("hypothesis_id", "unknown"),
                 claim_id=spec.claim_id,
@@ -429,6 +470,28 @@ Do NOT include speculative content in the output.
             return not (low <= null_val <= high) # Reject null hypothesis
         
         return True # Default optimistic
+
+    def _compute_negative_strength(self, epi, result: MCResult) -> float:
+        """Compute strength of negative evidence [0,1]."""
+        if epi.strength_model == "binary_default":
+            return 1.0
+        
+        if epi.strength_model == "ci_proximity_to_null":
+            # Heuristic: How far is the nearest CI bound from the null value?
+            # Higher distance = stronger refutation (if result implies null is far away)
+            # OR for replication: strength is confidence in the null-result.
+            
+            # For now, simple implementation:
+            # If we failed to reject null (replication failure), strength is high contextually
+            # Mapping variance to strength: lower variance = higher strength of "null finding"
+            try:
+                if result.variance > 0:
+                    return 1.0 / (1.0 + math.sqrt(result.variance))
+            except:
+                pass
+            return 0.5
+            
+        return 0.5
 
     def _extract_metrics(self, result: Dict[str, Any]) -> Dict[str, float]:
         """Legacy metric extractor."""

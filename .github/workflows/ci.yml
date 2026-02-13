@@ -10,6 +10,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # Ephemeral TypeDB — pinned to match docker-compose + driver
+    services:
+      typedb:
+        image: typedb/typedb:3.7.3
+        ports:
+          - 1729:1729
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,94 +31,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio
+          pip install pytest pytest-cov pytest-asyncio typedb-driver
 
-      - name: Wait for TypeDB Cloud
+      # Driver-based readiness loop + create DB + load schema (no sleep, no mock)
+      - name: Initialize TypeDB schema (CI)
         env:
-          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
-          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
-          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
-        run: |
-          python - <<'PY'
-          import os, time
-          from typedb.driver import TypeDB, Credentials, DriverOptions
+          PYTHONPATH: .
+          TYPEDB_HOST: localhost
+          TYPEDB_PORT: 1729
+          TYPEDB_DATABASE: scientific_knowledge
+        run: python scripts/init_ci_db.py
 
-          address = os.environ["TYPEDB_ADDRESS"].strip()
-          creds = Credentials(os.environ["TYPEDB_USERNAME"], os.environ["TYPEDB_PASSWORD"])
-          opts = DriverOptions(is_tls_enabled=True, tls_root_ca_path=None)
-
-          for i in range(20):
-              try:
-                  with TypeDB.driver(address, creds, opts) as driver:
-                      driver.databases.all()
-                  print("TypeDB Cloud is ready")
-                  break
-              except Exception as e:
-                  if i == 19:
-                      raise
-                  time.sleep(5)
-          PY
-
-      - name: Load TypeDB schema (Cloud)
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
         env:
-          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
-          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
-          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
-          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
-        run: |
-          python - <<'PY'
-          import os
-          from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
-
-          address = os.environ["TYPEDB_ADDRESS"].strip()
-          db = os.environ.get("TYPEDB_DATABASE", "scientific_knowledge").strip()
-
-          creds = Credentials(os.environ["TYPEDB_USERNAME"], os.environ["TYPEDB_PASSWORD"])
-          opts = DriverOptions(is_tls_enabled=True, tls_root_ca_path=None)
-
-          with TypeDB.driver(address, creds, opts) as driver:
-              if not driver.databases.contains(db):
-                  raise RuntimeError(f"Database '{db}' not found in cluster")
-
-              with driver.transaction(db, TransactionType.SCHEMA) as tx:
-                  with open("src/schema/scientific_knowledge.tql", "r", encoding="utf-8") as f:
-                      tx.query(f.read()).resolve()
-                  tx.commit()
-
-          print(f"Schema loaded successfully into {db}")
-          PY
-
-      - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short
-        env:
-          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
-          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
-          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
-          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
-
-      - name: Run integration tests
-        run: pytest tests/integration/ -v --tb=short
-        env:
-          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
-          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
-          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
-          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
-
-      - name: Run e2e tests
-        run: pytest tests/e2e/ -v --tb=short
-        env:
-          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
-          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
-          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
-          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
-
-      - name: Run security tests
-        run: pytest tests/security/ -v --tb=short
-        env:
-          TYPEDB_ADDRESS: ${{ secrets.TYPEDB_ADDRESS }}
-          TYPEDB_USERNAME: ${{ secrets.TYPEDB_USERNAME }}
-          TYPEDB_PASSWORD: ${{ secrets.TYPEDB_PASSWORD }}
-          TYPEDB_DATABASE: ${{ secrets.TYPEDB_DATABASE }}
+          PYTHONPATH: .
+          TYPEDB_HOST: localhost
+          TYPEDB_PORT: 1729
+          TYPEDB_DATABASE: scientific_knowledge
 
       - name: Upload test artifacts on failure
         if: failure()
@@ -123,6 +60,22 @@ jobs:
             *.log
           retention-days: 7
 
+      # Phase 16.3: WriteCap grep-ban — no agent except OntologySteward may write
+      - name: Grep-ban unauthorized writes
+        run: |
+          VIOLATIONS=$(grep -rnE "(insert_to_graph|query_insert|query_delete)" \
+            src/agents/ \
+            --include="*.py" \
+            --exclude="ontology_steward.py" \
+            --exclude="base_agent.py" \
+            || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::WriteCap violation — unauthorized write calls found:"
+            echo "$VIOLATIONS"
+            exit 1
+          fi
+          echo "✓ No unauthorized write calls found"
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -133,4 +86,4 @@ jobs:
       - name: Install ruff
         run: pip install ruff
       - name: Run linter
-        run: ruff check src/ tests/ --output-format=github || true
+        run: ruff check src/ tests/ --output-format=github

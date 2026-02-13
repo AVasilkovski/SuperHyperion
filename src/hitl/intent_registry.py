@@ -20,8 +20,8 @@ Design:
 """
 
 from dataclasses import dataclass
-from typing import Dict, Set, FrozenSet, Any
 from enum import Enum
+from typing import Any, Dict, FrozenSet
 
 
 class ApprovalPolicy(str, Enum):
@@ -61,15 +61,15 @@ class IntentSpec:
     scope_lock_by_lane: Dict[str, ScopeLockPolicy]
     approval_by_lane: Dict[str, ApprovalPolicy]
     description: str = ""
-    
+
     def get_approval_policy(self, lane: str) -> ApprovalPolicy:
         """Get approval policy for a given lane."""
         return self.approval_by_lane.get(lane, ApprovalPolicy.DENY)
-    
+
     def get_scope_lock_policy(self, lane: str) -> ScopeLockPolicy:
         """Get scope-lock policy for a given lane."""
         return self.scope_lock_by_lane.get(lane, ScopeLockPolicy.FORBIDDEN)
-    
+
     def is_lane_allowed(self, lane: str) -> bool:
         """Check if intent is allowed in the given lane."""
         return lane in self.allowed_lanes
@@ -80,11 +80,11 @@ class IntentSpec:
 # =============================================================================
 
 INTENT_REGISTRY: Dict[str, IntentSpec] = {
-    
+
     # -------------------------------------------------------------------------
     # Low-Risk Primitives (AUTO in both lanes)
     # -------------------------------------------------------------------------
-    
+
     "metrics_update": IntentSpec(
         intent_type="metrics_update",
         allowed_fields=frozenset({"metrics", "session_id", "timestamp"}),
@@ -95,7 +95,7 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},
         description="Append telemetry/metrics (non-mutating)",
     ),
-    
+
     "cache_write": IntentSpec(
         intent_type="cache_write",
         allowed_fields=frozenset({"key", "value", "ttl_seconds"}),
@@ -106,7 +106,7 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},
         description="Write to ephemeral cache (non-durable)",
     ),
-    
+
     "trace_append": IntentSpec(
         intent_type="trace_append",
         allowed_fields=frozenset({"trace_id", "event", "metadata"}),
@@ -117,13 +117,13 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},
         description="Append to execution trace (audit-only)",
     ),
-    
+
     # -------------------------------------------------------------------------
     # Claim/Proposition Creation
     # - create_claim: DENY in grounded (use create_proposition), AUTO in speculative
     # - create_proposition: grounded only, HITL
     # -------------------------------------------------------------------------
-    
+
     "create_claim": IntentSpec(
         intent_type="create_claim",
         allowed_fields=frozenset({"claim_id", "content", "hypothesis_id"}),
@@ -134,7 +134,7 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"speculative": ApprovalPolicy.AUTO},
         description="Create a speculative claim (grounded uses create_proposition)",
     ),
-    
+
     "create_proposition": IntentSpec(
         intent_type="create_proposition",
         allowed_fields=frozenset({"claim_id", "content", "belief_state", "epistemic_status"}),
@@ -145,11 +145,11 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Create a grounded proposition (ontology mutation)",
     ),
-    
+
     # -------------------------------------------------------------------------
     # Epistemic Status Updates (HITL for grounded)
     # -------------------------------------------------------------------------
-    
+
     "update_epistemic_status": IntentSpec(
         intent_type="update_epistemic_status",
         allowed_fields=frozenset({"claim_id", "new_status", "rationale", "evidence_ids"}),
@@ -160,7 +160,7 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Update epistemic status of a proposition",
     ),
-    
+
     "refute_claim": IntentSpec(
         intent_type="refute_claim",
         allowed_fields=frozenset({"claim_id", "refutation_evidence", "rationale"}),
@@ -171,11 +171,11 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Refute a proposition based on negative evidence",
     ),
-    
+
     # -------------------------------------------------------------------------
     # Phase 16.2: Theory Change Operator Intents
     # -------------------------------------------------------------------------
-    
+
     "revise_proposition": IntentSpec(
         intent_type="revise_proposition",
         allowed_fields=frozenset({"claim_id", "new_belief_state", "evidence_summary", "conflict_score"}),
@@ -186,7 +186,7 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Revise belief state based on aggregated evidence (16.2)",
     ),
-    
+
     "fork_proposition": IntentSpec(
         intent_type="fork_proposition",
         allowed_fields=frozenset({"parent_claim_id", "new_claim_id", "content", "fork_rationale"}),
@@ -197,7 +197,7 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Fork a proposition into competing hypotheses (16.2)",
     ),
-    
+
     "quarantine_proposition": IntentSpec(
         intent_type="quarantine_proposition",
         allowed_fields=frozenset({"claim_id", "quarantine_reason", "undercut_evidence"}),
@@ -208,11 +208,11 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Quarantine a proposition due to methodological undercut (16.2)",
     ),
-    
+
     # -------------------------------------------------------------------------
     # Proposal Staging (AUTO - just records intent, no mutation)
     # -------------------------------------------------------------------------
-    
+
     "stage_epistemic_proposal": IntentSpec(
         intent_type="stage_epistemic_proposal",
         allowed_fields=frozenset({"proposal_id", "action", "claim_id", "evidence_ids", "conflict_score", "rationale"}),
@@ -267,28 +267,28 @@ def validate_intent_payload(
         ValueError: If validation fails
     """
     spec = get_intent_spec(intent_type)
-    
+
     # 1. Check lane is NOT in payload (lane is envelope metadata)
     if "lane" in payload:
         raise ValueError(
             f"Payload must not contain 'lane'; lane is an envelope field. "
             f"Remove 'lane' from payload for {intent_type}."
         )
-    
+
     # 2. Check lane allowed for this intent type
     if not spec.is_lane_allowed(lane):
         raise ValueError(f"Intent type '{intent_type}' not allowed in lane '{lane}'")
-    
+
     # 3. Check required fields present
     missing = spec.required_fields - set(payload.keys())
     if missing:
         raise ValueError(f"Missing required fields for {intent_type}: {missing}")
-    
+
     # 4. Check for unknown fields
     unknown = set(payload.keys()) - spec.allowed_fields
     if unknown:
         raise ValueError(f"Unknown fields for {intent_type}: {unknown}")
-    
+
     # 5. Check ID fields are non-empty
     missing_ids = {f for f in spec.required_id_fields if not payload.get(f)}
     if missing_ids:

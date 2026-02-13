@@ -1,6 +1,7 @@
 
+
 import pytest
-import re
+
 from src.agents.ontology_steward import q_insert_validation_evidence
 
 # Common fixture payload
@@ -57,12 +58,12 @@ def test_speculative_evidence_raises():
 def test_confidence_clamping():
     """Should clamp values > 1.0 or < 0.0."""
     payload = VALID_PAYLOAD.copy()
-    
+
     # High clamp
     payload["confidence_score"] = 1.5
     query = q_insert_validation_evidence("sess-1", payload)
     assert 'has confidence-score 1.0' in query
-    
+
     # Low clamp
     payload["confidence_score"] = -0.5
     query = q_insert_validation_evidence("sess-1", payload)
@@ -70,7 +71,6 @@ def test_confidence_clamping():
 
 def test_nan_confidence_raises():
     """Should reject NaN/Inf confidence."""
-    import math
     payload = VALID_PAYLOAD.copy()
     payload["confidence_score"] = float("nan")
     with pytest.raises(ValueError, match="must be finite"):
@@ -81,6 +81,6 @@ def test_execution_id_normalization():
     payload = VALID_PAYLOAD.copy()
     del payload["execution_id"]
     payload["execution-id"] = "exec-kebab"
-    
+
     query = q_insert_validation_evidence("sess-1", payload)
     assert 'has execution-id "exec-kebab"' in query

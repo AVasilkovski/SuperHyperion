@@ -1,10 +1,11 @@
 
-from pydantic import BaseModel, Field, model_validator
-from typing import Dict, Any, Tuple, Optional, Literal, List
 import hashlib
 import json
-import re
 import logging
+import re
+from typing import Any, Dict, List, Literal, Optional, Tuple
+
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -54,29 +55,29 @@ class ExperimentHints(BaseModel):
     into "constraints for tests about the world".
     """
     claim_id: str
-    
+
     # From alternatives: mechanisms to discriminate
     candidate_mechanisms: List[str] = Field(default_factory=list)
-    
+
     # From alternatives: predictions that would distinguish hypotheses
     discriminative_predictions: List[str] = Field(default_factory=list)
-    
+
     # From edge_cases: axes to probe in sensitivity analysis
     sensitivity_axes: List[str] = Field(default_factory=list)
-    
+
     # From analogies: prior suggestions (tightly typed, not Dict[str, Any])
     prior_suggestions: List[PriorSuggestion] = Field(default_factory=list)
-    
+
     # Direct falsification criteria
     falsification_criteria: List[str] = Field(default_factory=list)
-    
+
     # SENTINEL MARKER: Structural boundary for speculative lane
     # This single field is the primary enforcement mechanism
     lane: Literal["speculative"] = "speculative"
-    
+
     # Legacy guard marker (kept for backward compatibility)
     epistemic_status: Literal["speculative"] = "speculative"
-    
+
     def digest(self) -> str:
         """
         Compute a stable hash of the hints for audit trail logging.
@@ -107,7 +108,7 @@ class ExperimentHints(BaseModel):
 SPECULATIVE_RESIDUE_FIELDS = {
     "lane",  # Primary sentinel marker
     "experiment_hints",
-    "speculative_context", 
+    "speculative_context",
     "epistemic_status",
     "alternatives",
     "analogies",
@@ -127,8 +128,8 @@ class ExperimentSpec(BaseModel):
     hypothesis: str
 
     # Canonical Field: Qualified ID
-    template_qid: str 
-    
+    template_qid: str
+
     # Legacy Field: Optional, used for input convenience but normalized to qid
     template_id: Optional[str] = None
 
@@ -178,7 +179,7 @@ class ExperimentSpec(BaseModel):
         for field in SPECULATIVE_RESIDUE_FIELDS:
             if field in data:
                 raise ValueError(f"INVARIANT VIOLATION: ExperimentSpec cannot contain '{field}'.")
-        
+
         # Recursive check
         violation = contains_speculative(data)
         if violation:
@@ -204,19 +205,19 @@ class ExperimentSpec(BaseModel):
             elif tid:
                  # If tid present but not in map, we let it pass to regex check below which will fail
                  pass
-            
+
         # Write back normalized values
         if qid: data["template_qid"] = qid
         if sid: data["scope_lock_id"] = sid
-        
+
         # ---------------------------------------------------------
         # 3. Constitutional Invariants
         # ---------------------------------------------------------
-        
+
         # A. Template Identity
         if not qid:
              raise ValueError(f"Missing or invalid template_qid. Legacy id '{tid}' not in pinned map.")
-        
+
         if not QID_RE.match(qid):
              raise ValueError(f"Invalid template_qid format: {qid} (expected name@X.Y.Z)")
 

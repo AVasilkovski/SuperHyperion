@@ -10,17 +10,16 @@ INVARIANTS:
 - All lifecycle events are logged append-only
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import replace
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+import hashlib
 import json
 import logging
 import uuid
-import hashlib
-import re
+from abc import ABC, abstractmethod
+from dataclasses import replace
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
-from .template_metadata import TemplateMetadata, TemplateVersion, TemplateStatus
+from .template_metadata import TemplateMetadata, TemplateStatus, TemplateVersion
 
 logger = logging.getLogger(__name__)
 
@@ -55,17 +54,17 @@ def _make_template_event_id(
 
 class TemplateStore(ABC):
     """Abstract store for template metadata and audit logs."""
-    
+
     @abstractmethod
     def insert_metadata(self, metadata: TemplateMetadata) -> None:
         """Insert or update template metadata."""
         pass
-    
+
     @abstractmethod
     def get_metadata(self, template_id: str, version: str) -> Optional[TemplateMetadata]:
         """Get metadata for specific version."""
         pass
-    
+
     @abstractmethod
     def freeze(
         self,
@@ -78,7 +77,7 @@ class TemplateStore(ABC):
     ) -> None:
         """Freeze a template on first evidence."""
         pass
-    
+
     @abstractmethod
     def taint(
         self,
@@ -90,7 +89,7 @@ class TemplateStore(ABC):
     ) -> None:
         """Mark a template as tainted."""
         pass
-    
+
     @abstractmethod
     def append_event(
         self,
@@ -107,11 +106,11 @@ class TemplateStore(ABC):
 
 class InMemoryTemplateStore(TemplateStore):
     """In-memory implementation for testing."""
-    
+
     def __init__(self):
         self.metadata: Dict[str, TemplateMetadata] = {} # qualified_id -> meta
         self.events: List[Dict] = []
-        
+
     def _qid(self, tid, v):
         return f"{tid}@{v}"
 
@@ -135,11 +134,11 @@ class InMemoryTemplateStore(TemplateStore):
         qid = self._qid(template_id, version)
         if qid not in self.metadata:
             return
-            
+
         meta = self.metadata[qid]
         if meta.frozen:
             return
-        
+
         new_meta = replace(
             meta,
             frozen=True,
@@ -149,15 +148,15 @@ class InMemoryTemplateStore(TemplateStore):
             freeze_scope_lock_id=scope_lock_id,
         )
         self.metadata[qid] = new_meta
-        
-        self.append_event(template_id, version, "frozen", actor, 
+
+        self.append_event(template_id, version, "frozen", actor,
                          extra_json={"evidence_id": evidence_id})
 
     def taint(self, template_id, version, reason, superseded_by=None, actor="system"):
         qid = self._qid(template_id, version)
         if qid not in self.metadata:
             return
-            
+
         meta = self.metadata[qid]
         new_meta = replace(
             meta,
@@ -167,8 +166,8 @@ class InMemoryTemplateStore(TemplateStore):
             superseded_by=superseded_by,
         )
         self.metadata[qid] = new_meta
-        
-        self.append_event(template_id, version, "tainted", actor, 
+
+        self.append_event(template_id, version, "tainted", actor,
                          rationale=reason)
 
     def append_event(self, template_id, version, event_type, actor, rationale="", extra_json=None):
@@ -190,18 +189,18 @@ class TypeDBTemplateStore(TemplateStore):
     Uses delete+insert for mutable attributes (status, frozen, tainted).
     Logs all changes to template-lifecycle-event.
     """
-    
+
     def __init__(self, driver, database: str = "scientific_knowledge"):
         self.driver = driver
         self.database = database
-    
+
     def _write_query(self, query: str) -> None:
         from typedb.driver import SessionType, TransactionType
         with self.driver.session(self.database, SessionType.DATA) as session:
             with session.transaction(TransactionType.WRITE) as tx:
                 tx.query.insert(query)
                 tx.commit()
-    
+
     def _read_query(self, query: str) -> List[Dict[str, Any]]:
         from typedb.driver import SessionType, TransactionType
         results = []
@@ -214,14 +213,14 @@ class TypeDBTemplateStore(TemplateStore):
                         concept = concept_map.get(var)
                         # Correct variable mapping fix
                         var_name = var.name() if hasattr(var, "name") else str(var)
-                        
+
                         if hasattr(concept, 'get_value'):
                             row[var_name] = concept.get_value()
                         elif hasattr(concept, 'get_iid'):
                             row[var_name] = concept.get_iid()
                     results.append(row)
         return results
-    
+
     def append_event(
         self,
         template_id: str,
@@ -235,7 +234,7 @@ class TypeDBTemplateStore(TemplateStore):
         evt_id = f"tevt-{uuid.uuid4().hex[:12]}"
         now = _iso_now()
         json_str = json.dumps(extra_json or {}, sort_keys=True)
-        
+
         query = f'''
             match $m isa template-metadata,
                 has template-id "{_escape(template_id)}",
@@ -263,7 +262,7 @@ class TypeDBTemplateStore(TemplateStore):
             return
 
         now = _iso_now()
-        
+
         # Build insert query with cleaner attribute construction
         attributes = [
             f'has template-id "{_escape(metadata.template_id)}"',
@@ -275,26 +274,26 @@ class TypeDBTemplateStore(TemplateStore):
             f'has tainted {str(metadata.tainted).lower()}',
             f'has created-at {now}'
         ]
-        
+
         if metadata.deps_hash:
             attributes.append(f'has deps-hash "{_escape(metadata.deps_hash)}"')
-            
+
         attr_block = ",\n                ".join(attributes)
 
         query = f'''
             insert $m isa template-metadata,
                 {attr_block};
         '''
-        
+
         self._write_query(query)
         logger.info(f"Inserted metadata for {metadata.qualified_id}")
-        
+
         # Log registration event
         try:
             self.append_event(
-                metadata.template_id, 
-                str(metadata.version), 
-                "registered", 
+                metadata.template_id,
+                str(metadata.version),
+                "registered",
                 metadata.approved_by or "system", # Auto-approved bootstrap
                 rationale="Initial registration"
             )
@@ -316,7 +315,7 @@ class TypeDBTemplateStore(TemplateStore):
         results = self._read_query(query)
         if not results:
             return None
-        
+
         row = results[0]
         # Construct partially populated metadata
         return TemplateMetadata(
@@ -357,13 +356,13 @@ class TypeDBTemplateStore(TemplateStore):
             "scope_lock_id": scope_lock_id,
         }
         json_str = json.dumps(extra_json, sort_keys=True)
-        
+
         from typedb.driver import SessionType, TransactionType
-        
+
         # NOTE: This relies on the invariant that template-metadata always has an explicit
         # frozen attribute at creation time (insert_metadata sets has frozen false).
         # Therefore, "match has frozen false" is a complete guard.
-        
+
         # Single atomic query for mutation + audit
         query = f'''
             match
@@ -394,14 +393,14 @@ class TypeDBTemplateStore(TemplateStore):
 
               ($m, $e) isa template-has-lifecycle-event;
         '''
-            
+
         # Execute in transaction
         with self.driver.session(self.database, SessionType.DATA) as session:
             with session.transaction(TransactionType.WRITE) as tx:
                 # Use a single insert query containing match/delete/insert so it is atomic.
                 tx.query.insert(query)
                 tx.commit()
-                
+
         logger.info(f"Freeze attempted for {template_id}@{version} on evidence {evidence_id} (guarded)")
 
     def taint(
@@ -413,7 +412,7 @@ class TypeDBTemplateStore(TemplateStore):
         actor: str = "system",
     ) -> None:
         now = _iso_now()
-        
+
         delete_query = f'''
             match $m isa template-metadata,
                 has template-id "{_escape(template_id)}",
@@ -421,17 +420,17 @@ class TypeDBTemplateStore(TemplateStore):
                 has tainted $old;
             delete $m has tainted $old;
         '''
-        
+
         insert_attrs = [
-            f'has tainted true',
+            'has tainted true',
             f'has tainted-at {now}',
             f'has tainted-reason "{_escape(reason)}"'
         ]
         if superseded_by:
             insert_attrs.append(f'has superseded-by "{_escape(superseded_by)}"')
-            
+
         attr_block = ",\n                ".join(insert_attrs)
-        
+
         insert_query = f'''
             match $m isa template-metadata,
                 has template-id "{_escape(template_id)}",
@@ -439,15 +438,16 @@ class TypeDBTemplateStore(TemplateStore):
             insert $m 
                 {attr_block};
         '''
-            
+
+        from typedb.driver import SessionType, TransactionType
         with self.driver.session(self.database, SessionType.DATA) as session:
             with session.transaction(TransactionType.WRITE) as tx:
                 tx.query.delete(delete_query)
                 tx.query.insert(insert_query)
                 tx.commit()
-            
+
         logger.info(f"TAINTED template {template_id}@{version}: {reason}")
-        
+
         # Log event
         self.append_event(
             template_id,

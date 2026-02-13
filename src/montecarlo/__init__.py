@@ -8,18 +8,18 @@ CRITICAL: No exec(), no eval(), no dynamic imports.
 """
 
 from .templates import (
-    registry,
-    TemplateRegistry,
-    TemplateExecution,
-    Template,
-    BootstrapCITemplate,
     BayesianUpdateTemplate,
-    ThresholdCheckTemplate,
+    BootstrapCITemplate,
+    CitationCheckTemplate,
+    ContradictionDetectTemplate,
+    EffectDirectionTemplate,
     NumericConsistencyTemplate,
     SensitivitySuiteTemplate,
-    ContradictionDetectTemplate,
-    CitationCheckTemplate,
-    EffectDirectionTemplate,
+    Template,
+    TemplateExecution,
+    TemplateRegistry,
+    ThresholdCheckTemplate,
+    registry,
 )
 
 __all__ = [

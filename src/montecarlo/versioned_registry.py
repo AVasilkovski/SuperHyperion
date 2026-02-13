@@ -6,44 +6,42 @@ This is the source of truth at runtime.
 """
 
 from typing import Dict, Type
+
 from pydantic import BaseModel
 
-from .templates import (
-    Template,
-    BootstrapCITemplate,
-    BootstrapCIParams,
-    BootstrapCIOutput,
-    BayesianUpdateTemplate,
-    BayesianUpdateParams,
-    BayesianUpdateOutput,
-    ThresholdCheckTemplate,
-    ThresholdCheckParams,
-    ThresholdCheckOutput,
-    NumericConsistencyTemplate,
-    NumericConsistencyParams,
-    NumericConsistencyOutput,
-    SensitivitySuiteTemplate,
-    SensitivitySuiteParams,
-    SensitivitySuiteOutput,
-    ContradictionDetectTemplate,
-    ContradictionDetectParams,
-    ContradictionDetectOutput,
-    CitationCheckTemplate,
-    CitationCheckParams,
-    CitationCheckOutput,
-    EffectDirectionTemplate,
-    EffectDirectionParams,
-    EffectDirectionOutput,
-)
 from .template_metadata import (
-    TemplateVersion,
-    TemplateSpec,
-    TemplateCapability,
-    TemplateStatus,
-    TemplateMetadata,
-    TemplateMetadata,
-    VersionedTemplateRegistry,
     EpistemicSemantics,
+    TemplateCapability,
+    TemplateSpec,
+    TemplateVersion,
+    VersionedTemplateRegistry,
+)
+from .templates import (
+    BayesianUpdateOutput,
+    BayesianUpdateParams,
+    BayesianUpdateTemplate,
+    BootstrapCIOutput,
+    BootstrapCIParams,
+    BootstrapCITemplate,
+    CitationCheckOutput,
+    CitationCheckParams,
+    CitationCheckTemplate,
+    ContradictionDetectOutput,
+    ContradictionDetectParams,
+    ContradictionDetectTemplate,
+    EffectDirectionOutput,
+    EffectDirectionParams,
+    EffectDirectionTemplate,
+    NumericConsistencyOutput,
+    NumericConsistencyParams,
+    NumericConsistencyTemplate,
+    SensitivitySuiteOutput,
+    SensitivitySuiteParams,
+    SensitivitySuiteTemplate,
+    Template,
+    ThresholdCheckOutput,
+    ThresholdCheckParams,
+    ThresholdCheckTemplate,
 )
 
 
@@ -248,7 +246,7 @@ EFFECT_DIRECTION_SPEC = TemplateSpec(
 def build_versioned_registry() -> VersionedTemplateRegistry:
     """Build the versioned template registry with all known templates."""
     registry = VersionedTemplateRegistry()
-    
+
     # Register all templates with their specs
     templates_specs = [
         (BootstrapCITemplate(), BOOTSTRAP_CI_SPEC),
@@ -260,10 +258,10 @@ def build_versioned_registry() -> VersionedTemplateRegistry:
         (CitationCheckTemplate(), CITATION_CHECK_SPEC),
         (EffectDirectionTemplate(), EFFECT_DIRECTION_SPEC),
     ]
-    
+
     for template, spec in templates_specs:
         registry.register(template, spec)
-    
+
     return registry
 
 

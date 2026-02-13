@@ -15,10 +15,10 @@ import hashlib
 import inspect
 import json
 import logging
-from dataclasses import dataclass, field, replace, asdict
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
 if TYPE_CHECKING:
     from .templates import Template
@@ -40,7 +40,7 @@ class TemplateVersion:
     major: int
     minor: int
     patch: int
-    
+
     @classmethod
     def parse(cls, s: str) -> "TemplateVersion":
         """Parse version string like '1.2.3'."""
@@ -51,10 +51,10 @@ class TemplateVersion:
             return cls(int(parts[0]), int(parts[1]), int(parts[2]))
         except ValueError as e:
             raise ValueError(f"Invalid version: {s}: {e}")
-    
+
     def __str__(self) -> str:
         return f"{self.major}.{self.minor}.{self.patch}"
-    
+
     def is_compatible_upgrade(self, other: "TemplateVersion") -> bool:
         """Check if other is a compatible upgrade (same major, higher minor/patch)."""
         if self.major != other.major:
@@ -130,30 +130,30 @@ class TemplateSpec:
     template_id: str
     version: TemplateVersion
     description: str
-    
+
     # Input/output contract
     param_schema: Dict[str, Any]  # JSON schema of ParamModel
     output_schema: Dict[str, Any]  # JSON schema of OutputModel
-    
+
     # Invariants (must always be true)
     invariants: List[str] = field(default_factory=list)
-    
+
     # Dependencies on other templates
     depends_on: List[str] = field(default_factory=list)  # e.g. ["bootstrap_ci@1.0.0"]
-    
+
     # Declared capabilities
     capabilities: Set[TemplateCapability] = field(default_factory=set)
-    
+
     # Required contract tests (by stable ID)
     required_tests: List[str] = field(default_factory=list)
-    
+
     # Determinism
     deterministic: bool = True
-    
+
     # Phase 16.2: Governed epistemic semantics
     epistemic: EpistemicSemantics = field(default_factory=EpistemicSemantics)
 
-    
+
     def to_canonical_json(self) -> str:
         """Return canonical JSON for hashing (sorted keys, no whitespace)."""
         data = {
@@ -170,7 +170,7 @@ class TemplateSpec:
             "epistemic": self.epistemic.to_canonical_dict(),
         }
         return json.dumps(data, sort_keys=True, separators=(",", ":"))
-    
+
     def spec_hash(self) -> str:
         """Return SHA256 hash of canonical spec JSON."""
         return hashlib.sha256(self.to_canonical_json().encode()).hexdigest()
@@ -246,37 +246,37 @@ class TemplateMetadata:
     """
     template_id: str
     version: TemplateVersion
-    
+
     # Hashes (for integrity verification)
     spec_hash: str
     code_hash: str
     deps_hash: Optional[str] = None
-    
+
     # Governance
     status: TemplateStatus = TemplateStatus.ACTIVE
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
-    
+
     # Freeze state
     frozen: bool = False
     frozen_at: Optional[datetime] = None
     first_evidence_id: Optional[str] = None
-    
+
     # Freeze provenance
     freeze_claim_id: Optional[str] = None
     freeze_scope_lock_id: Optional[str] = None
-    
+
     # Taint state
     tainted: bool = False
     tainted_at: Optional[datetime] = None
     tainted_reason: Optional[str] = None
     superseded_by: Optional[str] = None  # e.g. "bootstrap_ci@1.0.1"
-    
+
     @property
     def qualified_id(self) -> str:
         """Return qualified ID like 'bootstrap_ci@1.0.0'."""
         return f"{self.template_id}@{self.version}"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -298,7 +298,7 @@ class TemplateMetadata:
             "tainted_reason": self.tainted_reason,
             "superseded_by": self.superseded_by,
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TemplateMetadata":
         """Create from dictionary."""
@@ -339,12 +339,12 @@ class VersionedTemplateRegistry:
     
     Keys are qualified IDs: 'template_id@version'
     """
-    
+
     def __init__(self):
         self._templates: Dict[str, "Template"] = {}
         self._metadata: Dict[str, TemplateMetadata] = {}
         self._specs: Dict[str, TemplateSpec] = {}
-    
+
     def register(
         self,
         template: "Template",
@@ -357,14 +357,14 @@ class VersionedTemplateRegistry:
         Returns the qualified ID.
         """
         qualified_id = f"{spec.template_id}@{spec.version}"
-        
+
         if qualified_id in self._templates:
             raise ValueError(f"Template already registered: {qualified_id}")
-        
+
         # Compute hashes (strict validation for registration)
         spec_hash = spec.spec_hash()
         code_hash = compute_code_hash(type(template), strict=True)
-        
+
         # Create metadata if not provided
         if metadata is None:
             metadata = TemplateMetadata(
@@ -385,49 +385,49 @@ class VersionedTemplateRegistry:
                     f"Metadata sanity check failed for {qualified_id}: "
                     f"code_hash mismatch (provided={metadata.code_hash}, computed={code_hash})"
                 )
-        
+
         self._templates[qualified_id] = template
         self._specs[qualified_id] = spec
         self._metadata[qualified_id] = metadata
-        
+
         return qualified_id
-    
+
     def get(self, qualified_id: str) -> Optional["Template"]:
         """Get a template by qualified ID."""
         return self._templates.get(qualified_id)
-    
+
     def get_spec(self, qualified_id: str) -> Optional[TemplateSpec]:
         """Get spec by qualified ID."""
         return self._specs.get(qualified_id)
-    
+
     def get_metadata(self, qualified_id: str) -> Optional[TemplateMetadata]:
         """Get metadata by qualified ID."""
         return self._metadata.get(qualified_id)
-    
+
     def get_latest(self, template_id: str) -> Optional["Template"]:
         """Get the latest version of a template."""
         versions = [
             (TemplateVersion.parse(qid.split("@")[1]), qid)
             for qid in self._templates
-            if qid.startswith(f"{template_id}@") and 
+            if qid.startswith(f"{template_id}@") and
                self._metadata[qid].status == TemplateStatus.ACTIVE
         ]
         if not versions:
             return None
         versions.sort(reverse=True)
         return self._templates[versions[0][1]]
-    
+
     def list_all(self) -> List[str]:
         """List all registered qualified IDs."""
         return sorted(self._templates.keys())
-    
+
     def list_by_status(self, status: TemplateStatus) -> List[str]:
         """List templates by status."""
         return [
             qid for qid, meta in self._metadata.items()
             if meta.status == status
         ]
-    
+
     def freeze(
         self,
         qualified_id: str,
@@ -443,7 +443,7 @@ class VersionedTemplateRegistry:
         metadata = self._metadata.get(qualified_id)
         if not metadata:
             raise ValueError(f"Template not found: {qualified_id}")
-        
+
         if metadata.frozen:
             # Idempotent freeze: return existing if frozen
             # Log warning if provenance drifts (e.g. different evidence ID)
@@ -454,7 +454,7 @@ class VersionedTemplateRegistry:
                     qualified_id, metadata.first_evidence_id, evidence_id
                 )
             return metadata
-        
+
         new_meta = replace(
             metadata,
             frozen=True,
@@ -465,7 +465,7 @@ class VersionedTemplateRegistry:
         )
         self._metadata[qualified_id] = new_meta
         return new_meta
-    
+
     def taint(
         self,
         qualified_id: str,
@@ -478,7 +478,7 @@ class VersionedTemplateRegistry:
         metadata = self._metadata.get(qualified_id)
         if not metadata:
             raise ValueError(f"Template not found: {qualified_id}")
-        
+
         new_meta = replace(
             metadata,
             tainted=True,
@@ -488,34 +488,34 @@ class VersionedTemplateRegistry:
         )
         self._metadata[qualified_id] = new_meta
         return new_meta
-    
+
     def deprecate(self, qualified_id: str) -> TemplateMetadata:
         """Mark a template as deprecated."""
         metadata = self._metadata.get(qualified_id)
         if not metadata:
             raise ValueError(f"Template not found: {qualified_id}")
-            
+
         new_meta = replace(metadata, status=TemplateStatus.DEPRECATED)
         self._metadata[qualified_id] = new_meta
         return new_meta
-    
+
     def verify_hashes(self, qualified_id: str) -> bool:
         """Verify that current hashes match stored metadata."""
         template = self._templates.get(qualified_id)
         spec = self._specs.get(qualified_id)
         metadata = self._metadata.get(qualified_id)
-        
+
         if not all([template, spec, metadata]):
             return False
-        
+
         current_spec_hash = spec.spec_hash()
         current_code_hash = compute_code_hash(type(template), strict=True)
-        
+
         return (
             current_spec_hash == metadata.spec_hash and
             current_code_hash == metadata.code_hash
         )
-    
+
     def to_manifest(self) -> Dict[str, Any]:
         """Export registry to manifest format for CI."""
         manifest = {}

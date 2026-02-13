@@ -5,10 +5,10 @@ Secure sandbox for executing Python code using Jupyter kernels.
 This implements the CodeAct paradigm where agents think and act in Python.
 """
 
-import re
-from typing import Optional, Dict, Any, Tuple
-from dataclasses import dataclass
 import logging
+import re
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
 
 from jupyter_client import KernelManager
 from jupyter_client.kernelspec import NoSuchKernel
@@ -58,13 +58,13 @@ class CodeActExecutor:
     - Executed in isolated Jupyter kernel
     - Results returned for agent reasoning
     """
-    
+
     def __init__(self, kernel_name: str = "python3"):
         self.kernel_name = kernel_name
         self._km: Optional[KernelManager] = None
         self._kc = None  # Kernel client
         self._execution_count = 0
-    
+
     def start(self):
         """Start the Jupyter kernel."""
         if self._km is None:
@@ -75,13 +75,13 @@ class CodeActExecutor:
                 self._kc.start_channels()
                 self._kc.wait_for_ready(timeout=30)
                 logger.info(f"Jupyter kernel started: {self.kernel_name}")
-                
+
                 # Initialize with safe imports
                 self._execute_setup()
-                
+
             except NoSuchKernel:
                 raise RuntimeError(f"Kernel not found: {self.kernel_name}")
-    
+
     def _execute_setup(self):
         """Set up the kernel with allowed imports."""
         setup_code = """
@@ -111,7 +111,7 @@ sys.modules['httpx'] = BlockedModule()
 print("CodeAct sandbox initialized")
 """
         self._execute_raw(setup_code)
-    
+
     def stop(self):
         """Stop the Jupyter kernel."""
         if self._kc:
@@ -120,7 +120,7 @@ print("CodeAct sandbox initialized")
             self._km.shutdown_kernel()
             self._km = None
         logger.info("Jupyter kernel stopped")
-    
+
     def validate_code(self, code: str) -> Tuple[bool, Optional[str]]:
         """
         Validate code for safety before execution.
@@ -132,50 +132,50 @@ print("CodeAct sandbox initialized")
             match = re.search(pattern, code)
             if match:
                 return False, f"Blocked pattern detected: {pattern}"
-        
+
         return True, None
-        
+
         return True, None
-    
+
     def _execute_raw(self, code: str, timeout: int = 30) -> ExecutionResult:
         """Execute code without validation (internal use only)."""
         if self._kc is None:
             self.start()
-        
+
         self._execution_count += 1
         _msg_id = self._kc.execute(code)  # noqa: F841
-        
+
         stdout_parts = []
         stderr_parts = []
         result = None
         error = None
-        
+
         while True:
             try:
                 msg = self._kc.get_iopub_msg(timeout=timeout)
                 msg_type = msg['msg_type']
                 content = msg['content']
-                
+
                 if msg_type == 'stream':
                     if content['name'] == 'stdout':
                         stdout_parts.append(content['text'])
                     elif content['name'] == 'stderr':
                         stderr_parts.append(content['text'])
-                        
+
                 elif msg_type == 'execute_result':
                     result = content['data'].get('text/plain', '')
-                    
+
                 elif msg_type == 'error':
                     error = '\n'.join(content['traceback'])
-                    
+
                 elif msg_type == 'status':
                     if content['execution_state'] == 'idle':
                         break
-                        
+
             except Exception as e:
                 error = str(e)
                 break
-        
+
         return ExecutionResult(
             success=error is None,
             stdout=''.join(stdout_parts),
@@ -184,7 +184,7 @@ print("CodeAct sandbox initialized")
             error=error,
             execution_count=self._execution_count,
         )
-    
+
     def execute(self, code: str, timeout: int = 30) -> ExecutionResult:
         """
         Execute Python code safely.
@@ -206,32 +206,32 @@ print("CodeAct sandbox initialized")
                 error=f"Security validation failed: {error_msg}",
                 execution_count=self._execution_count,
             )
-        
+
         return self._execute_raw(code, timeout)
-    
+
     def execute_and_capture(self, code: str) -> Dict[str, Any]:
         """
         Execute code and return a structured response for agent consumption.
         """
         result = self.execute(code)
-        
+
         return {
             "success": result.success,
             "output": result.stdout + (f"\nResult: {result.result}" if result.result else ""),
             "error": result.error or result.stderr if not result.success else None,
             "execution_id": result.execution_count,
         }
-    
+
     def reset(self):
         """Reset the kernel to clean state."""
         self.stop()
         self.start()
         logger.info("Kernel reset to clean state")
-    
+
     def __enter__(self):
         self.start()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
@@ -251,7 +251,7 @@ if __name__ == "__main__":
         # Safe code
         result = executor.execute("print(2 + 2)")
         print(f"Safe code result: {result}")
-        
+
         # Statistical computation
         result = executor.execute("""
 import statistics
@@ -260,7 +260,7 @@ print(f"Mean: {statistics.mean(data)}")
 print(f"Stdev: {statistics.stdev(data)}")
 """)
         print(f"Stats result: {result}")
-        
+
         # Blocked code
         result = executor.execute("import os; os.system('ls')")
         print(f"Blocked code result: {result}")

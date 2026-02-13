@@ -6,13 +6,13 @@ Implements DePlot/MatCha/Qwen-VL pipeline per v2.1 specification.
 """
 
 import base64
-from pathlib import Path
-from typing import Optional, Dict, Tuple
-from dataclasses import dataclass
-import logging
 import json
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +24,13 @@ class BoundingBox:
     y1: float
     x2: float
     y2: float
-    
+
     def to_dict(self) -> Dict:
         return {"x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2}
-    
+
     def to_json(self) -> str:
         return json.dumps(self.to_dict())
-    
+
     @classmethod
     def from_qwen_format(cls, coords: str) -> "BoundingBox":
         """Parse Qwen-VL format: <box>(x1,y1),(x2,y2)</box>"""
@@ -69,12 +69,12 @@ class VisualEvidenceAgent(BaseAgent):
     2. MatCha: Chart QA & Reasoning
     3. Qwen-VL: Bounding Box Grounding
     """
-    
+
     def __init__(self):
         super().__init__(name="VisualEvidenceAgent")
         self._vlm_available = False
         self._check_vlm_availability()
-    
+
     def _check_vlm_availability(self):
         """Check if VLM services are available."""
         # In production, check for DePlot/MatCha API or local models
@@ -89,22 +89,22 @@ class VisualEvidenceAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"VLM check failed: {e}")
             self._vlm_available = False
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """Process any images in the context."""
         images = context.graph_context.get('images', [])
-        
+
         for image_path in images:
             try:
                 result = await self.extract_from_image(image_path)
                 context.graph_context.setdefault('extracted_data', []).append(result)
             except Exception as e:
                 logger.error(f"Failed to extract from {image_path}: {e}")
-        
+
         return context
-    
+
     async def extract_from_image(
-        self, 
+        self,
         image_path: str,
         page_number: int = 1
     ) -> ExtractedData:
@@ -119,10 +119,10 @@ class VisualEvidenceAgent(BaseAgent):
             ExtractedData with text and structured data
         """
         logger.info(f"Extracting from: {image_path}")
-        
+
         # Detect image type
         media_type = await self._classify_image(image_path)
-        
+
         # Route to appropriate extraction method
         if media_type in ["chart", "plot"]:
             return await self._extract_chart_data(image_path, page_number, media_type)
@@ -130,7 +130,7 @@ class VisualEvidenceAgent(BaseAgent):
             return await self._extract_table_data(image_path, page_number)
         else:
             return await self._extract_general(image_path, page_number, media_type)
-    
+
     async def _classify_image(self, image_path: str) -> str:
         """Classify the type of image."""
         if not self._vlm_available:
@@ -143,7 +143,7 @@ class VisualEvidenceAgent(BaseAgent):
             elif 'plot' in path.stem.lower():
                 return 'plot'
             return 'diagram'
-        
+
         # Use vision model to classify
         prompt = """Classify this image into ONE of these categories:
 - chart (bar chart, pie chart, etc.)
@@ -153,37 +153,37 @@ class VisualEvidenceAgent(BaseAgent):
 - other
 
 Respond with just the category name."""
-        
+
         result = await self._query_vlm(image_path, prompt)
-        
+
         category = result.lower().strip()
         if category in ['chart', 'plot', 'table', 'diagram']:
             return category
         return 'other'
-    
+
     async def _extract_chart_data(
-        self, 
-        image_path: str, 
+        self,
+        image_path: str,
         page_number: int,
         media_type: str
     ) -> ExtractedData:
         """Extract data from a chart using DePlot-style linearization."""
         logger.info(f"Extracting {media_type} data from {image_path}")
-        
+
         # DePlot-style prompt: convert image to linearized table
         deplot_prompt = """Convert this chart/graph to a data table.
 Format as: Entity | Value
 Include all data points visible in the chart.
 Be precise with numbers."""
-        
+
         linearized = await self._query_vlm(image_path, deplot_prompt)
-        
+
         # Parse linearized text into structured data
         structured = self._parse_linearized_table(linearized)
-        
+
         # Get bounding box for key elements (Qwen-VL style)
         bbox = await self._get_data_bbox(image_path, structured)
-        
+
         return ExtractedData(
             source_path=image_path,
             page_number=page_number,
@@ -194,20 +194,20 @@ Be precise with numbers."""
             confidence=0.7,
             vlm_used=getattr(self, '_vision_model', 'fallback'),
         )
-    
+
     async def _extract_table_data(
-        self, 
-        image_path: str, 
+        self,
+        image_path: str,
         page_number: int
     ) -> ExtractedData:
         """Extract data from a table image."""
         prompt = """Extract all data from this table.
 Format each row as: Column1 | Column2 | Column3 | ...
 Include headers in the first row."""
-        
+
         extracted = await self._query_vlm(image_path, prompt)
         structured = self._parse_table_text(extracted)
-        
+
         return ExtractedData(
             source_path=image_path,
             page_number=page_number,
@@ -217,10 +217,10 @@ Include headers in the first row."""
             confidence=0.75,
             vlm_used=getattr(self, '_vision_model', 'fallback'),
         )
-    
+
     async def _extract_general(
-        self, 
-        image_path: str, 
+        self,
+        image_path: str,
         page_number: int,
         media_type: str
     ) -> ExtractedData:
@@ -231,9 +231,9 @@ Include:
 2. Relationships shown
 3. Any text or labels visible
 4. Key findings or trends if applicable"""
-        
+
         description = await self._query_vlm(image_path, prompt)
-        
+
         return ExtractedData(
             source_path=image_path,
             page_number=page_number,
@@ -242,17 +242,17 @@ Include:
             confidence=0.6,
             vlm_used=getattr(self, '_vision_model', 'fallback'),
         )
-    
+
     async def _query_vlm(self, image_path: str, prompt: str) -> str:
         """Query the vision-language model."""
         if not self._vlm_available:
             return f"[VLM not available - cannot process {image_path}]"
-        
+
         try:
             # Read image as base64
             with open(image_path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')
-            
+
             # Use Ollama's vision API
             import httpx
             response = httpx.post(
@@ -267,29 +267,29 @@ Include:
             )
             response.raise_for_status()
             return response.json().get('response', '')
-            
+
         except Exception as e:
             logger.error(f"VLM query failed: {e}")
             return f"[Error: {e}]"
-    
+
     async def _get_data_bbox(
-        self, 
-        image_path: str, 
+        self,
+        image_path: str,
         data: Optional[Dict]
     ) -> Optional[BoundingBox]:
         """Get bounding box for data elements (Qwen-VL style)."""
         if not data or not self._vlm_available:
             return None
-        
+
         # For now, return None - in production would use Qwen-VL
         # to get precise bounding boxes
         return None
-    
+
     def _parse_linearized_table(self, text: str) -> Dict:
         """Parse DePlot-style linearized table into structured data."""
         lines = text.strip().split('\n')
         data = {"rows": [], "headers": None}
-        
+
         for i, line in enumerate(lines):
             parts = [p.strip() for p in line.split('|')]
             if len(parts) >= 2:
@@ -297,16 +297,16 @@ Include:
                     data["headers"] = parts
                 else:
                     data["rows"].append(parts)
-        
+
         return data
-    
+
     def _parse_table_text(self, text: str) -> Dict:
         """Parse table text into structured data."""
         return self._parse_linearized_table(text)
-    
+
     async def verify_extraction(
-        self, 
-        original_path: str, 
+        self,
+        original_path: str,
         extracted_data: ExtractedData
     ) -> Tuple[bool, float]:
         """
@@ -318,17 +318,17 @@ Include:
         3. Compare using SSIM and VLM similarity
         """
         logger.info(f"Verifying extraction from: {original_path}")
-        
+
         # Generate matplotlib code to reconstruct
         if not extracted_data.structured_data:
             return False, 0.0
-        
+
         _recon_code = self._generate_reconstruction_code(extracted_data)
-        
+
         # In production, would execute code and compare images
         # For now, return confidence score as verification
         return extracted_data.confidence > 0.6, extracted_data.confidence
-    
+
     def _generate_reconstruction_code(self, data: ExtractedData) -> str:
         """Generate matplotlib code to reconstruct the visualization."""
         if data.media_type == "chart":
@@ -349,28 +349,14 @@ if data.get('headers') and data.get('rows'):
     plt.savefig('reconstruction.png')
 """
         return "# Cannot reconstruct this type"
-    
+
     def save_to_graph(self, data: ExtractedData):
-        """Save extracted data to TypeDB."""
-        query = f"""
-        insert $f isa figure,
-            has file-path "{data.source_path}",
-            has media-type "{data.media_type}",
-            has page-number {data.page_number};
-        """
-        try:
-            self.db.query_insert(query)
-            
-            if data.structured_data:
-                # Store extracted content as proposition
-                content = json.dumps(data.structured_data)[:500]
-                self.db.insert_proposition(
-                    entity_id=f"extracted_{hash(data.source_path)}",
-                    content=content,
-                    confidence=data.confidence,
-                )
-        except Exception as e:
-            logger.error(f"Failed to save to graph: {e}")
+        """Save extracted data to TypeDB (deferred to OntologySteward)."""
+        # WriteCap: graph writes must go through OntologySteward
+        logger.info(
+            f"Visual evidence save deferred to OntologySteward: "
+            f"{data.source_path} ({data.media_type})"
+        )
 
 
 # Global instance

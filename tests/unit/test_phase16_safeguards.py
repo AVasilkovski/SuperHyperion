@@ -10,12 +10,12 @@ Tests for Phase 16.2-proofing safeguards:
 
 import pytest
 
+from src.agents.ontology_steward import q_insert_negative_evidence
 from src.epistemology.evidence_roles import (
     EvidenceRole,
-    require_evidence_role,
     clamp_probability,
+    require_evidence_role,
 )
-from src.agents.ontology_steward import q_insert_negative_evidence
 
 
 class TestPhase162Safeguards:
@@ -28,10 +28,10 @@ class TestPhase162Safeguards:
             "execution_id": "exec-456",
             "template_qid": "test@v1",
         }
-        
+
         with pytest.raises(ValueError) as exc_info:
             q_insert_negative_evidence("sess-001", ev, evidence_role="support")
-        
+
         assert "cannot have role='support'" in str(exc_info.value)
         assert "Use validation-evidence" in str(exc_info.value)
 
@@ -42,7 +42,7 @@ class TestPhase162Safeguards:
             "execution_id": "exec-456",
             "template_qid": "test@v1",
         }
-        
+
         query = q_insert_negative_evidence("sess-001", ev, evidence_role="refute")
         assert "negative-evidence" in query
         assert 'has evidence-role "refute"' in query
@@ -54,7 +54,7 @@ class TestPhase162Safeguards:
             "execution_id": "exec-456",
             "template_qid": "test@v1",
         }
-        
+
         query = q_insert_negative_evidence("sess-001", ev, evidence_role="undercut")
         assert "negative-evidence" in query
         assert 'has evidence-role "undercut"' in query
@@ -66,7 +66,7 @@ class TestPhase162Safeguards:
             "execution_id": "exec-456",
             "template_qid": "test@v1",
         }
-        
+
         query = q_insert_negative_evidence("sess-001", ev, evidence_role="replicate")
         assert "negative-evidence" in query
         assert 'has evidence-role "replicate"' in query
@@ -97,7 +97,7 @@ class TestPhase162Safeguards:
             "template_qid": "test@v1",
             "refutation_strength": 1.5,  # Out of bounds
         }
-        
+
         query = q_insert_negative_evidence("sess-001", ev)
         # Should be clamped to 1.0
         assert "refutation-strength 1.0" in query
@@ -110,40 +110,40 @@ class TestPhase162Safeguards:
             "template_qid": "test@v1",
             "confidence_score": -0.5,  # Out of bounds
         }
-        
+
         query = q_insert_negative_evidence("sess-001", ev)
         # Should be clamped to 0.0
         assert "confidence-score 0.0" in query
-    
+
     # Precision fix tests
-    
+
     def test_clamp_probability_rejects_nan(self):
         """clamp_probability should reject NaN."""
         with pytest.raises(ValueError) as exc_info:
             clamp_probability(float('nan'), "test")
         assert "must be finite" in str(exc_info.value)
-    
+
     def test_clamp_probability_rejects_inf(self):
         """clamp_probability should reject infinity."""
         with pytest.raises(ValueError) as exc_info:
             clamp_probability(float('inf'), "test")
         assert "must be finite" in str(exc_info.value)
-        
+
         with pytest.raises(ValueError) as exc_info:
             clamp_probability(float('-inf'), "test")
         assert "must be finite" in str(exc_info.value)
-    
+
     def test_require_evidence_role_strict_raises_on_invalid(self):
         """require_evidence_role with strict=True should raise on invalid input."""
         with pytest.raises(ValueError) as exc_info:
             require_evidence_role("invalid_role", EvidenceRole.REFUTE, strict=True)
         assert "Invalid evidence role" in str(exc_info.value)
-    
+
     def test_require_evidence_role_permissive_uses_default(self):
         """require_evidence_role with strict=False should use default on invalid."""
         result = require_evidence_role("invalid_role", EvidenceRole.REFUTE, strict=False)
         assert result == EvidenceRole.REFUTE
-    
+
     def test_negative_evidence_strict_role_validation(self):
         """Typos in evidence_role should raise ValueError in grounded lane."""
         ev = {
@@ -151,7 +151,7 @@ class TestPhase162Safeguards:
             "execution_id": "exec-456",
             "template_qid": "test@v1",
         }
-        
+
         with pytest.raises(ValueError) as exc_info:
             q_insert_negative_evidence("sess-001", ev, evidence_role="reufte")  # typo
         assert "Invalid evidence role" in str(exc_info.value)
@@ -159,27 +159,27 @@ class TestPhase162Safeguards:
 
 class TestDispatchWiring:
     """Tests for production wiring of negative evidence dispatch."""
-    
+
     def test_seal_uses_negative_prefix_for_negative_channel(self):
         """Seal helper should use nev- prefix for negative channel."""
         from src.governance.fingerprinting import make_evidence_id, make_negative_evidence_id
-        
+
         session_id = "sess-test"
         claim_id = "claim-abc"
         exec_id = "exec-123"
         template_qid = "test@v1"
-        
+
         positive_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
         negative_id = make_negative_evidence_id(session_id, claim_id, exec_id, template_qid)
-        
+
         assert positive_id.startswith("ev-"), f"Expected ev- prefix, got {positive_id}"
         assert negative_id.startswith("nev-"), f"Expected nev- prefix, got {negative_id}"
         assert positive_id != negative_id
-    
+
     def test_seal_helper_validates_channel(self):
         """Invalid channel should raise ValueError."""
         from src.agents.ontology_steward import OntologySteward
-        
+
         steward = OntologySteward()
         ev = {
             "claim_id": "claim-123",
@@ -187,16 +187,16 @@ class TestDispatchWiring:
             "template_qid": "test@v1",
             "scope_lock_id": "lock-789",
         }
-        
+
         with pytest.raises(ValueError) as exc_info:
             # Mock template_store to avoid seal operator failures
             class MockStore:
                 def get_metadata(self, *args): return None
             steward.template_store = MockStore()
             steward._seal_evidence_dict_before_mint("sess-001", ev, channel="invalid")
-        
+
         assert "Invalid evidence channel" in str(exc_info.value)
-    
+
     def test_negative_evidence_query_contains_channel_marker(self):
         """Negative evidence query should contain negative-evidence type."""
         ev = {
@@ -204,9 +204,9 @@ class TestDispatchWiring:
             "execution_id": "exec-456",
             "template_qid": "test@v1",
         }
-        
+
         query = q_insert_negative_evidence("sess-001", ev, evidence_role="refute")
-        
+
         assert "isa negative-evidence" in query
         assert 'has evidence-role "refute"' in query
         assert "success true" in query  # execution succeeded semantics

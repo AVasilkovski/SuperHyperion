@@ -1,13 +1,14 @@
 
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.agents.verify_agent import VerifyAgent
+import pytest
+
 from src.agents.base_agent import AgentContext
-from src.montecarlo.types import MCResult, ExperimentSpec
+from src.agents.verify_agent import VerifyAgent
+from src.montecarlo.template_metadata import EpistemicSemantics, TemplateSpec
 from src.montecarlo.templates import TemplateExecution
-from src.montecarlo.template_metadata import TemplateSpec, EpistemicSemantics, TemplateVersion
+from src.montecarlo.types import ExperimentSpec
+
 
 @pytest.fixture
 def mock_context():
@@ -41,10 +42,10 @@ def mock_registry_spec():
 @pytest.mark.asyncio
 async def test_emit_negative_evidence_refute(agent, mock_context, experiment_spec, mock_registry_spec):
     """Test emission of negative evidence with 'refute' role."""
-    
+
     # Setup Mocks
     agent._design_experiment_spec = AsyncMock(return_value=experiment_spec)
-    
+
     # Mock Execution Result
     execution = TemplateExecution(
         execution_id="exec-123",
@@ -58,13 +59,13 @@ async def test_emit_negative_evidence_refute(agent, mock_context, experiment_spe
         warnings=[]
     )
     agent._codeact_execute_template = MagicMock(return_value=execution)
-    
+
     # Mock MCResult (supports_claim = False)
     # We must patch _determine_support or ensure raw result leads to False
     agent._determine_support = MagicMock(return_value=False)
     # Mock Feynman checks to pass (so we don't get distracted by fragility)
     agent._feynman_checks = MagicMock(return_value={"all_pass": True, "checks": {}})
-    
+
     # Mock Registry Spec with Refute Semantics
     mock_spec = MagicMock(spec=TemplateSpec)
     mock_spec.template_id = "bootstrap_ci"
@@ -83,12 +84,12 @@ async def test_emit_negative_evidence_refute(agent, mock_context, experiment_spe
     neg_ev_list = mock_context.graph_context.get("negative_evidence", [])
     assert len(neg_ev_list) == 1
     neg_ev = neg_ev_list[0]
-    
+
     assert neg_ev["role"] == "refute"
     assert neg_ev["failure_mode"] == "sign_flip"
     assert neg_ev["strength"] == 1.0
     assert neg_ev["template_qid"] == "bootstrap_ci@1.0.0"
-    
+
     # Ensure NO positive evidence emitted
     pos_ev_list = mock_context.graph_context.get("evidence", [])
     assert len(pos_ev_list) == 0
@@ -96,10 +97,10 @@ async def test_emit_negative_evidence_refute(agent, mock_context, experiment_spe
 @pytest.mark.asyncio
 async def test_emit_negative_evidence_replicate(agent, mock_context, experiment_spec, mock_registry_spec):
     """Test emission of negative evidence with 'replicate' role (failed replication)."""
-    
+
     # Setup Mocks
     agent._design_experiment_spec = AsyncMock(return_value=experiment_spec)
-    
+
     execution = TemplateExecution(
         execution_id="exec-rep-1",
         template_qid="replication_machinery@1.0.0",
@@ -114,7 +115,7 @@ async def test_emit_negative_evidence_replicate(agent, mock_context, experiment_
     agent._codeact_execute_template = MagicMock(return_value=execution)
     agent._determine_support = MagicMock(return_value=False)
     agent._feynman_checks = MagicMock(return_value={"all_pass": True, "checks": {}})
-    
+
     # Mock Registry Spec
     mock_spec = MagicMock(spec=TemplateSpec)
     mock_spec.template_id = "replication_machinery"
@@ -133,14 +134,14 @@ async def test_emit_negative_evidence_replicate(agent, mock_context, experiment_
     neg_ev = mock_context.graph_context["negative_evidence"][0]
     assert neg_ev["role"] == "replicate"
     assert neg_ev["strength"] < 1.0 # Due to ci_proximity_to_null model with variance > 0
-    assert 0.0 < neg_ev["strength"] 
+    assert 0.0 < neg_ev["strength"]
 
 @pytest.mark.asyncio
 async def test_emit_positive_evidence(agent, mock_context, experiment_spec, mock_registry_spec):
     """Test normal positive evidence emission."""
-    
+
     agent._design_experiment_spec = AsyncMock(return_value=experiment_spec)
-    
+
     execution = TemplateExecution(
         execution_id="exec-pos",
         template_qid="t@1",
@@ -155,21 +156,21 @@ async def test_emit_positive_evidence(agent, mock_context, experiment_spec, mock
     agent._codeact_execute_template = MagicMock(return_value=execution)
     agent._determine_support = MagicMock(return_value=True) # Supports!
     agent._feynman_checks = MagicMock(return_value={"all_pass": True, "checks": {}})
-    
+
     # Registry shouldn't even be called for semantics on positive path (currently)
     # But if it were, it shouldn't matter.
-    
+
     await agent.run_mc_pipeline({"claim_id": "test_claim"}, mock_context)
-    
+
     assert len(mock_context.graph_context["evidence"]) == 1
     assert len(mock_context.graph_context.get("negative_evidence", [])) == 0
 
 @pytest.mark.asyncio
 async def test_no_emission_on_execution_failure(agent, mock_context, experiment_spec):
     """Test that execution failure emits nothing."""
-    
+
     agent._design_experiment_spec = AsyncMock(return_value=experiment_spec)
-    
+
     execution = TemplateExecution(
         execution_id="exec-fail",
         template_qid="t@1",
@@ -182,8 +183,8 @@ async def test_no_emission_on_execution_failure(agent, mock_context, experiment_
         warnings=[]
     )
     agent._codeact_execute_template = MagicMock(return_value=execution)
-    
+
     await agent.run_mc_pipeline({"claim_id": "test_claim"}, mock_context)
-    
+
     assert len(mock_context.graph_context.get("evidence", [])) == 0
     assert len(mock_context.graph_context.get("negative_evidence", [])) == 0

@@ -7,20 +7,20 @@ v2.2: Adds WriteIntentService for Phase 14 write-intent lifecycle.
 v2.3: Adds IntentStore abstraction for TypeDB persistence.
 """
 
-from .base import HITLGate, HITLDecision, HITLPendingItem
+from .audit import HITLAuditLog, audit_log
+from .base import HITLDecision, HITLGate, HITLPendingItem
 from .epistemic_gate import EpistemicApprovalGate
 from .impact_gate import HighImpactWriteCheckpoint
-from .audit import HITLAuditLog, audit_log
-from .scope_lock_gate import ScopeLockGate, ScopeDraft, ScopeLock, ScopeStatus, scope_lock_gate
 from .intent_service import (
-    WriteIntentService,
-    WriteIntent,
     IntentStatus,
     IntentStatusEvent,
     IntentTransitionError,
+    WriteIntent,
+    WriteIntentService,
     write_intent_service,
 )
-from .intent_store import IntentStore, InMemoryIntentStore, TypeDBIntentStore
+from .intent_store import InMemoryIntentStore, IntentStore, TypeDBIntentStore
+from .scope_lock_gate import ScopeDraft, ScopeLock, ScopeLockGate, ScopeStatus, scope_lock_gate
 
 __all__ = [
     "HITLGate",

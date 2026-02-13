@@ -11,23 +11,21 @@ Verifies:
 7. Float determinism
 """
 
-import pytest
-import asyncio
 import math
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
+import pytest
 from pydantic import ValidationError
 
-from src.montecarlo.templates import (
-    registry, 
-    BootstrapCITemplate, 
-    NumericConsistencyTemplate,
-    BootstrapCIParams,
-    NumericConsistencyParams
-)
-from src.agents.propose_agent import ProposeAgent, EpistemicUpdateProposal
+from src.agents.propose_agent import ProposeAgent
 from src.agents.retrieval_gate import RetrievalQualityGate
-from src.graph.state import Evidence, ScientificUncertainty
-
+from src.graph.state import Evidence
+from src.montecarlo.templates import (
+    BootstrapCIParams,
+    BootstrapCITemplate,
+    NumericConsistencyTemplate,
+    registry,
+)
 
 # =============================================================================
 # 1. Template Hardening Tests
@@ -37,7 +35,7 @@ from src.graph.state import Evidence, ScientificUncertainty
 async def test_template_param_bounds():
     """Verify templates reject out-of-bound parameters."""
     template = BootstrapCITemplate()
-    
+
     # Test n_bootstrap too high
     with pytest.raises(ValidationError):
         template.validate({
@@ -45,7 +43,7 @@ async def test_template_param_bounds():
             "n_bootstrap": 10000,  # Max is 5000
             "confidence_level": 0.95
         })
-        
+
     # Test n_bootstrap too low
     with pytest.raises(ValidationError):
         template.validate({
@@ -58,7 +56,7 @@ async def test_template_param_bounds():
 async def test_numeric_consistency_bounds():
     """Verify numeric consistency params."""
     template = NumericConsistencyTemplate()
-    
+
     with pytest.raises(ValidationError):
         template.validate({
             "claimed_value": 0.5,
@@ -75,11 +73,11 @@ async def test_determinism():
         n_bootstrap=500,
         seed=42
     )
-    
+
     # Run sync (templates are CPU-bound sync functions)
     run1 = template.run(params, {"session_id": "test"})
     run2 = template.run(params, {"session_id": "test"})
-    
+
     # Float-tolerant comparison
     assert math.isclose(run1["estimate"], run2["estimate"], rel_tol=0, abs_tol=1e-9)
     assert math.isclose(run1["ci_low"], run2["ci_low"], rel_tol=0, abs_tol=1e-9)
@@ -92,7 +90,7 @@ async def test_determinism():
 @pytest.mark.asyncio
 async def test_cap_enforcement_logic():
     agent = ProposeAgent()
-    
+
     # Scenario 1: Fragile claim -> Capped at SUPPORTED
     max_stat, reasons = agent._compute_max_allowed_status(
         claim_id="c1",
@@ -102,7 +100,7 @@ async def test_cap_enforcement_logic():
     )
     assert max_stat == "SUPPORTED"
     assert any("Fragile" in r for r in reasons)
-    
+
     # Scenario 2: Critical severity -> Capped at SUPPORTED
     max_stat, reasons = agent._compute_max_allowed_status(
         claim_id="c1",
@@ -135,16 +133,16 @@ class MockContext:
 @pytest.mark.asyncio
 async def test_reground_loop_termination():
     gate = RetrievalQualityGate()
-    
+
     # Force _decide to always return 'reground'
     with patch.object(gate, '_decide', return_value="reground"):
-        
+
         # Case 1: Under cap
         ctx = MockContext(attempts=0)
         await gate.run(ctx)
         assert ctx.graph_context["retrieval_decision"] == "reground"
         assert ctx.graph_context["reground_attempts"] == 1
-        
+
         # Case 2: At cap (MAX=3)
         ctx = MockContext(attempts=3)
         await gate.run(ctx)
@@ -172,9 +170,9 @@ def test_evidence_contract():
         uncertainty=None, # Explicitly optional
         success=True
     )
-    
+
     assert ev.authorizes_update() is True
-    
+
     # Missing execution_id failure
     ev_no_id = Evidence(
         hypothesis_id="h1",
@@ -186,7 +184,7 @@ def test_evidence_contract():
         success=True
     )
     assert ev_no_id.authorizes_update() is False
-    
+
     # Critical warning failure
     ev_warn = Evidence(
         hypothesis_id="h1",
@@ -213,12 +211,12 @@ class MockWriteTemplate(BootstrapCITemplate):
 @pytest.mark.asyncio
 async def test_write_template_permissions():
     """Verify write templates fail for non-steward roles."""
-    
+
     # Register real template instead of mocking to avoid TypeError
     tmpl = MockWriteTemplate()
     # Need to hack registry to allow re-registration if needed or just use unique ID
     registry._templates[tmpl.template_id] = tmpl
-    
+
     # Needs valid params because validate is called if check fails (but it shouldn't be reached)
     # However we'll provide valid params just in case
     valid_params = {
@@ -226,22 +224,22 @@ async def test_write_template_permissions():
         "n_bootstrap": 100,
         "confidence_level": 0.95
     }
-    
+
     # Use qualified template_id format (Phase 14.5 requirement)
     qualified_id = f"{tmpl.template_id}@1.0.0"
-    
+
     # 1. Non-steward caller -> PermissionError
     with pytest.raises(PermissionError):
         registry.run_template(
             template_id=qualified_id,
             params=valid_params,
-            caller_role="verify" 
+            caller_role="verify"
         )
-            
+
     # 2. Steward caller -> Success (or at least no PermissionError)
     # This might fail validation/run if params are wrong, but PermissionError shouldn't be raised
     result = registry.run_template(
-        template_id=qualified_id, 
+        template_id=qualified_id,
         params=valid_params,
         caller_role="steward"
     )

@@ -5,11 +5,11 @@ v2.1 Step 5: Proposes alternative hypotheses and models.
 Operates in SPECULATIVE lane - cannot update beliefs directly.
 """
 
-from typing import Dict, Any
-import logging
 import json
+import logging
+from typing import Any, Dict
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 from src.montecarlo.types import ExperimentHints, PriorSuggestion
 
 logger = logging.getLogger(__name__)
@@ -59,40 +59,40 @@ class SpeculativeAgent(BaseAgent):
     
     This is the creative, exploratory lane.
     """
-    
+
     def __init__(self):
         super().__init__(name="SpeculativeAgent")
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """
         Generate speculative alternatives for all claims.
         """
         claims = context.graph_context.get("atomic_claims", [])
-        
+
         if not claims:
             logger.warning("No claims to speculate on")
             return context
-        
+
         speculative_results = {}
-        
+
         for claim in claims:
             claim_id = claim.get("claim_id", "unknown")
             alternatives = await self._speculate_on_claim(claim)
             speculative_results[claim_id] = alternatives
-        
+
         # Store in v2.1 speculative_context field
         context.graph_context["speculative_context"] = speculative_results
-        
+
         # NEW: Extract typed experiment hints for the Brainstorm → MC Design bridge
         # These are CONTEXT-ONLY and will be consumed by VerifyAgent._design_experiment_spec
         experiment_hints = self._extract_experiment_hints(speculative_results)
         context.graph_context["experiment_hints"] = experiment_hints
-        
+
         logger.info(f"Generated speculative alternatives for {len(claims)} claims")
         logger.info(f"Extracted experiment hints for {len(experiment_hints)} claims")
-        
+
         return context
-    
+
     def _extract_experiment_hints(
         self, spec_results: Dict[str, Dict]
     ) -> Dict[str, ExperimentHints]:
@@ -113,20 +113,20 @@ class SpeculativeAgent(BaseAgent):
                 for alt in blob.get("alternatives", [])
                 if alt.get("mechanism")
             ]
-            
+
             # Extract discriminative predictions (what would distinguish hypotheses)
             discriminative_predictions = [
                 alt.get("testable_prediction", "")
                 for alt in blob.get("alternatives", [])
                 if alt.get("testable_prediction")
             ]
-            
+
             # Edge cases become sensitivity axes
             sensitivity_axes = [
                 str(ec) for ec in blob.get("edge_cases", [])
                 if ec
             ]
-            
+
             # Analogies become prior suggestions (tightly typed)
             prior_suggestions = [
                 PriorSuggestion(
@@ -136,10 +136,10 @@ class SpeculativeAgent(BaseAgent):
                 for a in blob.get("analogies", [])
                 if a.get("domain") and a.get("parallel")
             ]
-            
+
             # Falsification criteria from testable predictions
             falsification_criteria = discriminative_predictions.copy()
-            
+
             hints[claim_id] = ExperimentHints(
                 claim_id=claim_id,
                 candidate_mechanisms=candidate_mechanisms,
@@ -149,21 +149,21 @@ class SpeculativeAgent(BaseAgent):
                 falsification_criteria=falsification_criteria,
                 # epistemic_status="speculative" is the default
             )
-            
+
             # Log the digest for audit trail (not the raw content)
             logger.debug(
                 f"Extracted hints for {claim_id}: digest={hints[claim_id].digest()}"
             )
-        
+
         return hints
-    
+
     async def _speculate_on_claim(self, claim: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generate speculative alternatives for a single claim.
         """
         claim_content = claim.get("content", "")
         claim_id = claim.get("claim_id", "unknown")
-        
+
         prompt = f"""
 Claim ID: {claim_id}
 Claim Content: {claim_content}
@@ -173,13 +173,13 @@ Object: {claim.get('object', '')}
 
 Generate alternative hypotheses and models.
 """
-        
+
         response = self.generate(
             prompt=prompt,
             system=SPECULATIVE_SYSTEM_PROMPT,
             temperature=0.7,  # Higher temperature for creativity
         )
-        
+
         try:
             parsed = json.loads(response)
             return {

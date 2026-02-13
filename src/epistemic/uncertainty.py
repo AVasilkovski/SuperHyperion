@@ -7,8 +7,8 @@ and model fit error.
 """
 
 import math
-from typing import List, Optional, Tuple
 from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 
 @dataclass
@@ -19,7 +19,7 @@ class UncertaintyComponents:
     sample_size: int
     model_fit_error: float
     confidence_interval: Tuple[float, float]
-    
+
     def total(self) -> float:
         """Calculate total scientific uncertainty."""
         return calculate_scientific_uncertainty(
@@ -56,7 +56,7 @@ def calculate_scientific_uncertainty(
     """
     if sample_size == 0:
         return 1.0  # Maximum uncertainty when no data
-    
+
     return (
         (variance * sensitivity_to_assumptions) / math.sqrt(sample_size)
         + model_fit_error
@@ -79,21 +79,21 @@ def compute_confidence_interval(
     """
     if not values:
         return (0.0, 1.0)
-    
+
     n = len(values)
     mean = sum(values) / n
-    
+
     if n == 1:
         return (mean, mean)
-    
+
     # Standard deviation
     variance = sum((x - mean) ** 2 for x in values) / (n - 1)
     std = math.sqrt(variance)
-    
+
     # Z-score for confidence level (approximation)
     z_scores = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}
     z = z_scores.get(confidence_level, 1.96)
-    
+
     margin = z * std / math.sqrt(n)
     return (mean - margin, mean + margin)
 
@@ -123,19 +123,19 @@ def uncertainty_from_codeact_result(
             model_fit_error=0.0,
             confidence_interval=(0.0, 1.0)
         )
-    
+
     n = len(result_values)
     mean = sum(result_values) / n
     variance = sum((x - mean) ** 2 for x in result_values) / max(n - 1, 1)
-    
+
     # Compute sensitivity if assumption variations provided
     sensitivity = 0.0
     if assumption_variations and len(assumption_variations) > 1:
         var_mean = sum(assumption_variations) / len(assumption_variations)
         sensitivity = abs(var_mean - mean) / max(abs(mean), 0.001)
-    
+
     ci = compute_confidence_interval(result_values)
-    
+
     return UncertaintyComponents(
         variance=variance,
         sensitivity=sensitivity,

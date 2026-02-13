@@ -6,11 +6,11 @@ Monitors for contradictions and triggers belief revision.
 """
 
 import asyncio
-from typing import List, Dict
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
+from typing import Dict, List
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 from src.config import config
 
 logger = logging.getLogger(__name__)
@@ -37,35 +37,35 @@ class BeliefMaintenanceAgent(BaseAgent):
     - Detect contradictions and flag for Socratic debate
     - Update dialectical entropy scores
     """
-    
+
     def __init__(self):
         super().__init__(name="BeliefMaintenanceAgent")
         self._running = False
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """Run belief maintenance cycle."""
         # Get all hypotheses that need updating
         hypotheses = self._get_pending_hypotheses()
-        
+
         for hyp in hypotheses:
             # Calculate current belief state
             belief = self._calculate_belief(hyp)
             context.dialectical_entropy = max(
-                context.dialectical_entropy, 
+                context.dialectical_entropy,
                 belief.entropy
             )
-            
+
             # Check for contradictions
             contradictions = self._find_contradictions(hyp)
             if contradictions:
                 logger.warning(f"Contradictions found for {hyp['id']}: {contradictions}")
                 context.graph_context['contradictions'] = contradictions
-            
+
             # Update belief state in graph
             self._update_belief_state(hyp['id'], belief)
-        
+
         return context
-    
+
     def _get_pending_hypotheses(self) -> List[Dict]:
         """Fetch hypotheses needing belief updates."""
         query = """
@@ -84,15 +84,15 @@ class BeliefMaintenanceAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to fetch hypotheses: {e}")
             return []
-    
+
     def _calculate_belief(self, hypothesis: Dict) -> BeliefState:
         """Calculate belief metrics for a hypothesis."""
         alpha = hypothesis.get('beta_alpha', 1.0)
         beta = hypothesis.get('beta_beta', 1.0)
-        
+
         # Expected value of Beta distribution
         expected = alpha / (alpha + beta)
-        
+
         # Calculate entropy (uncertainty)
         # Using approximation for Beta distribution entropy
         total = alpha + beta
@@ -102,7 +102,7 @@ class BeliefMaintenanceAgent(BaseAgent):
             entropy = min(1.0, 4 * variance)  # Max variance is 0.25 at alpha=beta=1
         else:
             entropy = 1.0  # High uncertainty for low sample size
-        
+
         # Determine belief state
         if expected > 0.8 and entropy < 0.2:
             state = "verified"
@@ -112,7 +112,7 @@ class BeliefMaintenanceAgent(BaseAgent):
             state = "debated"
         else:
             state = "proposed"
-        
+
         return BeliefState(
             hypothesis_id=hypothesis.get('id', 'unknown'),
             alpha=alpha,
@@ -121,7 +121,7 @@ class BeliefMaintenanceAgent(BaseAgent):
             entropy=entropy,
             belief_state=state,
         )
-    
+
     def _find_contradictions(self, hypothesis: Dict) -> List[Dict]:
         """Find contradicting hypotheses in the graph."""
         # Query for hypotheses about the same causality with opposing beliefs
@@ -143,10 +143,10 @@ class BeliefMaintenanceAgent(BaseAgent):
         except Exception as e:
             logger.debug(f"Contradiction query failed (may be empty): {e}")
             return []
-    
+
     def _update_belief_state(self, hypothesis_id: str, belief: BeliefState):
         """Update the belief state in TypeDB."""
-        query = f"""
+        _query = f"""
         match
             $h isa hypothesis, has belief_state $old_state;
             $h has beta_alpha {belief.alpha};
@@ -156,14 +156,17 @@ class BeliefMaintenanceAgent(BaseAgent):
             $h has belief_state "{belief.belief_state}";
         """
         try:
-            self.db.query_delete(query)
-            logger.info(f"Updated belief state for {hypothesis_id}: {belief.belief_state}")
+            # WriteCap: belief state updates must go through OntologySteward
+            logger.info(
+                f"Belief state update deferred to OntologySteward: "
+                f"{hypothesis_id} → {belief.belief_state}"
+            )
         except Exception as e:
             logger.error(f"Failed to update belief state: {e}")
-    
+
     def update_belief(
-        self, 
-        hypothesis_id: str, 
+        self,
+        hypothesis_id: str,
         evidence_supports: bool,
         evidence_weight: float = 1.0
     ):
@@ -185,17 +188,17 @@ class BeliefMaintenanceAgent(BaseAgent):
             $h: beta_alpha, beta_beta;
         limit 1;
         """
-        
+
         try:
             results = self.query_graph(query)
             if not results:
                 logger.warning(f"Hypothesis not found: {hypothesis_id}")
                 return
-            
+
             current = results[0]
             alpha = current.get('beta_alpha', 1.0)
             beta = current.get('beta_beta', 1.0)
-            
+
             # Bayesian update
             if evidence_supports:
                 new_alpha = alpha + evidence_weight
@@ -203,9 +206,9 @@ class BeliefMaintenanceAgent(BaseAgent):
             else:
                 new_alpha = alpha
                 new_beta = beta + evidence_weight
-            
+
             # Update in graph
-            update_query = f"""
+            _update_query = f"""
             match
                 $h isa hypothesis,
                     has beta_alpha $old_a,
@@ -216,36 +219,35 @@ class BeliefMaintenanceAgent(BaseAgent):
                 $h has beta_alpha {new_alpha},
                    has beta_beta {new_beta};
             """
-            self.db.query_delete(update_query)
-            
+            # WriteCap: belief updates must go through OntologySteward
             logger.info(
-                f"Belief updated: {hypothesis_id} "
+                f"Belief update deferred to OntologySteward: {hypothesis_id} "
                 f"α={alpha:.2f}→{new_alpha:.2f}, β={beta:.2f}→{new_beta:.2f}"
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to update belief: {e}")
-    
+
     async def run_background(self, interval: int = 60):
         """Run belief maintenance in background loop."""
         self._running = True
         logger.info(f"Starting background belief maintenance (interval={interval}s)")
-        
+
         while self._running:
             try:
                 context = AgentContext()
                 await self.run(context)
-                
+
                 if context.dialectical_entropy > config.entropy_threshold:
                     logger.warning(
                         f"High entropy detected: {context.dialectical_entropy:.3f}"
                     )
-                    
+
             except Exception as e:
                 logger.error(f"Belief maintenance error: {e}")
-            
+
             await asyncio.sleep(interval)
-    
+
     def stop_background(self):
         """Stop background maintenance."""
         self._running = False

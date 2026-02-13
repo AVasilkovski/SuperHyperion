@@ -5,10 +5,10 @@ v2.1 Step 6: CodeAct-based evidence production.
 This is the BELIEF GATEKEEPER - the only agent that can authorize belief updates.
 """
 
-from typing import Dict, Any, List, Optional
 import logging
+from typing import Any, Dict, List, Optional
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 from src.agents.codeact_executor import CodeActExecutor
 from src.graph.state import Evidence, ScientificUncertainty
 
@@ -66,41 +66,41 @@ class ValidatorAgent(BaseAgent):
         3. Bayesian updates must reference codeact_execution_id
         4. No belief update without executed evidence
     """
-    
+
     def __init__(self):
         super().__init__(name="ValidatorAgent")
         self._executor = CodeActExecutor()
         self._execution_counter = 0
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """
         Execute validation experiments for all claims.
         """
         claims = context.graph_context.get("atomic_claims", [])
-        
+
         if not claims:
             logger.warning("No claims to validate")
             return context
-        
+
         # Ensure we're in grounded mode for validation
         if context.graph_context.get("epistemic_mode") != "grounded":
             context.graph_context["epistemic_mode"] = "grounded"
-        
+
         evidence_list = []
-        
+
         for claim in claims:
             evidence = await self._validate_claim(claim, context)
             if evidence:
                 evidence_list.append(evidence)
-        
+
         # Store evidence in context
         context.code_results.extend([e.__dict__ for e in evidence_list])
         context.graph_context["evidence"] = [e.__dict__ for e in evidence_list]
-        
+
         logger.info(f"Produced {len(evidence_list)} pieces of evidence")
-        
+
         return context
-    
+
     async def _validate_claim(
         self,
         claim: Dict[str, Any],
@@ -111,26 +111,26 @@ class ValidatorAgent(BaseAgent):
         """
         claim_id = claim.get("claim_id", "unknown")
         claim_content = claim.get("content", "")
-        
+
         # Generate experiment code
         code = self._generate_experiment_code(claim, context)
-        
+
         if not code:
             logger.warning(f"Could not generate experiment for claim {claim_id}")
             return None
-        
+
         # Execute via CodeAct
         self._execution_counter += 1
         execution_id = self._execution_counter
-        
+
         try:
             self._executor.start()
             result = self._executor.execute(code)
             self._executor.stop()
-            
+
             # Parse results and compute uncertainty
             uncertainty = self._compute_uncertainty_from_result(result)
-            
+
             # Create Evidence object
             evidence = Evidence(
                 hypothesis_id=claim_id,
@@ -141,15 +141,15 @@ class ValidatorAgent(BaseAgent):
                 assumptions=self._extract_assumptions(claim, context),
                 success=result.success,
             )
-            
+
             logger.info(
                 f"Evidence produced for {claim_id}: "
                 f"success={evidence.success}, "
                 f"uncertainty={uncertainty.total():.3f}"
             )
-            
+
             return evidence
-            
+
         except Exception as e:
             logger.error(f"Validation failed for {claim_id}: {e}")
             return Evidence(
@@ -161,7 +161,7 @@ class ValidatorAgent(BaseAgent):
                 assumptions=[],
                 success=False,
             )
-    
+
     def _generate_experiment_code(
         self,
         claim: Dict[str, Any],
@@ -171,7 +171,7 @@ class ValidatorAgent(BaseAgent):
         Generate Python code for the validation experiment.
         """
         claim_content = claim.get("content", "")
-        
+
         # Use LLM to generate experiment code
         prompt = f"""
 Generate a Python validation experiment for this scientific claim:
@@ -188,7 +188,7 @@ The code should:
 
 Output ONLY the Python code, no explanation.
 """
-        
+
         try:
             code = self.generate(prompt=prompt, temperature=0.2)
             # Basic sanitization
@@ -207,30 +207,30 @@ Output ONLY the Python code, no explanation.
                 n=10,
                 experiment_code="np.random.random()"
             )
-    
+
     def _compute_uncertainty_from_result(self, result) -> ScientificUncertainty:
         """Compute scientific uncertainty from CodeAct result."""
         if not result.success:
             return ScientificUncertainty(variance=1.0, sample_size=0)
-        
+
         # Try to parse structured output
         try:
             import re
             stdout = result.stdout
-            
+
             variance = 0.5  # Default
             sample_size = 10
-            
+
             # Extract variance if present
             var_match = re.search(r"Variance:\s*([\d.]+)", stdout)
             if var_match:
                 variance = float(var_match.group(1))
-            
+
             # Extract sample size if present
             n_match = re.search(r"Sample size:\s*(\d+)", stdout)
             if n_match:
                 sample_size = int(n_match.group(1))
-            
+
             return ScientificUncertainty(
                 variance=variance,
                 sensitivity=0.1,
@@ -239,7 +239,7 @@ Output ONLY the Python code, no explanation.
             )
         except Exception:
             return ScientificUncertainty(variance=0.5, sample_size=1)
-    
+
     def _extract_assumptions(
         self,
         claim: Dict[str, Any],

@@ -5,9 +5,9 @@ v2.1: Tracks source credibility using Beta(α, β) distribution.
 Updated when papers retracted, claims refuted, or experiments fail replication.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Dict
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -26,23 +26,23 @@ class SourceReputation:
     entity_id: str
     alpha: float = 1.0  # Prior: 1 success
     beta: float = 1.0   # Prior: 1 failure
-    
+
     @property
     def expected_value(self) -> float:
         """Expected reputation score (0 to 1)."""
         return self.alpha / (self.alpha + self.beta)
-    
+
     @property
     def variance(self) -> float:
         """Variance of the Beta distribution."""
         total = self.alpha + self.beta
         return (self.alpha * self.beta) / (total ** 2 * (total + 1))
-    
+
     @property
     def confidence(self) -> float:
         """Confidence in the reputation (inverse of variance)."""
         return 1.0 / (1.0 + self.variance * 10)
-    
+
     def update(self, positive: bool, weight: float = 1.0) -> None:
         """
         Bayesian update based on new evidence.
@@ -55,7 +55,7 @@ class SourceReputation:
             self.alpha += weight
         else:
             self.beta += weight
-    
+
     def prior_weight(self) -> float:
         """
         Get prior weight for Bayesian updates.
@@ -77,16 +77,16 @@ class SourceReputationModel:
     
     Feeds Bayesian priors, not direct answers.
     """
-    
+
     def __init__(self):
         self._reputations: Dict[str, SourceReputation] = {}
-    
+
     def get_reputation(self, entity_id: str) -> SourceReputation:
         """Get or create reputation for an entity."""
         if entity_id not in self._reputations:
             self._reputations[entity_id] = SourceReputation(entity_id=entity_id)
         return self._reputations[entity_id]
-    
+
     def update_reputation(
         self,
         entity_id: str,
@@ -109,16 +109,16 @@ class SourceReputationModel:
         reputation = self.get_reputation(entity_id)
         old_value = reputation.expected_value
         reputation.update(positive, weight)
-        
+
         logger.info(
             f"Reputation update: {entity_id} "
             f"{old_value:.3f} -> {reputation.expected_value:.3f} "
             f"({'positive' if positive else 'negative'}, weight={weight}) "
             f"reason: {reason}"
         )
-        
+
         return reputation
-    
+
     def on_retraction(self, source_id: str, publication_doi: str) -> None:
         """Handle paper retraction - significant reputation hit."""
         self.update_reputation(
@@ -127,7 +127,7 @@ class SourceReputationModel:
             weight=3.0,  # Retractions are serious
             reason=f"Retraction of {publication_doi}"
         )
-    
+
     def on_refutation(self, source_id: str, claim_id: str) -> None:
         """Handle claim refutation - moderate reputation hit."""
         self.update_reputation(
@@ -136,7 +136,7 @@ class SourceReputationModel:
             weight=1.5,
             reason=f"Refutation of claim {claim_id}"
         )
-    
+
     def on_replication_success(self, source_id: str, claim_id: str) -> None:
         """Handle successful replication - reputation boost."""
         self.update_reputation(
@@ -145,7 +145,7 @@ class SourceReputationModel:
             weight=2.0,
             reason=f"Successful replication of {claim_id}"
         )
-    
+
     def on_replication_failure(self, source_id: str, claim_id: str) -> None:
         """Handle failed replication - reputation hit."""
         self.update_reputation(
@@ -154,7 +154,7 @@ class SourceReputationModel:
             weight=2.0,
             reason=f"Failed replication of {claim_id}"
         )
-    
+
     def get_prior_weight(self, entity_id: str) -> float:
         """
         Get prior weight for a source to use in Bayesian updates.
@@ -164,7 +164,7 @@ class SourceReputationModel:
         if entity_id not in self._reputations:
             return 0.5  # Neutral prior for unknown sources
         return self._reputations[entity_id].prior_weight()
-    
+
     def get_all_reputations(self) -> Dict[str, Dict]:
         """Get all reputations as a dictionary."""
         return {

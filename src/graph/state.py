@@ -6,10 +6,10 @@ v2.1: Adds EpistemicMode, Evidence, and ScientificUncertainty for
       the 13-step scientific reasoning architecture.
 """
 
-from typing import TypedDict, List, Dict, Any, Optional, Annotated, Literal, Tuple
+import operator
 from dataclasses import dataclass, field
 from enum import Enum
-import operator
+from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, TypedDict
 
 
 class NodeType(str, Enum):
@@ -63,7 +63,7 @@ class ScientificUncertainty:
     sample_size: int = 0
     model_fit_error: float = 0.0
     confidence_interval: tuple = (0.0, 1.0)
-    
+
     def total(self) -> float:
         """Calculate total scientific uncertainty."""
         if self.sample_size == 0:
@@ -91,7 +91,7 @@ class Evidence:
     execution_id: str = ""
     result: Dict[str, Any] = field(default_factory=dict)
     metrics: Dict[str, float] = field(default_factory=dict)
-    
+
     # v2.2 Phase 13 Fields
     estimate: float = 0.0
     ci_95: Tuple[float, float] = (0.0, 0.0)
@@ -101,13 +101,13 @@ class Evidence:
     supports_claim: bool = False
     is_fragile: bool = False
     feynman: Dict[str, Any] = field(default_factory=dict)
-    
+
     uncertainty: Optional[ScientificUncertainty] = None
     assumptions: List[str] = field(default_factory=list)
     provenance: Dict[str, Any] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
     success: bool = False
-    
+
     def authorizes_update(self) -> bool:
         """Check if this evidence authorizes a belief update."""
         if not self.success:
@@ -163,30 +163,30 @@ class AgentState(TypedDict):
     # =========================================================================
     # v2.1 Epistemic Fields (CRITICAL)
     # =========================================================================
-    
+
     # Which lane: "grounded" (can update beliefs) or "speculative" (cannot)
     epistemic_mode: EpistemicMode
-    
+
     # Evidence chain: REQUIRED for belief updates
     # INVARIANT: No belief update without Evidence.authorizes_update() == True
     evidence: List[Dict[str, Any]]
-    
+
     # Atomic claims decomposed from hypothesis
     atomic_claims: List[Dict[str, Any]]
-    
+
     # Context from grounded lane (TypeDB)
     grounded_context: Dict[str, Any]
-    
+
     # Context from speculative lane (Vector DB)
     speculative_context: Dict[str, Any]
-    
+
     # Scientific uncertainty (replaces dialectical_entropy)
     scientific_uncertainty: Dict[str, float]
-    
+
     # Dual outputs from Integrator
     grounded_response: Optional[str]
     speculative_alternatives: List[Dict[str, Any]]
-    
+
     # HITL pending decisions
     pending_hitl_decisions: List[Dict[str, Any]]
     approved_transitions: List[Dict[str, Any]]
@@ -194,75 +194,75 @@ class AgentState(TypedDict):
     # =========================================================================
     # v2.2 Monte Carlo & Hardening Fields
     # =========================================================================
-    
+
     # Monotonic step counter for tracing
     step_index: int
     traces: List[Dict[str, Any]]
-    
+
     # Retrieval Loop Control
     reground_attempts: int
     retrieval_grade: Dict[str, float]
     retrieval_decision: str
     retrieval_refinement: Optional[Dict[str, Any]]
-    
+
     # Monte Carlo Artifacts
     template_executions: List[Dict[str, Any]]
     verification_report: Dict[str, Any]
     fragility_report: Dict[str, Any]
     contradictions: Dict[str, Any]
-    
+
     # Epistemic Decision artifacts
     meta_critique: Dict[str, Any]
     epistemic_update_proposal: List[Dict[str, Any]]
-    
+
     # Staged Writes (Executor only)
     write_intents: List[Dict[str, Any]]
     approved_write_intents: List[Dict[str, Any]]
 
-    
+
     # =========================================================================
     # Original v1 Fields (kept for compatibility)
     # =========================================================================
-    
+
     # Conversation history
     messages: Annotated[List[Dict[str, str]], operator.add]
-    
+
     # Current user query
     query: str
-    
+
     # Retrieved context from knowledge graph (legacy)
     graph_context: Dict[str, Any]
-    
+
     # Entities retrieved from TypeDB
     entities: List[Dict[str, Any]]
-    
+
     # Hypotheses being evaluated
     hypotheses: List[Dict[str, Any]]
-    
+
     # Code execution history
     code_executions: List[Dict[str, Any]]
-    
+
     # Current plan/reasoning
     plan: str
-    
+
     # Dialectical entropy score (DEPRECATED: use scientific_uncertainty)
     dialectical_entropy: float
-    
+
     # Whether we're in debate mode
     in_debate: bool
-    
+
     # Critique from Socratic agent
     critique: Optional[str]
-    
+
     # Final synthesized response
     response: Optional[str]
-    
+
     # Current node in workflow
     current_node: str
-    
+
     # Error state
     error: Optional[str]
-    
+
     # Iteration count (to prevent infinite loops)
     iteration: int
 
@@ -330,9 +330,9 @@ def add_message(state: AgentState, role: str, content: str) -> AgentState:
 
 
 def add_code_execution(
-    state: AgentState, 
-    code: str, 
-    result: str, 
+    state: AgentState,
+    code: str,
+    result: str,
     success: bool,
     execution_id: int
 ) -> AgentState:

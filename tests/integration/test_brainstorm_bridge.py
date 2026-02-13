@@ -10,9 +10,8 @@ and the grounded lane, specifically:
 4. Steward guard rejects hints in evidence payload
 """
 
-import pytest
-from typing import Dict, Any
 
+import pytest
 
 # =============================================================================
 # Type Tests
@@ -21,7 +20,7 @@ from typing import Dict, Any
 def test_experiment_hints_type_creation():
     """ExperimentHints can be created with tight typing."""
     from src.montecarlo.types import ExperimentHints, PriorSuggestion
-    
+
     hints = ExperimentHints(
         claim_id="claim-1",
         candidate_mechanisms=["mechanism A", "mechanism B"],
@@ -32,7 +31,7 @@ def test_experiment_hints_type_creation():
         ],
         falsification_criteria=["observe X under condition Z"],
     )
-    
+
     assert hints.claim_id == "claim-1"
     assert hints.epistemic_status == "speculative"
     assert len(hints.candidate_mechanisms) == 2
@@ -42,7 +41,7 @@ def test_experiment_hints_type_creation():
 def test_experiment_hints_digest_is_stable():
     """Digest is deterministic for audit trail reproducibility."""
     from src.montecarlo.types import ExperimentHints
-    
+
     hints1 = ExperimentHints(
         claim_id="claim-1",
         sensitivity_axes=["temp", "dose"],
@@ -51,7 +50,7 @@ def test_experiment_hints_digest_is_stable():
         claim_id="claim-1",
         sensitivity_axes=["dose", "temp"],  # Different order
     )
-    
+
     # Digests should be equal (sorted internally)
     assert hints1.digest() == hints2.digest()
 
@@ -59,10 +58,10 @@ def test_experiment_hints_digest_is_stable():
 def test_experiment_hints_digest_differs_for_different_content():
     """Different hints produce different digests."""
     from src.montecarlo.types import ExperimentHints
-    
+
     hints1 = ExperimentHints(claim_id="claim-1", sensitivity_axes=["temp"])
     hints2 = ExperimentHints(claim_id="claim-1", sensitivity_axes=["dose"])
-    
+
     assert hints1.digest() != hints2.digest()
 
 
@@ -73,7 +72,7 @@ def test_experiment_hints_digest_differs_for_different_content():
 def test_experiment_spec_rejects_experiment_hints_field():
     """ExperimentSpec cannot contain experiment_hints field (no-residue)."""
     from src.montecarlo.types import ExperimentSpec
-    
+
     with pytest.raises(ValueError, match="INVARIANT VIOLATION.*experiment_hints"):
         ExperimentSpec(
             claim_id="claim-1",
@@ -86,7 +85,7 @@ def test_experiment_spec_rejects_experiment_hints_field():
 def test_experiment_spec_rejects_speculative_context_field():
     """ExperimentSpec cannot contain speculative_context field (no-residue)."""
     from src.montecarlo.types import ExperimentSpec
-    
+
     with pytest.raises(ValueError, match="INVARIANT VIOLATION.*speculative_context"):
         ExperimentSpec(
             claim_id="claim-1",
@@ -99,7 +98,7 @@ def test_experiment_spec_rejects_speculative_context_field():
 def test_experiment_spec_rejects_epistemic_status_field():
     """ExperimentSpec cannot contain epistemic_status field (no-residue)."""
     from src.montecarlo.types import ExperimentSpec
-    
+
     with pytest.raises(ValueError, match="INVARIANT VIOLATION.*epistemic_status"):
         ExperimentSpec(
             claim_id="claim-1",
@@ -112,7 +111,7 @@ def test_experiment_spec_rejects_epistemic_status_field():
 def test_experiment_spec_rejects_nested_speculative_content():
     """ExperimentSpec rejects nested dicts with epistemic_status=speculative."""
     from src.montecarlo.types import ExperimentSpec
-    
+
     with pytest.raises(ValueError, match="INVARIANT VIOLATION.*[Ss]peculative"):
         ExperimentSpec(
             claim_id="claim-1",
@@ -126,7 +125,7 @@ def test_experiment_spec_rejects_nested_speculative_content():
 def test_experiment_spec_accepts_clean_spec():
     """ExperimentSpec accepts well-formed specs without speculative residue."""
     from src.montecarlo.types import ExperimentSpec
-    
+
     spec = ExperimentSpec(
         claim_id="claim-1",
         hypothesis="Verify that X holds",
@@ -135,7 +134,7 @@ def test_experiment_spec_accepts_clean_spec():
         params={"claimed_value": 0.5, "observed_values": [0.4, 0.5, 0.6]},
         assumptions={"independence_assumed": True},
     )
-    
+
     assert spec.claim_id == "claim-1"
     assert spec.template_id == "numeric_consistency"
 
@@ -148,9 +147,9 @@ def test_speculative_agent_extract_experiment_hints():
     """SpeculativeAgent._extract_experiment_hints produces typed hints."""
     from src.agents.speculative_agent import SpeculativeAgent
     from src.montecarlo.types import ExperimentHints
-    
+
     agent = SpeculativeAgent()
-    
+
     spec_results = {
         "claim-1": {
             "alternatives": [
@@ -164,9 +163,9 @@ def test_speculative_agent_extract_experiment_hints():
             "epistemic_status": "speculative",
         }
     }
-    
+
     hints = agent._extract_experiment_hints(spec_results)
-    
+
     assert "claim-1" in hints
     h = hints["claim-1"]
     assert isinstance(h, ExperimentHints)
@@ -180,9 +179,9 @@ def test_speculative_agent_extract_experiment_hints():
 def test_speculative_agent_hints_have_digests():
     """Extracted hints have computable digests for audit trail."""
     from src.agents.speculative_agent import SpeculativeAgent
-    
+
     agent = SpeculativeAgent()
-    
+
     spec_results = {
         "claim-1": {
             "alternatives": [{"mechanism": "M1"}],
@@ -190,9 +189,9 @@ def test_speculative_agent_hints_have_digests():
             "edge_cases": ["edge1"],
         }
     }
-    
+
     hints = agent._extract_experiment_hints(spec_results)
-    
+
     # Digest should be a 16-char hex string
     digest = hints["claim-1"].digest()
     assert len(digest) == 16
@@ -206,7 +205,7 @@ def test_speculative_agent_hints_have_digests():
 def test_steward_rejects_experiment_hints_in_evidence_via_epistemic_status():
     """Steward guard catches hints leaked into evidence payload."""
     from src.agents.ontology_steward import q_insert_validation_evidence
-    
+
     ev = {
         "claim_id": "claim-1",
         "execution_id": "exec-1",
@@ -222,7 +221,7 @@ def test_steward_rejects_experiment_hints_in_evidence_via_epistemic_status():
             "epistemic_status": "speculative",
         },
     }
-    
+
     with pytest.raises(ValueError, match="CRITICAL: Attempted to persist speculative"):
         q_insert_validation_evidence("sess-1", ev)
 
@@ -230,7 +229,7 @@ def test_steward_rejects_experiment_hints_in_evidence_via_epistemic_status():
 def test_steward_rejects_raw_speculative_context_in_evidence():
     """Steward guard catches speculative_context leaked into evidence."""
     from src.agents.ontology_steward import q_insert_validation_evidence
-    
+
     ev = {
         "claim_id": "claim-1",
         "execution_id": "exec-1",
@@ -243,7 +242,7 @@ def test_steward_rejects_raw_speculative_context_in_evidence():
             "epistemic_status": "speculative",
         },
     }
-    
+
     with pytest.raises(ValueError, match="CRITICAL: Attempted to persist speculative"):
         q_insert_validation_evidence("sess-1", ev)
 
@@ -255,12 +254,13 @@ def test_steward_rejects_raw_speculative_context_in_evidence():
 def test_verify_agent_design_uses_hints_for_template_selection():
     """VerifyAgent selects sensitivity_suite when hints have sensitivity_axes."""
     import asyncio
-    from src.agents.verify_agent import VerifyAgent
+
     from src.agents.base_agent import AgentContext
+    from src.agents.verify_agent import VerifyAgent
     from src.montecarlo.types import ExperimentHints
-    
+
     agent = VerifyAgent()
-    
+
     context = AgentContext(
         graph_context={
             "experiment_hints": {
@@ -271,13 +271,13 @@ def test_verify_agent_design_uses_hints_for_template_selection():
             },
         }
     )
-    
+
     claim = {"claim_id": "claim-1", "content": "Test claim"}
-    
+
     spec = asyncio.get_event_loop().run_until_complete(
         agent._design_experiment_spec(claim, context)
     )
-    
+
     # Should select sensitivity_suite due to sensitivity_axes
     assert spec is not None
     assert spec.template_id == "sensitivity_suite"
@@ -287,19 +287,20 @@ def test_verify_agent_design_uses_hints_for_template_selection():
 def test_verify_agent_design_falls_back_without_hints():
     """VerifyAgent uses default template when no hints available."""
     import asyncio
-    from src.agents.verify_agent import VerifyAgent
+
     from src.agents.base_agent import AgentContext
-    
+    from src.agents.verify_agent import VerifyAgent
+
     agent = VerifyAgent()
-    
+
     context = AgentContext(graph_context={})  # No hints
-    
+
     claim = {"claim_id": "claim-2", "content": "Test claim without hints"}
-    
+
     spec = asyncio.get_event_loop().run_until_complete(
         agent._design_experiment_spec(claim, context)
     )
-    
+
     # Should use default template
     assert spec is not None
     assert spec.template_id == "numeric_consistency"

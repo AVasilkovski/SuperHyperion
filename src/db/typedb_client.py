@@ -5,11 +5,11 @@ Provides connection utilities and schema loading for the SuperHyperion knowledge
 Handles Python 3.13 compatibility with lazy imports.
 """
 
-from pathlib import Path
-from typing import Optional, List, Dict
+import logging
 from contextlib import contextmanager
 from datetime import datetime
-import logging
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from src.config import config
 
@@ -28,16 +28,16 @@ TransactionType = None
 def _load_typedb():
     """Lazy load TypeDB driver to handle import errors gracefully."""
     global TYPEDB_AVAILABLE, TypeDB, TypeDBDriver, SessionType, TransactionType
-    
+
     if TYPEDB_AVAILABLE:
         return True
-    
+
     try:
-        from typedb.driver import TypeDB as _TypeDB
-        from typedb.driver import TypeDBDriver as _TypeDBDriver
         from typedb.driver import SessionType as _SessionType
         from typedb.driver import TransactionType as _TransactionType
-        
+        from typedb.driver import TypeDB as _TypeDB
+        from typedb.driver import TypeDBDriver as _TypeDBDriver
+
         TypeDB = _TypeDB
         TypeDBDriver = _TypeDBDriver
         SessionType = _SessionType
@@ -45,7 +45,7 @@ def _load_typedb():
         TYPEDB_AVAILABLE = True
         logger.info("TypeDB driver loaded successfully")
         return True
-        
+
     except ImportError as e:
         logger.warning(f"TypeDB driver not available: {e}")
         logger.warning(
@@ -59,48 +59,48 @@ def _load_typedb():
 
 class TypeDBConnection:
     """Manages TypeDB connection and operations."""
-    
+
     def __init__(self, address: Optional[str] = None, database: Optional[str] = None):
         self.address = address or config.typedb.address
         self.database = database or config.typedb.database
         self._driver = None
         self._mock_mode = False
-    
+
     def connect(self):
         """Establish connection to TypeDB."""
         if not _load_typedb():
             logger.warning("Running in mock mode - TypeDB not available")
             self._mock_mode = True
             return None
-        
+
         if self._driver is None:
             self._driver = TypeDB.core_driver(self.address)
         return self._driver
-    
+
     def close(self):
         """Close the connection."""
         if self._driver:
             self._driver.close()
             self._driver = None
-    
+
     def ensure_database(self):
         """Create database if it doesn't exist."""
         if self._mock_mode:
             logger.info(f"[MOCK] Would create database: {self.database}")
             return
-            
+
         driver = self.connect()
         if driver is None:
             return
-            
+
         databases = driver.databases
-        
+
         if not databases.contains(self.database):
             databases.create(self.database)
             logger.info(f"Created database: {self.database}")
         else:
             logger.info(f"Database already exists: {self.database}")
-    
+
     def load_schema(self, schema_paths: Optional[List[Path]] = None):
         """
         Load TypeQL schema into database.
@@ -137,38 +137,38 @@ class TypeDBConnection:
             logger.info(f"Schema loaded: {[p.name for p in schema_paths]}")
         except Exception as e:
             logger.error(f"Failed to load schema: {e}")
-    
+
     @contextmanager
     def session(self, session_type=None):
         """Context manager for database sessions."""
         if self._mock_mode:
             yield MockSession()
             return
-            
+
         if session_type is None:
             session_type = SessionType.DATA
-            
+
         driver = self.connect()
         if driver is None:
             yield MockSession()
             return
-            
+
         session = driver.session(self.database, session_type)
         try:
             yield session
         finally:
             session.close()
-    
+
     @contextmanager
     def transaction(self, tx_type=None):
         """Context manager for transactions."""
         if self._mock_mode:
             yield MockTransaction()
             return
-            
+
         if tx_type is None:
             tx_type = TransactionType.READ
-            
+
         with self.session() as session:
             tx = session.transaction(tx_type)
             try:
@@ -177,39 +177,45 @@ class TypeDBConnection:
                     tx.commit()
             finally:
                 tx.close()
-    
+
     def query_fetch(self, query: str) -> List[Dict]:
         """Execute a fetch query and return results."""
         if self._mock_mode:
             logger.debug(f"[MOCK] query_fetch: {query[:100]}...")
             return []
-            
+
         with self.transaction(TransactionType.READ) as tx:
             result = tx.query.fetch(query)
             return list(result)
-    
-    def query_insert(self, query: str):
-        """Execute an insert query."""
+
+    def query_insert(self, query: str, *, cap=None):
+        """Execute an insert query. Requires WriteCap."""
+        from src.db.capabilities import WriteCap
+        if not isinstance(cap, WriteCap):
+            raise PermissionError("query_insert requires a WriteCap")
         if self._mock_mode:
             logger.debug(f"[MOCK] query_insert: {query[:100]}...")
             return
-            
+
         with self.transaction(TransactionType.WRITE) as tx:
             tx.query.insert(query)
-    
-    def query_delete(self, query: str):
-        """Execute a delete query."""
+
+    def query_delete(self, query: str, *, cap=None):
+        """Execute a delete query. Requires WriteCap."""
+        from src.db.capabilities import WriteCap
+        if not isinstance(cap, WriteCap):
+            raise PermissionError("query_delete requires a WriteCap")
         if self._mock_mode:
             logger.debug(f"[MOCK] query_delete: {query[:100]}...")
             return
-            
+
         with self.transaction(TransactionType.WRITE) as tx:
             tx.query.delete(query)
-    
+
     # ========================================================================
     # v2.1 Typed Operations
     # ========================================================================
-    
+
     def insert_proposition(
         self,
         entity_id: str,
@@ -226,7 +232,7 @@ class TypeDBConnection:
             has belief-state "{belief_state}";
         """
         self.query_insert(query)
-    
+
     def insert_hypothesis(
         self,
         proposer_id: str,
@@ -246,7 +252,7 @@ class TypeDBConnection:
             has belief-state "proposed";
         """
         self.query_insert(query)
-    
+
     def insert_source_reputation(
         self,
         entity_id: str,
@@ -265,7 +271,7 @@ class TypeDBConnection:
         (trusted-entity: $e) isa source-reputation;
         """
         self.query_insert(query)
-    
+
     def update_reputation(
         self,
         entity_id: str,
@@ -283,7 +289,7 @@ class TypeDBConnection:
         fetch $r: reputation-alpha, reputation-beta, $e: entity-id, $entity_type;
         limit 1;
         """)
-        
+
         if not results:
             # This should not happen if the entity exists and has reputation,
             # but if it's a new entity or reputation, we need its type.
@@ -291,17 +297,17 @@ class TypeDBConnection:
             # TODO: Refine this to fetch entity type if reputation is not found.
             logger.warning(f"No existing reputation found for {entity_id}. Cannot update.")
             return
-        
+
         current = results[0]
         alpha = current.get('reputation-alpha', 1.0)
         beta = current.get('reputation-beta', 1.0)
         entity_type = current.get('entity_type', 'agent') # Default to agent if not found
-        
+
         if positive:
             alpha += weight
         else:
             beta += weight
-        
+
         # Update
         # v2.2 Fix: Separate delete and insert operations
         delete_query = f"""
@@ -310,7 +316,7 @@ class TypeDBConnection:
             $entity has entity-id "{entity_id}";
         delete $s;
         """
-        
+
         insert_query = f"""
         match $entity isa {entity_type}, has entity-id "{entity_id}";
         insert
@@ -320,15 +326,15 @@ class TypeDBConnection:
             has last-updated "{datetime.now().isoformat()}";
         (trusted-entity: $entity) isa source-reputation;
         """
-        
+
         if self._mock_mode:
             logger.info(f"[MOCK] Would update reputation for {entity_id}")
             return
-            
+
         # Execute separately
         self.query_delete(delete_query)
         self.query_insert(insert_query)
-    
+
     def detect_contradictions(self) -> List[Dict]:
         """Find contradicting assertions in the graph."""
         query = """
@@ -344,7 +350,7 @@ class TypeDBConnection:
             $c2: entity-id, content;
         """
         return self.query_fetch(query)
-    
+
     def get_high_entropy_hypotheses(self, threshold: float = 0.4) -> List[Dict]:
         """Find hypotheses with high dialectical entropy (needing debate)."""
         query = """
@@ -359,7 +365,7 @@ class TypeDBConnection:
             $h: beta-alpha, beta-beta, belief-state;
         """
         results = self.query_fetch(query)
-        
+
         # Filter by entropy calculation
         high_entropy = []
         for r in results:
@@ -375,7 +381,7 @@ class TypeDBConnection:
                 if entropy > threshold:
                     r['entropy'] = entropy
                     high_entropy.append(r)
-        
+
         return high_entropy
 
 
@@ -392,9 +398,9 @@ class MockTransaction:
         def insert(self, q): pass
         def delete(self, q): pass
         def define(self, q): pass
-    
+
     query = MockQuery()
-    
+
     def commit(self): pass
     def close(self): pass
 
@@ -417,7 +423,7 @@ def check_typedb_available() -> bool:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     if check_typedb_available():
         init_database()
     else:

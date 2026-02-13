@@ -14,13 +14,12 @@ INVARIANTS:
     - Events are append-only
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Literal, Set, TYPE_CHECKING
-from enum import Enum
-import uuid
-import json
 import logging
+import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set
 
 if TYPE_CHECKING:
     from .intent_store import IntentStore
@@ -36,19 +35,19 @@ class IntentStatus(str, Enum):
     """Write-intent lifecycle states."""
     # Initial
     STAGED = "staged"
-    
+
     # Awaiting human decision
     AWAITING_HITL = "awaiting_hitl"
-    
+
     # Human decisions (HITL outcomes)
     APPROVED = "approved"
     REJECTED = "rejected"
     DEFERRED = "deferred"
     CANCELLED = "cancelled"
-    
+
     # System transitions
     EXPIRED = "expired"
-    
+
     # Execution outcomes
     EXECUTED = "executed"
     FAILED = "failed"
@@ -88,6 +87,7 @@ ALLOWED_TRANSITIONS: Dict[IntentStatus, Set[IntentStatus]] = {
     IntentStatus.APPROVED: {
         IntentStatus.EXECUTED,
         IntentStatus.FAILED,
+        IntentStatus.DEFERRED,  # P1-B: System hold (e.g. mixed-scope batch)
     },
     # Terminal states have no outgoing transitions
     IntentStatus.REJECTED: set(),
@@ -115,33 +115,34 @@ class WriteIntent:
     expires_at: Optional[datetime] = None
     scope_lock_id: Optional[str] = None
     supersedes_intent_id: Optional[str] = None
-    
+    proposal_id: Optional[str] = None
+
     def __post_init__(self):
         if self.expires_at is None:
             # Default: 7 day hard expiry
             self.expires_at = self.created_at + timedelta(days=7)
-    
+
     def is_expired(self) -> bool:
         """Check if intent has expired."""
         if self.expires_at is None:
             return False
         return datetime.now() > self.expires_at
-    
+
     def is_terminal(self) -> bool:
         """Check if intent is in a terminal state."""
         return self.status in TERMINAL_STATES
-    
+
     def requires_scope_lock(self) -> bool:
         """Check if this intent type requires a scope_lock_id."""
         # Delegate to registry (single source of truth)
         from .intent_registry import requires_scope_lock as registry_requires_scope_lock
-        
+
         try:
             return registry_requires_scope_lock(self.intent_type, self.lane)
         except ValueError:
             # Unknown intent type - fail safe (require scope lock)
             return True
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "intent_id": self.intent_id,
@@ -154,6 +155,7 @@ class WriteIntent:
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "scope_lock_id": self.scope_lock_id,
             "supersedes_intent_id": self.supersedes_intent_id,
+            "proposal_id": self.proposal_id,
         }
 
 
@@ -171,7 +173,7 @@ class IntentStatusEvent:
     defer_until: Optional[datetime] = None
     execution_id: Optional[str] = None
     error: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "event_id": self.event_id,
@@ -222,7 +224,7 @@ class WriteIntentService:
     - InMemoryIntentStore for tests
     - TypeDBIntentStore for production
     """
-    
+
     def __init__(self, store: Optional["IntentStore"] = None):
         """
         Initialize with optional IntentStore.
@@ -233,14 +235,14 @@ class WriteIntentService:
             from .intent_store import InMemoryIntentStore
             store = InMemoryIntentStore()
         self._store = store
-        
+
         # In-memory cache for WriteIntent objects (reconstructed from store)
         self._intent_cache: Dict[str, WriteIntent] = {}
-    
+
     # =========================================================================
     # State Machine Core
     # =========================================================================
-    
+
     def _assert_transition_allowed(
         self,
         from_status: IntentStatus,
@@ -253,7 +255,7 @@ class WriteIntentService:
                 f"Transition {from_status.value} → {to_status.value} not allowed. "
                 f"Allowed: {[s.value for s in allowed]}"
             )
-    
+
     def _append_event(
         self,
         intent: WriteIntent,
@@ -268,7 +270,7 @@ class WriteIntentService:
         """Append an event to the intent's history."""
         event_id = f"evt_{uuid.uuid4().hex[:12]}"
         now = datetime.now()
-        
+
         # Persist event to store
         self._store.append_event(
             event_id=event_id,
@@ -283,14 +285,14 @@ class WriteIntentService:
             execution_id=execution_id,
             error=error,
         )
-        
+
         # Update intent status in store
         self._store.update_intent_status(intent.intent_id, to_status.value)
-        
+
         # Update cached intent
         old_status = intent.status
         intent.status = to_status
-        
+
         # Create event object for return
         event = IntentStatusEvent(
             event_id=event_id,
@@ -305,90 +307,96 @@ class WriteIntentService:
             execution_id=execution_id,
             error=error,
         )
-        
+
         logger.info(
             f"Intent {intent.intent_id}: {old_status.value} → {to_status.value} "
             f"by {actor_type}:{actor_id}"
         )
-        
+
         return event
-    
+
     # =========================================================================
     # Lifecycle Operations
     # =========================================================================
-    
+
     def stage(
         self,
         intent_type: str,
         payload: Dict[str, Any],
+        *,
         lane: str = "grounded",
         impact_score: float = 0.0,
         scope_lock_id: Optional[str] = None,
         supersedes_intent_id: Optional[str] = None,
         expires_in_days: int = 7,
+        proposal_id: Optional[str] = None,
     ) -> WriteIntent:
         """
         Stage a new write-intent.
         
-        New in 16.2: 
+        New in 16.3: 
+        - proposal_id is envelope metadata (rejected from payload)
+        - deduplication via get_by_proposal_id
         - lane is envelope metadata (removed from payload if present)
         - full policy enforcement at stage time (registry validation + scope lock check)
         
         Returns a new intent in STAGED status.
         """
-        from .intent_registry import validate_intent_payload, get_intent_spec, ScopeLockPolicy
-        
+        from .intent_registry import ScopeLockPolicy, get_intent_spec, validate_intent_payload
+
+        # Phase 16.3: proposal_id is envelope-only
+        if "proposal_id" in payload:
+            raise ValueError("proposal_id is envelope metadata, not payload")
+
+        # Phase 16.3: deduplication
+        if proposal_id:
+            existing = self._store.get_by_proposal_id(proposal_id)
+            if existing:
+                logger.info(f"Dedupe: proposal {proposal_id} already staged as {existing['intent_id']}")
+                return self._reconstruct_intent(existing)
+
         # 1. Enforce envelope lane invariant (strip from payload if matched)
         if "lane" in payload:
             if payload["lane"] != lane:
                 raise ValueError(f"Payload lane '{payload['lane']}' mismatch envelope lane '{lane}'")
             # Remove from payload (it's envelope only now)
             payload = {k: v for k, v in payload.items() if k != "lane"}
-            
+
         # 1b. Strip scope_lock_id from payload (envelope invariant)
         if "scope_lock_id" in payload:
-            # If provided in payload but NOT in arg, we could lift it?
-            # But safer to require argument usage. For now just strip to satisfy registry.
-            # Actually, let's verify if arg is missing, we take from payload?
-            # The refactor plan implies explicit args. Let's strictly strip to force envelope usage.
             payload = {k: v for k, v in payload.items() if k != "scope_lock_id"}
-            
+
         # 2. Validate payload against registry (using envelope lane)
         validate_intent_payload(intent_type, payload, lane)
-        
+
         # 3. Enforce scope-lock policy strictly
         spec = get_intent_spec(intent_type)
         sl_policy = spec.get_scope_lock_policy(lane)
         has_sl = bool(scope_lock_id)
-        
+
         if sl_policy == ScopeLockPolicy.REQUIRED and not has_sl:
             raise ScopeLockRequiredError(f"{intent_type} requires scope_lock_id in lane={lane}")
         if sl_policy == ScopeLockPolicy.FORBIDDEN and has_sl:
             raise ValueError(f"{intent_type} forbids scope_lock_id in lane={lane}")
-            
+
         intent_id = f"intent_{uuid.uuid4().hex[:12]}"
         now = datetime.now()
         expires_at = now + timedelta(days=expires_in_days)
-        
-        # Persist to store (schema may need update to store lane)
-        # For now, we'll store it as part of persisted record but need to handle backend compatibility
-        # If DB schema doesn't have 'lane' column yet, store it in payload structure for persistence
-        # or rely on backend to support it. 
-        # Assuming store interface is flexible dictionary-based:
-        
+
         self._store.insert_intent(
             intent_id=intent_id,
             intent_type=intent_type,
-            payload=payload,  # CLEAN payload (no lane)
+            payload=payload,
             impact_score=impact_score,
             status=IntentStatus.STAGED.value,
             created_at=now,
             expires_at=expires_at,
             scope_lock_id=scope_lock_id,
             supersedes_intent_id=supersedes_intent_id,
-            lane=lane,  # Pass lane to store if supported, or pack it
+            lane=lane,
+            proposal_id=proposal_id,
         )
-        
+
         # Create and cache intent object
         intent = WriteIntent(
             intent_id=intent_id,
@@ -401,12 +409,35 @@ class WriteIntentService:
             expires_at=expires_at,
             scope_lock_id=scope_lock_id,
             supersedes_intent_id=supersedes_intent_id,
+            proposal_id=proposal_id,
         )
         self._intent_cache[intent_id] = intent
-        
+
         logger.info(f"Intent staged: {intent_id} (type={intent_type}, lane={lane})")
         return intent
-    
+
+    def _reconstruct_intent(self, data: Dict[str, Any]) -> WriteIntent:
+        """Reconstruct a WriteIntent from a store dict."""
+        created = data["created_at"]
+        if isinstance(created, str):
+            created = datetime.fromisoformat(created)
+        expires = data.get("expires_at")
+        if isinstance(expires, str):
+            expires = datetime.fromisoformat(expires)
+        return WriteIntent(
+            intent_id=data["intent_id"],
+            intent_type=data["intent_type"],
+            lane=data.get("lane", "grounded"),
+            payload=data.get("payload", {}),
+            impact_score=float(data.get("impact_score", 0.0)),
+            status=IntentStatus(data["status"]),
+            created_at=created,
+            expires_at=expires,
+            scope_lock_id=data.get("scope_lock_id"),
+            supersedes_intent_id=data.get("supersedes_intent_id"),
+            proposal_id=data.get("proposal_id"),
+        )
+
     def submit_for_review(
         self,
         intent_id: str,
@@ -419,7 +450,7 @@ class WriteIntentService:
         """
         intent = self._get_or_raise(intent_id)
         self._assert_transition_allowed(intent.status, IntentStatus.AWAITING_HITL)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.AWAITING_HITL,
@@ -427,9 +458,9 @@ class WriteIntentService:
             actor_id=actor_id,
             rationale="Submitted for human review",
         )
-        
+
         return intent
-    
+
     def approve(
         self,
         intent_id: str,
@@ -443,7 +474,7 @@ class WriteIntentService:
         """
         intent = self._get_or_raise(intent_id)
         self._assert_transition_allowed(intent.status, IntentStatus.APPROVED)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.APPROVED,
@@ -451,9 +482,9 @@ class WriteIntentService:
             actor_id=approver_id,
             rationale=rationale,
         )
-        
+
         return intent
-    
+
     def reject(
         self,
         intent_id: str,
@@ -467,7 +498,7 @@ class WriteIntentService:
         """
         intent = self._get_or_raise(intent_id)
         self._assert_transition_allowed(intent.status, IntentStatus.REJECTED)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.REJECTED,
@@ -475,9 +506,9 @@ class WriteIntentService:
             actor_id=rejector_id,
             rationale=rationale,
         )
-        
+
         return intent
-    
+
     def defer(
         self,
         intent_id: str,
@@ -492,7 +523,7 @@ class WriteIntentService:
         """
         intent = self._get_or_raise(intent_id)
         self._assert_transition_allowed(intent.status, IntentStatus.DEFERRED)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.DEFERRED,
@@ -501,9 +532,9 @@ class WriteIntentService:
             rationale=rationale,
             defer_until=until,
         )
-        
+
         return intent
-    
+
     def cancel(
         self,
         intent_id: str,
@@ -518,7 +549,7 @@ class WriteIntentService:
         """
         intent = self._get_or_raise(intent_id)
         self._assert_transition_allowed(intent.status, IntentStatus.CANCELLED)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.CANCELLED,
@@ -526,9 +557,9 @@ class WriteIntentService:
             actor_id=actor_id,
             rationale=rationale,
         )
-        
+
         return intent
-    
+
     def expire(
         self,
         intent_id: str,
@@ -540,7 +571,7 @@ class WriteIntentService:
         """
         intent = self._get_or_raise(intent_id)
         self._assert_transition_allowed(intent.status, IntentStatus.EXPIRED)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.EXPIRED,
@@ -548,9 +579,9 @@ class WriteIntentService:
             actor_id="expiry_service",
             rationale=f"Expired at {intent.expires_at.isoformat() if intent.expires_at else 'N/A'}",
         )
-        
+
         return intent
-    
+
     def execute(
         self,
         intent_id: str,
@@ -563,21 +594,21 @@ class WriteIntentService:
         Transition: approved → executed
         """
         intent = self._get_or_raise(intent_id)
-        
+
         # CONSTITUTIONAL INVARIANT: executed requires prior approved
         if not self._has_approved_event(intent_id):
             raise IntentTransitionError(
                 f"Intent {intent_id} cannot be executed: no prior 'approved' event"
             )
-        
+
         # CONSTITUTIONAL INVARIANT: scope_lock_id required for certain types
         if intent.requires_scope_lock() and not intent.scope_lock_id:
             raise ScopeLockRequiredError(
                 f"Intent {intent_id} requires scope_lock_id for execution"
             )
-        
+
         self._assert_transition_allowed(intent.status, IntentStatus.EXECUTED)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.EXECUTED,
@@ -585,9 +616,67 @@ class WriteIntentService:
             actor_id="executor",
             execution_id=execution_id,
         )
-        
+
         return intent
-    
+
+    def execute_batch(
+        self,
+        intent_ids: List[str],
+        execution_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Execute a batch of approved intents atomically.
+
+        POLICY (P1-B): Scope-lock uniformity enforcement.
+        - If all intents share the same scope_lock_id → execute all.
+        - If intents have mixed scope_lock_ids → HOLD all (defer).
+        - None is treated as a distinct scope (fail-closed).
+        - Status events are emitted for each HOLD (auditable).
+
+        Returns dict with 'executed' and 'held' lists of intent IDs.
+        """
+        if not intent_ids:
+            return {"executed": [], "held": []}
+
+        # Resolve all intents and check they're approved
+        intents = []
+        for iid in intent_ids:
+            intent = self._get_or_raise(iid)
+            if intent.status != IntentStatus.APPROVED:
+                raise ValueError(f"Intent {iid} is not APPROVED (status={intent.value})")
+            intents.append(intent)
+
+        # Collect distinct scope_lock_ids (None counts as distinct scope)
+        scope_ids = {i.scope_lock_id for i in intents}
+
+        # Mixed-scope check (>1 distinct value, including None)
+        if len(scope_ids) > 1:
+            held_ids = []
+            for intent in intents:
+                try:
+                    self._assert_transition_allowed(intent.status, IntentStatus.DEFERRED)
+                    self._append_event(
+                        intent,
+                        to_status=IntentStatus.DEFERRED,
+                        actor_type="system",
+                        actor_id="batch_policy",
+                        rationale="HOLD: mixed scope-lock batch",
+                    )
+                    held_ids.append(intent.intent_id)
+                except IntentTransitionError:
+                    logger.warning(
+                        f"Cannot HOLD intent {intent.intent_id} "
+                        f"(status={intent.status}): transition not allowed"
+                    )
+            return {"executed": [], "held": held_ids}
+
+        # Uniform scope — execute all
+        executed_ids = []
+        for intent in intents:
+            result = self.execute(intent.intent_id, execution_id)
+            executed_ids.append(result.intent_id)
+        return {"executed": executed_ids, "held": []}
+
     def fail(
         self,
         intent_id: str,
@@ -600,7 +689,7 @@ class WriteIntentService:
         """
         intent = self._get_or_raise(intent_id)
         self._assert_transition_allowed(intent.status, IntentStatus.FAILED)
-        
+
         self._append_event(
             intent,
             to_status=IntentStatus.FAILED,
@@ -608,9 +697,9 @@ class WriteIntentService:
             actor_id="executor",
             error=error,
         )
-        
+
         return intent
-    
+
     def expire_stale(self, max_age_days: int = 7) -> List[str]:
         """
         Expire all stale intents.
@@ -619,24 +708,24 @@ class WriteIntentService:
         """
         expired_ids = []
         now = datetime.now()
-        
+
         # Get expirable intents from store
         expirable = self._store.list_expirable_intents(now)
-        
+
         for intent_data in expirable:
             intent_id = intent_data["intent_id"]
             try:
                 # Load intent to cache if not present
-                intent = self._get_or_raise(intent_id)
+                _intent = self._get_or_raise(intent_id)  # noqa: F841
                 self.expire(intent_id)
                 expired_ids.append(intent_id)
             except IntentTransitionError:
                 pass  # Already in a state that can't expire
             except IntentNotFoundError:
                 pass  # Intent doesn't exist in cache
-        
+
         return expired_ids
-    
+
     def reactivate_deferred(self) -> List[str]:
         """
         Reactivate deferred intents where defer_until has passed.
@@ -645,23 +734,23 @@ class WriteIntentService:
         """
         reactivated_ids = []
         now = datetime.now()
-        
+
         # Get deferred intents from store
         deferred = self._store.list_intents_by_status(IntentStatus.DEFERRED.value)
-        
+
         for intent_data in deferred:
             intent_id = intent_data["intent_id"]
-            
+
             # Get events for this intent
             events = self._store.get_events(intent_id)
-            
+
             # Find the defer event with defer_until
             defer_until = None
             for e in reversed(events):
                 if e.get("to_status") == IntentStatus.DEFERRED.value and e.get("defer_until"):
                     defer_until = e["defer_until"]
                     break
-            
+
             if defer_until and now >= defer_until:
                 try:
                     # Load intent and reactivate
@@ -676,24 +765,24 @@ class WriteIntentService:
                     reactivated_ids.append(intent_id)
                 except IntentNotFoundError:
                     pass
-        
+
         return reactivated_ids
-    
+
     # =========================================================================
     # Queries
     # =========================================================================
-    
+
     def get(self, intent_id: str) -> Optional[WriteIntent]:
         """Get an intent by ID."""
         # Check cache first
         if intent_id in self._intent_cache:
             return self._intent_cache[intent_id]
-        
+
         # Load from store
         data = self._store.get_intent(intent_id)
         if not data:
             return None
-        
+
         # Reconstruct WriteIntent and cache
         intent = WriteIntent(
             intent_id=data["intent_id"],
@@ -709,14 +798,14 @@ class WriteIntentService:
         )
         self._intent_cache[intent_id] = intent
         return intent
-    
+
     def _get_or_raise(self, intent_id: str) -> WriteIntent:
         """Get an intent or raise IntentNotFoundError."""
         intent = self.get(intent_id)
         if not intent:
             raise IntentNotFoundError(f"Intent not found: {intent_id}")
         return intent
-    
+
     def list_by_status(self, status: IntentStatus) -> List[WriteIntent]:
         """List intents by status."""
         data_list = self._store.list_intents_by_status(status.value)
@@ -726,11 +815,11 @@ class WriteIntentService:
             if intent:
                 intents.append(intent)
         return intents
-    
+
     def list_pending(self) -> List[WriteIntent]:
         """List intents awaiting human decision."""
         return self.list_by_status(IntentStatus.AWAITING_HITL)
-    
+
     def get_history(self, intent_id: str) -> List[IntentStatusEvent]:
         """Get all events for an intent."""
         event_data = self._store.get_events(intent_id)
@@ -750,7 +839,7 @@ class WriteIntentService:
                 error=e.get("error"),
             ))
         return events
-    
+
     def _has_approved_event(self, intent_id: str) -> bool:
         """Check if intent has an approved event in its history."""
         return self._store.has_event_with_status(intent_id, IntentStatus.APPROVED.value)

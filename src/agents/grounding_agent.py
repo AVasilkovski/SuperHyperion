@@ -5,10 +5,10 @@ v2.1 Step 4: Constraint-anchored retrieval from TypeDB.
 Not just context retrieval - fetches domain axioms, prior evidence, counterexamples.
 """
 
-from typing import Dict, Any, List
 import logging
+from typing import Any, Dict, List
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -25,36 +25,36 @@ class GroundingAgent(BaseAgent):
     
     This agent operates in the GROUNDED lane.
     """
-    
+
     def __init__(self):
         super().__init__(name="GroundingAgent")
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """
         Retrieve grounded context for all atomic claims.
         """
         claims = context.graph_context.get("atomic_claims", [])
-        
+
         if not claims:
             logger.warning("No atomic claims to ground")
             return context
-        
+
         grounded_results = {}
-        
+
         for claim in claims:
             claim_id = claim.get("claim_id", "unknown")
-            
+
             # Retrieve grounded context
             grounded = self._ground_claim(claim)
             grounded_results[claim_id] = grounded
-        
+
         # Store in v2.1 grounded_context field
         context.graph_context["grounded_context"] = grounded_results
-        
+
         logger.info(f"Grounded {len(claims)} claims")
-        
+
         return context
-    
+
     def _ground_claim(self, claim: Dict[str, Any]) -> Dict[str, Any]:
         """
         Retrieve constraint-anchored context for a single claim.
@@ -62,26 +62,26 @@ class GroundingAgent(BaseAgent):
         subject = claim.get("subject", "")
         _relation = claim.get("relation", "")  # Reserved for future use
         obj = claim.get("object", "")
-        
+
         # Query for domain axioms
         axioms = self._retrieve_axioms(subject, obj)
-        
+
         # Query for prior evidence
         prior_evidence = self._retrieve_prior_evidence(claim)
-        
+
         # Query for counterexamples
         counterexamples = self._retrieve_counterexamples(claim)
-        
+
         # Query for boundary conditions
         boundaries = self._retrieve_boundaries(claim)
-        
+
         return {
             "domain_axioms": axioms,
             "prior_evidence": prior_evidence,
             "counterexamples": counterexamples,
             "boundary_conditions": boundaries,
         }
-    
+
     def _retrieve_axioms(self, subject: str, obj: str) -> List[Dict[str, Any]]:
         """Retrieve domain axioms related to the claim."""
         try:
@@ -97,7 +97,7 @@ class GroundingAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Axiom retrieval failed: {e}")
             return []
-    
+
     def _retrieve_prior_evidence(self, claim: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Retrieve prior evidence for the claim."""
         try:
@@ -113,7 +113,7 @@ class GroundingAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Prior evidence retrieval failed: {e}")
             return []
-    
+
     def _retrieve_counterexamples(self, claim: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Retrieve known counterexamples."""
         try:
@@ -127,7 +127,7 @@ class GroundingAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Counterexample retrieval failed: {e}")
             return []
-    
+
     def _retrieve_boundaries(self, claim: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve boundary conditions for the claim."""
         conditions = claim.get("conditions", {})

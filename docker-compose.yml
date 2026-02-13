@@ -11,11 +11,8 @@ services:
       - typedb-data:/opt/typedb-all-linux-x86_64/server/data
     environment:
       - TYPEDB_OPTS=--diagnostics.monitoring.enable=true
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:1729" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+    # NOTE: No healthcheck — TypeDB speaks gRPC on 1729, not HTTP.
+    # App/CI uses driver-based readiness loops instead.
     restart: unless-stopped
 
   # ============================================

@@ -17,6 +17,13 @@ class MockQuery:
     def insert(self, q):
         self.inserts.append(q)
 
+    def __call__(self, q):
+        self.definitions.append(q)
+        return self
+
+    def resolve(self):
+        return self
+
 class MockTransaction:
     def __init__(self):
         self.query = MockQuery()
@@ -39,10 +46,10 @@ class MockSession:
 
 class MockDriver:
     def __init__(self):
-        self.sess = MockSession()
+        self.tx = MockTransaction()
 
-    def session(self, db, type):
-        return self.sess
+    def transaction(self, db, type, options=None):
+        return self.tx
 
     def close(self): pass
 
@@ -54,13 +61,13 @@ def mock_typedb(monkeypatch):
     # Patch the _load_typedb check to return True so we proceed to connection logic
     monkeypatch.setattr("src.db.typedb_client._load_typedb", lambda: True)
 
-    # Patch TypeDB.core_driver to return our mock
-    # Patch TypeDB global - we need to create a mock class structure
     class MockTypeDBClass:
         @staticmethod
-        def core_driver(addr): return mock_driver
+        def driver(addr, creds, opts): return mock_driver
 
     monkeypatch.setattr("src.db.typedb_client.TypeDB", MockTypeDBClass)
+    monkeypatch.setattr("src.db.typedb_client.Credentials", lambda u, p: None)
+    monkeypatch.setattr("src.db.typedb_client.DriverOptions", lambda **kw: None)
 
     # Patch SessionType and TransactionType enum-like objects
     class MockEnum:
@@ -103,10 +110,10 @@ def test_schema_syntax_and_load(mock_typedb):
     #     tx.query.define(content)
 
     # We can access the definition via the mock_driver fixture if we ensured it was returned
-    if not mock_typedb.sess.tx.query.definitions:
-        pytest.fail(f"No definitions found! Mock driver stats: {len(mock_typedb.sess.tx.query.definitions)} inserts: {len(mock_typedb.sess.tx.query.inserts)}")
+    if not mock_typedb.tx.query.definitions:
+        pytest.fail(f"No definitions found! Mock driver stats: {len(mock_typedb.tx.query.definitions)} inserts: {len(mock_typedb.tx.query.inserts)}")
 
-    defined_schema = mock_typedb.sess.tx.query.definitions[0]
+    defined_schema = mock_typedb.tx.query.definitions[0]
 
     # 1. Check for Duplicate Relation Definition
     # Count occurrences of "relation proposal-targets-proposition"

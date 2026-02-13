@@ -25,10 +25,11 @@ TypeDBDriver = None
 TransactionType = None
 Credentials = None
 DriverOptions = None
+SessionType = None
 
 def _load_typedb():
     """Lazy load TypeDB driver to handle import errors gracefully."""
-    global TYPEDB_AVAILABLE, TypeDB, TypeDBDriver, SessionType, TransactionType
+    global TYPEDB_AVAILABLE, TypeDB, TypeDBDriver, TransactionType, Credentials, DriverOptions, SessionType
 
     if TYPEDB_AVAILABLE:
         return True

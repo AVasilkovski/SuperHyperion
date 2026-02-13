@@ -38,21 +38,19 @@ def main():
     # 1. Import driver — hard fail if missing
     # ------------------------------------------------------------------
     try:
-        from typedb.driver import TypeDB
-    except ImportError as e:
-        print(f"FATAL: TypeDB driver not installed: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # Enums moved around between driver builds; support both layouts.
-    try:
-        from typedb.driver import SessionType, TransactionType
-    except ImportError:
+        from typedb.driver import TypeDB, SessionType, TransactionType
+    except Exception as e:
+        print("FATAL: TypeDB driver API not importable via typedb.driver", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
+        # diagnostics to prove what got installed
         try:
-            from typedb.api.connection.session import SessionType  # type: ignore
-            from typedb.api.connection.transaction import TransactionType  # type: ignore
-        except ImportError as e:
-            print(f"FATAL: Cannot import SessionType/TransactionType: {e}", file=sys.stderr)
-            sys.exit(1)
+            import typedb, typedb.driver
+            print(f"typedb package: {typedb.__file__}", file=sys.stderr)
+            print(f"typedb.driver: {typedb.driver.__file__}", file=sys.stderr)
+            print(f"typedb.driver attrs: {sorted([a for a in dir(typedb.driver) if 'Type' in a or 'Session' in a or 'Transaction' in a])}", file=sys.stderr)
+        except Exception as e2:
+            print(f"Also failed to import typedb/typedb.driver for diagnostics: {e2}", file=sys.stderr)
+        sys.exit(1)
 
     # ------------------------------------------------------------------
     # 2. Readiness loop — driver-based, no sleep

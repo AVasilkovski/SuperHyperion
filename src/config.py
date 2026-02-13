@@ -14,6 +14,8 @@ class TypeDBConfig:
     host: str = os.getenv("TYPEDB_HOST", "localhost")
     port: int = int(os.getenv("TYPEDB_PORT", "1729"))
     database: str = os.getenv("TYPEDB_DATABASE", "superhyperion")
+    username: str = os.getenv("TYPEDB_USERNAME", "admin")
+    password: str = os.getenv("TYPEDB_PASSWORD", "password")
 
     @property
     def address(self) -> str:

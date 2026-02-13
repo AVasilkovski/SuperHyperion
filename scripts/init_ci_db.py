@@ -1,16 +1,7 @@
+#!/usr/bin/env python3
 """
-CI-only TypeDB initialization script.
-
-Properties:
-- No src.config import (env vars only)
-- No mock mode (hard fail on any error)
-- Driver-based readiness loop (no sleep)
-- Creates DB if missing, loads schema, commits
-- Exits non-zero on failure
-
-Usage (CI):
-    TYPEDB_HOST=localhost TYPEDB_PORT=1729 TYPEDB_DATABASE=scientific_knowledge \
-        python scripts/init_ci_db.py
+Initialize TypeDB schema for CI.
+Uses TypeDB 3.x transaction-only API.
 """
 
 import os
@@ -18,94 +9,91 @@ import sys
 import time
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Config from env only — no src.config
-# ---------------------------------------------------------------------------
-
+# Configuration from environment
 HOST = os.environ.get("TYPEDB_HOST", "localhost")
 PORT = os.environ.get("TYPEDB_PORT", "1729")
 DATABASE = os.environ.get("TYPEDB_DATABASE", "scientific_knowledge")
 ADDRESS = f"{HOST}:{PORT}"
 
+# TypeDB Core docker defaults
+USERNAME = os.environ.get("TYPEDB_USERNAME", "admin")
+PASSWORD = os.environ.get("TYPEDB_PASSWORD", "password")
+
+# Schema path (relative to repo root)
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "src" / "schema" / "scientific_knowledge.tql"
 
 MAX_RETRIES = 30
-RETRY_DELAY = 2  # seconds
-
+RETRY_DELAY = 2
 
 def main():
-    # ------------------------------------------------------------------
-    # 1. Import driver — hard fail if missing
-    # ------------------------------------------------------------------
     try:
-        from typedb.driver import TypeDB, TransactionType
+        from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
     except Exception as e:
         print(f"FATAL: TypeDB driver API not importable via typedb.driver: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # ------------------------------------------------------------------
-    # 2. Readiness loop — driver-based, no sleep
-    # ------------------------------------------------------------------
+    if not SCHEMA_PATH.exists():
+        print(f"FATAL: Schema file not found: {SCHEMA_PATH}", file=sys.stderr)
+        sys.exit(1)
+
+    creds = Credentials(USERNAME, PASSWORD)
+    opts = DriverOptions(is_tls_enabled=False, tls_root_ca_path=None)
+
     driver = None
+    last_err = None
+
+    # Readiness loop
+    print(f"Connecting to TypeDB at {ADDRESS}...")
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            driver = TypeDB.core_driver(ADDRESS)
+            driver = TypeDB.driver(ADDRESS, creds, opts)
             # Quick connection test: list databases
             _ = driver.databases.all()
             print(f"TypeDB ready at {ADDRESS} (attempt {attempt})")
             break
         except Exception as e:
-            if attempt == MAX_RETRIES:
-                print(
-                    f"FATAL: TypeDB not reachable at {ADDRESS} after "
-                    f"{MAX_RETRIES} attempts: {e}",
-                    file=sys.stderr,
-                )
-                if driver:
-                    driver.close()
-                sys.exit(1)
+            last_err = e
             print(f"Waiting for TypeDB ({attempt}/{MAX_RETRIES}): {e}")
             if driver:
-                driver.close()
+                try:
+                    driver.close()
+                except Exception:
+                    pass
+                driver = None
             time.sleep(RETRY_DELAY)
 
-    assert driver is not None  # unreachable, but satisfies type checker
+    if not driver:
+        print(f"FATAL: TypeDB not reachable at {ADDRESS} after {MAX_RETRIES} attempts: {last_err}", file=sys.stderr)
+        sys.exit(1)
 
-    # ------------------------------------------------------------------
-    # 3. Create database if missing
-    # ------------------------------------------------------------------
     try:
+        # Create DB if missing
         if not driver.databases.contains(DATABASE):
             driver.databases.create(DATABASE)
             print(f"Created database: {DATABASE}")
         else:
             print(f"Database already exists: {DATABASE}")
-    except Exception as e:
-        print(f"FATAL: Could not create database '{DATABASE}': {e}", file=sys.stderr)
-        sys.exit(1)
 
-    # ------------------------------------------------------------------
-    # 4. Load schema — fail hard on any error
-    # ------------------------------------------------------------------
-    if not SCHEMA_PATH.exists():
-        print(f"FATAL: Schema file not found: {SCHEMA_PATH}", file=sys.stderr)
-        sys.exit(1)
+        schema_content = SCHEMA_PATH.read_text(encoding="utf-8")
+        print(f"Loading schema from {SCHEMA_PATH.name} ({len(schema_content)} bytes)")
 
-    schema_content = SCHEMA_PATH.read_text(encoding="utf-8")
-    print(f"Loading schema from {SCHEMA_PATH.name} ({len(schema_content)} bytes)")
-
-    try:
+        # Load schema via SCHEMA transaction
         with driver.transaction(DATABASE, TransactionType.SCHEMA) as tx:
-            tx.query.define(schema_content)
+            # tx.query(...) in 3.x returns a ReqHelper which must be resolved
+            tx.query(schema_content).resolve()
             tx.commit()
+
         print("Schema loaded successfully")
+        print(f"CI database '{DATABASE}' initialized at {ADDRESS}")
+
     except Exception as e:
-        print(f"FATAL: Schema load failed: {e}", file=sys.stderr)
+        print(f"FATAL: Schema init failed: {e}", file=sys.stderr)
         sys.exit(1)
-
-    driver.close()
-    print(f"CI database '{DATABASE}' initialized at {ADDRESS}")
-
+    finally:
+        try:
+            driver.close()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     main()

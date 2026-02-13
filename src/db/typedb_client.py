@@ -23,6 +23,8 @@ TYPEDB_AVAILABLE = False
 TypeDB = None
 TypeDBDriver = None
 TransactionType = None
+Credentials = None
+DriverOptions = None
 
 def _load_typedb():
     """Lazy load TypeDB driver to handle import errors gracefully."""
@@ -32,6 +34,8 @@ def _load_typedb():
         return True
 
     try:
+        from typedb.driver import Credentials as _Credentials
+        from typedb.driver import DriverOptions as _DriverOptions
         from typedb.driver import TransactionType as _TransactionType
         from typedb.driver import TypeDB as _TypeDB
         from typedb.driver import TypeDBDriver as _TypeDBDriver
@@ -39,6 +43,8 @@ def _load_typedb():
         TypeDB = _TypeDB
         TypeDBDriver = _TypeDBDriver
         TransactionType = _TransactionType
+        Credentials = _Credentials
+        DriverOptions = _DriverOptions
         TYPEDB_AVAILABLE = True
         logger.info("TypeDB driver loaded successfully")
         return True
@@ -71,7 +77,10 @@ class TypeDBConnection:
             return None
 
         if self._driver is None:
-            self._driver = TypeDB.core_driver(self.address)
+            creds = Credentials(config.typedb.username, config.typedb.password)
+            # Default options for core (TLS disabled)
+            opts = DriverOptions(is_tls_enabled=False, tls_root_ca_path=None)
+            self._driver = TypeDB.driver(self.address, creds, opts)
         return self._driver
 
     def close(self):
@@ -128,7 +137,7 @@ class TypeDBConnection:
 
         try:
             with driver.transaction(self.database, TransactionType.SCHEMA) as tx:
-                tx.query.define(schema_content)
+                tx.query(schema_content).resolve()
                 tx.commit()
             logger.info(f"Schema loaded: {[p.name for p in schema_paths]}")
         except Exception as e:

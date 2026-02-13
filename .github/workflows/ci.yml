@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # Ephemeral TypeDB — pinned to match docker-compose + driver
+    # Ephemeral TypeDB — pinned to match requirements + init script
     services:
       typedb:
         image: typedb/typedb:3.7.3
@@ -30,23 +30,25 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
           # Force clean state: remove collisions and reinstall exact driver version
           pip uninstall -y typedb typedb-driver || true
           pip install --no-cache-dir --force-reinstall "typedb-driver==3.7.0"
+          pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
 
-      - name: Debug TypeDB driver import surface
+      - name: Debug TypeDB driver surface
         run: |
-          python -c "import typedb.driver as d; print('driver file:', d.__file__); print('SessionType' in dir(d)); print('TransactionType' in dir(d)); print('dir results:', [x for x in dir(d) if 'Type' in x or 'Session' in x or 'Transaction' in x])"
+          python -c "import typedb.driver as d; print('driver file:', d.__file__); print('attrs:', [a for a in dir(d) if a in ('TypeDB','TransactionType','Credentials','DriverOptions','SessionType')])"
 
-      # Driver-based readiness loop + create DB + load schema (no sleep, no mock)
+      # Initialize DB + Schema (session-less 3.x API)
       - name: Initialize TypeDB schema (CI)
         env:
           PYTHONPATH: .
           TYPEDB_HOST: localhost
           TYPEDB_PORT: 1729
           TYPEDB_DATABASE: scientific_knowledge
+          TYPEDB_USERNAME: admin
+          TYPEDB_PASSWORD: password
         run: python scripts/init_ci_db.py
 
       - name: Run tests
@@ -55,6 +57,8 @@ jobs:
           TYPEDB_HOST: localhost
           TYPEDB_PORT: 1729
           TYPEDB_DATABASE: scientific_knowledge
+          TYPEDB_USERNAME: admin
+          TYPEDB_PASSWORD: password
         run: pytest tests/ -v --tb=short
 
       # Phase 16.3: WriteCap grep-ban — no agent except OntologySteward may write

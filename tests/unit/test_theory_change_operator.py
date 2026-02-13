@@ -223,7 +223,8 @@ class TestProposalGeneration:
         proposal = generate_proposal("claim-1", evidence, proposal_id="prop-test")
         payload = proposal.to_intent_payload()
 
-        assert payload["proposal_id"] == "prop-test"
+        # Phase 16.3: proposal_id is envelope metadata, not payload
+        assert "proposal_id" not in payload
         assert payload["action"] == "revise"
         assert payload["claim_id"] == "claim-1"
 

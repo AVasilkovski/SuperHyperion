@@ -221,7 +221,9 @@ class TypeDBConnection:
         entity_id: str,
         content: str,
         confidence: float = 0.5,
-        belief_state: str = "proposed"
+        belief_state: str = "proposed",
+        *,
+        cap=None
     ):
         """Insert a proposition into the graph."""
         query = f"""
@@ -231,14 +233,16 @@ class TypeDBConnection:
             has confidence-score {confidence},
             has belief-state "{belief_state}";
         """
-        self.query_insert(query)
+        self.query_insert(query, cap=cap)
 
     def insert_hypothesis(
         self,
         proposer_id: str,
         assertion_id: str,
         alpha: float = 1.0,
-        beta: float = 1.0
+        beta: float = 1.0,
+        *,
+        cap=None
     ):
         """Insert a hypothesis with Bayesian parameters."""
         query = f"""
@@ -251,14 +255,16 @@ class TypeDBConnection:
             has beta-beta {beta},
             has belief-state "proposed";
         """
-        self.query_insert(query)
+        self.query_insert(query, cap=cap)
 
     def insert_source_reputation(
         self,
         entity_id: str,
         entity_type: str,
         alpha: float = 1.0,
-        beta: float = 1.0
+        beta: float = 1.0,
+        *,
+        cap=None
     ):
         """Insert or update source reputation."""
         query = f"""
@@ -270,13 +276,15 @@ class TypeDBConnection:
             has last-updated "{datetime.now().isoformat()}";
         (trusted-entity: $e) isa source-reputation;
         """
-        self.query_insert(query)
+        self.query_insert(query, cap=cap)
 
     def update_reputation(
         self,
         entity_id: str,
         positive: bool = True,
-        weight: float = 1.0
+        weight: float = 1.0,
+        *,
+        cap=None
     ):
         """Update reputation with new evidence."""
         # First get current values
@@ -332,8 +340,8 @@ class TypeDBConnection:
             return
 
         # Execute separately
-        self.query_delete(delete_query)
-        self.query_insert(insert_query)
+        self.query_delete(delete_query, cap=cap)
+        self.query_insert(insert_query, cap=cap)
 
     def detect_contradictions(self) -> List[Dict]:
         """Find contradicting assertions in the graph."""

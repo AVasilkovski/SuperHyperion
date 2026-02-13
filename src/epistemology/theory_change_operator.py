@@ -357,9 +357,12 @@ class TheoryChangeProposal:
     evidence_summary: Dict[str, Any]
 
     def to_intent_payload(self) -> Dict[str, Any]:
-        """Convert to write-intent payload for staging."""
+        """
+        Convert to write-intent payload for staging.
+        
+        Phase 16.3: proposal_id is now envelope metadata, not payload.
+        """
         return {
-            "proposal_id": self.proposal_id,
             "action": self.action.value,
             "claim_id": self.claim_id,
             "evidence_ids": self.evidence_ids,

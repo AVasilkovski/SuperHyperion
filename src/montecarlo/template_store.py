@@ -195,30 +195,28 @@ class TypeDBTemplateStore(TemplateStore):
         self.database = database
 
     def _write_query(self, query: str) -> None:
-        from typedb.driver import SessionType, TransactionType
-        with self.driver.session(self.database, SessionType.DATA) as session:
-            with session.transaction(TransactionType.WRITE) as tx:
-                tx.query.insert(query)
-                tx.commit()
+        from typedb.driver import TransactionType
+        with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
+            tx.query.insert(query)
+            tx.commit()
 
     def _read_query(self, query: str) -> List[Dict[str, Any]]:
-        from typedb.driver import SessionType, TransactionType
+        from typedb.driver import TransactionType
         results = []
-        with self.driver.session(self.database, SessionType.DATA) as session:
-            with session.transaction(TransactionType.READ) as tx:
-                answer = tx.query.get(query)
-                for concept_map in answer:
-                    row = {}
-                    for var in concept_map.variables():
-                        concept = concept_map.get(var)
-                        # Correct variable mapping fix
-                        var_name = var.name() if hasattr(var, "name") else str(var)
+        with self.driver.transaction(self.database, TransactionType.READ) as tx:
+            answer = tx.query.get(query)
+            for concept_map in answer:
+                row = {}
+                for var in concept_map.variables():
+                    concept = concept_map.get(var)
+                    # Correct variable mapping fix
+                    var_name = var.name() if hasattr(var, "name") else str(var)
 
-                        if hasattr(concept, 'get_value'):
-                            row[var_name] = concept.get_value()
-                        elif hasattr(concept, 'get_iid'):
-                            row[var_name] = concept.get_iid()
-                    results.append(row)
+                    if hasattr(concept, 'get_value'):
+                        row[var_name] = concept.get_value()
+                    elif hasattr(concept, 'get_iid'):
+                        row[var_name] = concept.get_iid()
+                results.append(row)
         return results
 
     def append_event(
@@ -357,7 +355,7 @@ class TypeDBTemplateStore(TemplateStore):
         }
         json_str = json.dumps(extra_json, sort_keys=True)
 
-        from typedb.driver import SessionType, TransactionType
+        from typedb.driver import TransactionType
 
         # NOTE: This relies on the invariant that template-metadata always has an explicit
         # frozen attribute at creation time (insert_metadata sets has frozen false).
@@ -395,11 +393,10 @@ class TypeDBTemplateStore(TemplateStore):
         '''
 
         # Execute in transaction
-        with self.driver.session(self.database, SessionType.DATA) as session:
-            with session.transaction(TransactionType.WRITE) as tx:
-                # Use a single insert query containing match/delete/insert so it is atomic.
-                tx.query.insert(query)
-                tx.commit()
+        with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
+            # Use a single insert query containing match/delete/insert so it is atomic.
+            tx.query.insert(query)
+            tx.commit()
 
         logger.info(f"Freeze attempted for {template_id}@{version} on evidence {evidence_id} (guarded)")
 
@@ -439,12 +436,11 @@ class TypeDBTemplateStore(TemplateStore):
                 {attr_block};
         '''
 
-        from typedb.driver import SessionType, TransactionType
-        with self.driver.session(self.database, SessionType.DATA) as session:
-            with session.transaction(TransactionType.WRITE) as tx:
-                tx.query.delete(delete_query)
-                tx.query.insert(insert_query)
-                tx.commit()
+        from typedb.driver import TransactionType
+        with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
+            tx.query.delete(delete_query)
+            tx.query.insert(insert_query)
+            tx.commit()
 
         logger.info(f"TAINTED template {template_id}@{version}: {reason}")
 

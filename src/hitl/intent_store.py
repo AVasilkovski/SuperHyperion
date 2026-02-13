@@ -264,30 +264,28 @@ class TypeDBIntentStore(IntentStore):
 
     def _write_query(self, query: str) -> None:
         """Execute a write query."""
-        from typedb.driver import SessionType, TransactionType
+        from typedb.driver import TransactionType
 
-        with self.driver.session(self.database, SessionType.DATA) as session:
-            with session.transaction(TransactionType.WRITE) as tx:
-                tx.query.insert(query)
-                tx.commit()
+        with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
+            tx.query.insert(query)
+            tx.commit()
 
     def _read_query(self, query: str) -> List[Dict[str, Any]]:
         """Execute a read query and return results."""
-        from typedb.driver import SessionType, TransactionType
+        from typedb.driver import TransactionType
 
         results = []
-        with self.driver.session(self.database, SessionType.DATA) as session:
-            with session.transaction(TransactionType.READ) as tx:
-                answer = tx.query.get(query)
-                for concept_map in answer:
-                    row = {}
-                    for var in concept_map.variables():
-                        concept = concept_map.get(var)
-                        if hasattr(concept, 'get_value'):
-                            row[var] = concept.get_value()
-                        elif hasattr(concept, 'get_iid'):
-                            row[var] = concept.get_iid()
-                    results.append(row)
+        with self.driver.transaction(self.database, TransactionType.READ) as tx:
+            answer = tx.query.get(query)
+            for concept_map in answer:
+                row = {}
+                for var in concept_map.variables():
+                    concept = concept_map.get(var)
+                    if hasattr(concept, 'get_value'):
+                        row[var] = concept.get_value()
+                    elif hasattr(concept, 'get_iid'):
+                        row[var] = concept.get_iid()
+                results.append(row)
         return results
 
     def insert_intent(
@@ -333,25 +331,24 @@ class TypeDBIntentStore(IntentStore):
 
     def update_intent_status(self, intent_id: str, new_status: str) -> None:
         """Update intent status using delete+insert pattern."""
-        from typedb.driver import SessionType, TransactionType
+        from typedb.driver import TransactionType
 
-        with self.driver.session(self.database, SessionType.DATA) as session:
-            with session.transaction(TransactionType.WRITE) as tx:
-                # Delete old status
-                delete_query = f'''
-                    match $i isa write-intent, has intent-id "{_escape(intent_id)}",
-                          has intent-status $s;
-                    delete $i has $s;
-                '''
-                tx.query.delete(delete_query)
+        with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
+            # Delete old status
+            delete_query = f'''
+                match $i isa write-intent, has intent-id "{_escape(intent_id)}",
+                      has intent-status $s;
+                delete $i has $s;
+            '''
+            tx.query.delete(delete_query)
 
-                # Insert new status
-                insert_query = f'''
-                    match $i isa write-intent, has intent-id "{_escape(intent_id)}";
-                    insert $i has intent-status "{_escape(new_status)}";
-                '''
-                tx.query.insert(insert_query)
-                tx.commit()
+            # Insert new status
+            insert_query = f'''
+                match $i isa write-intent, has intent-id "{_escape(intent_id)}";
+                insert $i has intent-status "{_escape(new_status)}";
+            '''
+            tx.query.insert(insert_query)
+            tx.commit()
 
         logger.info(f"Updated intent {intent_id} status to {new_status}")
 

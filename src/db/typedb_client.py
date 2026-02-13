@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 TYPEDB_AVAILABLE = False
 TypeDB = None
 TypeDBDriver = None
-SessionType = None
 TransactionType = None
 
 def _load_typedb():
@@ -33,14 +32,12 @@ def _load_typedb():
         return True
 
     try:
-        from typedb.driver import SessionType as _SessionType
         from typedb.driver import TransactionType as _TransactionType
         from typedb.driver import TypeDB as _TypeDB
         from typedb.driver import TypeDBDriver as _TypeDBDriver
 
         TypeDB = _TypeDB
         TypeDBDriver = _TypeDBDriver
-        SessionType = _SessionType
         TransactionType = _TransactionType
         TYPEDB_AVAILABLE = True
         logger.info("TypeDB driver loaded successfully")
@@ -130,37 +127,25 @@ class TypeDBConnection:
             return
 
         try:
-            with driver.session(self.database, SessionType.SCHEMA) as session:
-                with session.transaction(TransactionType.WRITE) as tx:
-                    tx.query.define(schema_content)
-                    tx.commit()
+            with driver.transaction(self.database, TransactionType.SCHEMA) as tx:
+                tx.query.define(schema_content)
+                tx.commit()
             logger.info(f"Schema loaded: {[p.name for p in schema_paths]}")
         except Exception as e:
             logger.error(f"Failed to load schema: {e}")
 
     @contextmanager
     def session(self, session_type=None):
-        """Context manager for database sessions."""
-        if self._mock_mode:
-            yield MockSession()
-            return
-
-        if session_type is None:
-            session_type = SessionType.DATA
-
-        driver = self.connect()
-        if driver is None:
-            yield MockSession()
-            return
-
-        session = driver.session(self.database, session_type)
-        try:
-            yield session
-        finally:
-            session.close()
+        """
+        [DEPRECATED] Context manager for database sessions.
+        TypeDB 3.x is session-less. This now returns a MockSession that yields nothing useful
+        but preserves some legacy call sites. Use .transaction() instead.
+        """
+        logger.warning("TypeDBConnection.session() is deprecated in TypeDB 3.x. Use .transaction() directly.")
+        yield MockSession()
 
     @contextmanager
-    def transaction(self, tx_type=None):
+    def transaction(self, tx_type=None, options=None):
         """Context manager for transactions."""
         if self._mock_mode:
             yield MockTransaction()
@@ -169,8 +154,12 @@ class TypeDBConnection:
         if tx_type is None:
             tx_type = TransactionType.READ
 
-        with self.session() as session:
-            tx = session.transaction(tx_type)
+        driver = self.connect()
+        if driver is None:
+            yield MockTransaction()
+            return
+
+        with driver.transaction(self.database, tx_type, options) as tx:
             try:
                 yield tx
                 if tx_type == TransactionType.WRITE:

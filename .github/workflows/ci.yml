@@ -31,15 +31,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Remove any conflicting typedb package if present
-          pip uninstall -y typedb || true
-          # Force reinstall the exact driver version for a deterministic API surface
-          pip install --force-reinstall "typedb-driver==3.7.0"
+          # Force clean state: remove collisions and reinstall exact driver version
+          pip uninstall -y typedb typedb-driver || true
+          pip install --no-cache-dir --force-reinstall "typedb-driver==3.7.0"
           pip install pytest pytest-cov pytest-asyncio
 
       - name: Debug TypeDB driver import surface
         run: |
-          python -c "import typedb, typedb.driver; print('typedb:', typedb.__file__); print('typedb.driver:', typedb.driver.__file__); print('has SessionType:', hasattr(typedb.driver,'SessionType')); print('has TransactionType:', hasattr(typedb.driver,'TransactionType')); print('dir subset:', [x for x in dir(typedb.driver) if 'Type' in x or 'Session' in x or 'Transaction' in x])"
+          python -c "import typedb.driver as d; print('driver file:', d.__file__); print('SessionType' in dir(d)); print('TransactionType' in dir(d)); print('dir results:', [x for x in dir(d) if 'Type' in x or 'Session' in x or 'Transaction' in x])"
 
       # Driver-based readiness loop + create DB + load schema (no sleep, no mock)
       - name: Initialize TypeDB schema (CI)

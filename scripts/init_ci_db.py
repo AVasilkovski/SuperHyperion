@@ -38,18 +38,9 @@ def main():
     # 1. Import driver — hard fail if missing
     # ------------------------------------------------------------------
     try:
-        from typedb.driver import TypeDB, SessionType, TransactionType
+        from typedb.driver import TypeDB, TransactionType
     except Exception as e:
-        print("FATAL: TypeDB driver API not importable via typedb.driver", file=sys.stderr)
-        print(f"Error: {e}", file=sys.stderr)
-        # diagnostics to prove what got installed
-        try:
-            import typedb, typedb.driver
-            print(f"typedb package: {typedb.__file__}", file=sys.stderr)
-            print(f"typedb.driver: {typedb.driver.__file__}", file=sys.stderr)
-            print(f"typedb.driver attrs: {sorted([a for a in dir(typedb.driver) if 'Type' in a or 'Session' in a or 'Transaction' in a])}", file=sys.stderr)
-        except Exception as e2:
-            print(f"Also failed to import typedb/typedb.driver for diagnostics: {e2}", file=sys.stderr)
+        print(f"FATAL: TypeDB driver API not importable via typedb.driver: {e}", file=sys.stderr)
         sys.exit(1)
 
     # ------------------------------------------------------------------
@@ -104,10 +95,9 @@ def main():
     print(f"Loading schema from {SCHEMA_PATH.name} ({len(schema_content)} bytes)")
 
     try:
-        with driver.session(DATABASE, SessionType.SCHEMA) as session:
-            with session.transaction(TransactionType.WRITE) as tx:
-                tx.query.define(schema_content)
-                tx.commit()
+        with driver.transaction(DATABASE, TransactionType.SCHEMA) as tx:
+            tx.query.define(schema_content)
+            tx.commit()
         print("Schema loaded successfully")
     except Exception as e:
         print(f"FATAL: Schema load failed: {e}", file=sys.stderr)

@@ -5,24 +5,27 @@
 A system that ingests scientific papers, extracts knowledge into a TypeDB Hypergraph, and uses CodeAct agents to perform Socratic verification of claims.
 
 ## Core Philosophy
-> Glass-Box Reasoning over Black-Box Generation
+> **Glass-Box Reasoning over Black-Box Generation**
+> 
+> SuperHyperion enacts a **Dual-Lane Epistemic Architecture**:
+> 1. **Grounded Lane**: Validated facts, strict schema, immune to hallucination.
+> 2. **Speculative Lane**: Creative hypothesis generation, isolated by an **Epistemic Firewall**.
 
-## Tech Stack (Free Tier)
-
+## Tech Stack
 | Component | Service |
 |-----------|---------|
-| Knowledge Graph | TypeDB Cloud (free tier) |
+| Knowledge Graph | **TypeDB** (Polymorphic Epistemic Store) |
 | Vector Store | Azure Cosmos DB MongoDB vCore |
 | LLM | Ollama (local) |
-| Orchestration | LangGraph + CodeAct |
-| Backend | FastAPI |
-| Frontend | Streamlit |
+| Orchestration | **LangGraph** (State Machine) |
+| Verification | **Monte Carlo Methods** (Bootstrap/Sensitivity Analysis) |
 
 ## Agent Roles
-
-- **IngestionAgent** - Parses PDFs, extracts claims, pushes to TypeDB
-- **SocraticCritic** - Challenges claims using Dialectical Entropy
-- **BeliefMaintenanceAgent** - Runs Bayesian updates on the graph
+- **OntologySteward** - Use-Case Authority & Epistemic Gatekeeper. Mints `WriteCap` tokens.
+- **VerifyAgent** - Performs "Feynman Checks" (Unit Consistency, Diagnostics, Sensitivity).
+- **SpeculativeAgent** - Generates hypotheses in the isolated lane.
+- **SocraticCritic** - Challenges claims using Scientific Uncertainty metrics.
+- **IngestionAgent** - Parses PDFs, extracts claims, pushes to TypeDB.
 
 ## Getting Started
 

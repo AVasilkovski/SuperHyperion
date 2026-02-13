@@ -9,24 +9,20 @@ Constitutional invariant tests:
 - Events are append-only and complete
 """
 
-import pytest
 from datetime import datetime, timedelta
-
-from src.hitl.intent_service import (
-    WriteIntentService,
-    WriteIntent,
-    IntentStatus,
-    IntentStatusEvent,
-    IntentTransitionError,
-    IntentNotFoundError,
-    ScopeLockRequiredError,
-    TERMINAL_STATES,
-    ALLOWED_TRANSITIONS,
-)
-
-
 from unittest.mock import patch
-from src.hitl.intent_registry import IntentSpec, ScopeLockPolicy, ApprovalPolicy
+
+import pytest
+
+from src.hitl.intent_registry import ApprovalPolicy, IntentSpec, ScopeLockPolicy
+from src.hitl.intent_service import (
+    ALLOWED_TRANSITIONS,
+    TERMINAL_STATES,
+    IntentStatus,
+    IntentTransitionError,
+    ScopeLockRequiredError,
+    WriteIntentService,
+)
 
 # Define a permissible test spec
 TEST_INTENT_SPEC = IntentSpec(
@@ -120,7 +116,7 @@ class TestWriteIntentService:
             payload={"claim_id": "claim-001"},
             impact_score=0.5,
         )
-        
+
         assert intent.status == IntentStatus.STAGED
         assert intent.intent_type == "test"
         assert intent.impact_score == 0.5
@@ -131,7 +127,7 @@ class TestWriteIntentService:
             intent_type="test",
             payload={},
         )
-        
+
         assert intent.expires_at is not None
         # Should be ~7 days from now
         delta = intent.expires_at - intent.created_at
@@ -141,7 +137,7 @@ class TestWriteIntentService:
         """Submit transitions staged → awaiting_hitl."""
         intent = service.stage(intent_type="test", payload={})
         intent = service.submit_for_review(intent.intent_id)
-        
+
         assert intent.status == IntentStatus.AWAITING_HITL
 
     def test_approve_transitions_to_approved(self, service):
@@ -153,7 +149,7 @@ class TestWriteIntentService:
             approver_id="human-001",
             rationale="Looks good",
         )
-        
+
         assert intent.status == IntentStatus.APPROVED
 
     def test_reject_transitions_to_rejected(self, service):
@@ -165,7 +161,7 @@ class TestWriteIntentService:
             rejector_id="human-001",
             rationale="Too risky",
         )
-        
+
         assert intent.status == IntentStatus.REJECTED
 
     def test_defer_transitions_to_deferred(self, service):
@@ -178,7 +174,7 @@ class TestWriteIntentService:
             until=datetime.now() + timedelta(days=2),
             rationale="Need more info",
         )
-        
+
         assert intent.status == IntentStatus.DEFERRED
 
     def test_cancel_transitions_to_cancelled(self, service):
@@ -189,7 +185,7 @@ class TestWriteIntentService:
             actor_id="human-001",
             rationale="No longer needed",
         )
-        
+
         assert intent.status == IntentStatus.CANCELLED
 
 
@@ -208,14 +204,14 @@ class TestIllegalTransitions:
     def test_cannot_approve_from_staged(self, service):
         """Cannot approve directly from staged."""
         intent = service.stage(intent_type="test", payload={})
-        
+
         with pytest.raises(IntentTransitionError):
             service.approve(intent.intent_id, "human", "reason")
 
     def test_cannot_execute_from_staged(self, service):
         """Cannot execute from staged."""
         intent = service.stage(intent_type="test", payload={})
-        
+
         with pytest.raises(IntentTransitionError):
             service.execute(intent.intent_id, "exec-001")
 
@@ -223,7 +219,7 @@ class TestIllegalTransitions:
         """Cannot execute from awaiting_hitl (must be approved first)."""
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
-        
+
         with pytest.raises(IntentTransitionError):
             service.execute(intent.intent_id, "exec-001")
 
@@ -245,11 +241,11 @@ class TestTerminalStateInvariants:
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
         service.reject(intent.intent_id, "human", "reason")
-        
+
         # Try all possible transitions
         with pytest.raises(IntentTransitionError):
             service.approve(intent.intent_id, "human", "reason")
-        
+
         with pytest.raises(IntentTransitionError):
             service.cancel(intent.intent_id, "human", "reason")
 
@@ -257,7 +253,7 @@ class TestTerminalStateInvariants:
         """Cannot transition from cancelled."""
         intent = service.stage(intent_type="test", payload={})
         service.cancel(intent.intent_id, "human", "reason")
-        
+
         with pytest.raises(IntentTransitionError):
             service.submit_for_review(intent.intent_id)
 
@@ -266,7 +262,7 @@ class TestTerminalStateInvariants:
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
         service.expire(intent.intent_id)
-        
+
         with pytest.raises(IntentTransitionError):
             service.approve(intent.intent_id, "human", "reason")
 
@@ -279,7 +275,7 @@ class TestTerminalStateInvariants:
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
         service.execute(intent.intent_id, "exec-001")
-        
+
         with pytest.raises(IntentTransitionError):
             service.fail(intent.intent_id, "error")
 
@@ -301,7 +297,7 @@ class TestExecutedRequiresApproved:
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
-        
+
         # This should work
         intent = service.execute(intent.intent_id, "exec-001")
         assert intent.status == IntentStatus.EXECUTED
@@ -310,20 +306,20 @@ class TestExecutedRequiresApproved:
         """Execute fails if no approved event exists."""
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
-        
+
         # Force status to APPROVED without event (simulating corruption)
         intent.status = IntentStatus.APPROVED
-        
+
         # Should still fail because no approved event exists
         with pytest.raises(IntentTransitionError) as exc_info:
             service.execute(intent.intent_id, "exec-001")
-        
+
         assert "no prior 'approved' event" in str(exc_info.value)
 
     def test_has_approved_event_returns_false_for_new_intent(self, service):
         """_has_approved_event returns False for new intents."""
         intent = service.stage(intent_type="test", payload={})
-        
+
         assert not service._has_approved_event(intent.intent_id)
 
     def test_has_approved_event_returns_true_after_approval(self, service):
@@ -331,7 +327,7 @@ class TestExecutedRequiresApproved:
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
-        
+
         assert service._has_approved_event(intent.intent_id)
 
 
@@ -377,7 +373,7 @@ class TestScopeLockRequired:
         )
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
-        
+
         intent = service.execute(intent.intent_id, "exec-001")
         assert intent.status == IntentStatus.EXECUTED
 
@@ -389,7 +385,7 @@ class TestScopeLockRequired:
         )
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
-        
+
         # Should succeed without scope_lock_id
         intent = service.execute(intent.intent_id, "exec-001")
         assert intent.status == IntentStatus.EXECUTED
@@ -413,22 +409,22 @@ class TestEventAuditTrail:
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "approved")
         service.execute(intent.intent_id, "exec-001")
-        
+
         events = service.get_history(intent.intent_id)
-        
+
         assert len(events) == 3  # submit, approve, execute
 
     def test_events_contain_actor_and_timestamp(self, service):
         """Events contain actor_type, actor_id, and created_at."""
         intent = service.stage(intent_type="test", payload={})
-        
+
         # Go through full approval flow
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human-001", "reason")
-        
+
         events = service.get_history(intent.intent_id)
         approve_event = [e for e in events if e.to_status == IntentStatus.APPROVED][0]
-        
+
         assert approve_event.actor_type == "human"
         assert approve_event.actor_id == "human-001"
         assert approve_event.created_at is not None
@@ -437,9 +433,9 @@ class TestEventAuditTrail:
         """Events record both from_status and to_status."""
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
-        
+
         events = service.get_history(intent.intent_id)
-        
+
         assert len(events) == 1
         assert events[0].from_status == IntentStatus.STAGED
         assert events[0].to_status == IntentStatus.AWAITING_HITL
@@ -448,13 +444,13 @@ class TestEventAuditTrail:
         """Defer events record defer_until timestamp."""
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
-        
+
         defer_until = datetime.now() + timedelta(days=3)
         service.defer(intent.intent_id, "human", defer_until, "waiting for data")
-        
+
         events = service.get_history(intent.intent_id)
         defer_event = [e for e in events if e.to_status == IntentStatus.DEFERRED][0]
-        
+
         assert defer_event.defer_until == defer_until
 
     def test_execute_event_records_execution_id(self, service):
@@ -463,10 +459,10 @@ class TestEventAuditTrail:
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
         service.execute(intent.intent_id, "exec-12345")
-        
+
         events = service.get_history(intent.intent_id)
         exec_event = [e for e in events if e.to_status == IntentStatus.EXECUTED][0]
-        
+
         assert exec_event.execution_id == "exec-12345"
 
     def test_fail_event_records_error(self, service):
@@ -475,10 +471,10 @@ class TestEventAuditTrail:
         service.submit_for_review(intent.intent_id)
         service.approve(intent.intent_id, "human", "reason")
         service.fail(intent.intent_id, "Database connection failed")
-        
+
         events = service.get_history(intent.intent_id)
         fail_event = [e for e in events if e.to_status == IntentStatus.FAILED][0]
-        
+
         assert fail_event.error == "Database connection failed"
 
 
@@ -503,9 +499,9 @@ class TestExpiration:
             expires_in_days=-1,  # Already expired
         )
         service.submit_for_review(intent.intent_id)
-        
+
         expired_ids = service.expire_stale()
-        
+
         assert intent.intent_id in expired_ids
         assert intent.status == IntentStatus.EXPIRED
 
@@ -513,12 +509,12 @@ class TestExpiration:
         """expire_stale doesn't modify terminal intents."""
         intent = service.stage(intent_type="test", payload={})
         service.cancel(intent.intent_id, "human", "reason")
-        
+
         # Manually set past expiry
         intent.expires_at = datetime.now() - timedelta(days=1)
-        
+
         expired_ids = service.expire_stale()
-        
+
         assert intent.intent_id not in expired_ids
         assert intent.status == IntentStatus.CANCELLED  # Unchanged
 
@@ -539,13 +535,13 @@ class TestDeferredReactivation:
         """Reactivate transitions deferred → awaiting_hitl when defer_until passed."""
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
-        
+
         # Defer to past time
         defer_until = datetime.now() - timedelta(hours=1)
         service.defer(intent.intent_id, "human", defer_until, "reason")
-        
+
         reactivated = service.reactivate_deferred()
-        
+
         assert intent.intent_id in reactivated
         assert intent.status == IntentStatus.AWAITING_HITL
 
@@ -568,14 +564,14 @@ class TestSupersedes:
         original = service.stage(intent_type="test", payload={"v": 1})
         service.submit_for_review(original.intent_id)
         service.expire(original.intent_id)
-        
+
         # Create new intent that supersedes
         replacement = service.stage(
             intent_type="test",
             payload={"v": 2},
             supersedes_intent_id=original.intent_id,
         )
-        
+
         assert replacement.supersedes_intent_id == original.intent_id
         assert original.status == IntentStatus.EXPIRED  # Unchanged
 
@@ -584,7 +580,7 @@ class TestSupersedes:
         intent = service.stage(intent_type="test", payload={})
         service.submit_for_review(intent.intent_id)
         service.expire(intent.intent_id)
-        
+
         # Cannot transition
         with pytest.raises(IntentTransitionError):
             service.approve(intent.intent_id, "human", "reason")

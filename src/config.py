@@ -14,7 +14,9 @@ class TypeDBConfig:
     host: str = os.getenv("TYPEDB_HOST", "localhost")
     port: int = int(os.getenv("TYPEDB_PORT", "1729"))
     database: str = os.getenv("TYPEDB_DATABASE", "superhyperion")
-    
+    username: str = os.getenv("TYPEDB_USERNAME", "admin")
+    password: str = os.getenv("TYPEDB_PASSWORD", "password")
+
     @property
     def address(self) -> str:
         return f"{self.host}:{self.port}"
@@ -27,13 +29,13 @@ class OllamaConfig:
     port: int = int(os.getenv("OLLAMA_PORT", "11434"))
     model: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
     embedding_model: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
-    
+
     @property
     def base_url(self) -> str:
         return f"http://{self.host}:{self.port}"
 
 
-@dataclass  
+@dataclass
 class JupyterConfig:
     """Jupyter sandbox configuration."""
     host: str = os.getenv("JUPYTER_HOST", "localhost")
@@ -57,13 +59,13 @@ class Config:
     ollama: OllamaConfig
     jupyter: JupyterConfig
     api: APIConfig
-    
+
     # Dialectical entropy threshold for triggering Socratic debate
     entropy_threshold: float = float(os.getenv("ENTROPY_THRESHOLD", "0.4"))
-    
+
     # Belief state options
     belief_states: tuple = ("proposed", "verified", "refuted", "debated")
-    
+
     @classmethod
     def from_env(cls) -> "Config":
         """Load configuration from environment variables."""

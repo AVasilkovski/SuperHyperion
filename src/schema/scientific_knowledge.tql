@@ -11,7 +11,10 @@ attribute orcid, value string;
 attribute concept-id, value string;
 attribute agent-id, value string;
 attribute claim-id, value string;
+attribute lane, value string;
+attribute proposal-id, value string;
 attribute scope-lock-id, value string;
+attribute authorized-by-intent-id, value string;
 
 # --- Text Content ---
 attribute title, value string;
@@ -339,6 +342,8 @@ entity write-intent,
     owns intent-type,
     owns intent-status,
     owns impact-score,
+    owns lane,
+    owns proposal-id,
     owns scope-lock-id,
     owns expires-at,
     owns supersedes-intent-id,
@@ -362,6 +367,7 @@ entity evidence @abstract,
     owns success,
     owns confidence-score,
     owns json,
+    owns authorized-by-intent-id,
     owns created-at,
     plays session-has-evidence:evidence,
     plays evidence-for-proposition:evidence;

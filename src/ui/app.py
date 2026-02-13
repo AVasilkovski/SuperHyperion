@@ -9,11 +9,12 @@ Features:
 - HITL: Human-in-the-loop approval
 """
 
-import streamlit as st
-import httpx
-import time
-from typing import Optional, Dict, List
 import os
+import time
+from typing import Dict, List, Optional
+
+import httpx
+import streamlit as st
 
 # Configuration
 API_HOST = os.getenv("API_HOST", "localhost")
@@ -154,15 +155,15 @@ def render_glass_box():
     """Render the Glass Box execution trace in sidebar."""
     st.sidebar.markdown("## 🔍 Glass Box")
     st.sidebar.markdown("*Live execution trace*")
-    
+
     if not st.session_state.execution_trace:
         st.sidebar.info("Submit a query to see the reasoning trace")
         return
-    
+
     for i, trace in enumerate(st.session_state.execution_trace):
         trace_type = trace.get("type", "thought")
         content = trace.get("content", "")
-        
+
         if trace_type == "thought":
             with st.sidebar.expander(f"💭 Thought {i+1}", expanded=i >= len(st.session_state.execution_trace) - 2):
                 st.markdown(content[:500])
@@ -191,7 +192,7 @@ def render_entropy_gauge(entropy: float):
     else:
         css_class = "entropy-low"
         label = "Low Uncertainty"
-    
+
     st.markdown(f"""
     <div style="margin: 10px 0;">
         <strong>Dialectical Entropy:</strong> 
@@ -199,18 +200,18 @@ def render_entropy_gauge(entropy: float):
         <span style="color: #888;">({label})</span>
     </div>
     """, unsafe_allow_html=True)
-    
+
     st.progress(min(entropy, 1.0))
 
 
 def render_hitl_panel():
     """Render Human-in-the-Loop approval panel."""
     st.markdown("### ✋ Pending Approvals")
-    
+
     if not st.session_state.pending_hypotheses:
         st.info("No hypotheses pending approval")
         return
-    
+
     for i, hyp in enumerate(st.session_state.pending_hypotheses):
         with st.container():
             st.markdown(f"""
@@ -222,7 +223,7 @@ def render_hitl_panel():
                 <strong>Evidence:</strong> {hyp.get('evidence', 'None provided')}
             </div>
             """, unsafe_allow_html=True)
-            
+
             col1, col2, col3 = st.columns(3)
             with col1:
                 if st.button("✅ Approve", key=f"approve_{i}"):
@@ -242,12 +243,12 @@ def render_hitl_panel():
 def render_graph_explorer():
     """Render the knowledge graph explorer."""
     st.markdown("### 🕸️ Graph Explorer")
-    
+
     # Placeholder for graph visualization
     # In production, use streamlit-agraph or pyvis
-    
+
     st.info("Graph visualization requires TypeDB connection")
-    
+
     # Sample visualization placeholder
     st.markdown("""
     ```mermaid
@@ -293,11 +294,11 @@ def main():
     # Header
     st.title("🔬 SuperHyperion")
     st.markdown("*Multi-Agent Self-Reflecting Scientific Intelligence*")
-    
+
     # Sidebar
     with st.sidebar:
         st.markdown("# ⚙️ Controls")
-        
+
         # API Status
         try:
             response = httpx.get(f"{API_BASE_URL}/health", timeout=2.0)
@@ -307,20 +308,20 @@ def main():
                 st.error("🔴 API Error")
         except Exception:
             st.warning("🟡 API Offline - Start with `uvicorn src.api.main:app`")
-        
+
         st.divider()
-        
+
         # Glass Box
         render_glass_box()
-    
+
     # Main content - tabs
     tab1, tab2, tab3 = st.tabs(["💬 Query", "🕸️ Graph", "✋ HITL"])
-    
+
     with tab1:
         # Chat history
         for msg in st.session_state.messages:
             render_chat_message(msg["role"], msg["content"])
-        
+
         # Query input
         with st.form("query_form", clear_on_submit=True):
             query = st.text_area(
@@ -328,79 +329,79 @@ def main():
                 placeholder="e.g., What is the relationship between sleep deprivation and cognitive performance?",
                 height=100,
             )
-            
+
             col1, col2 = st.columns([3, 1])
             with col1:
                 submitted = st.form_submit_button("🔍 Investigate", use_container_width=True)
             with col2:
                 clear = st.form_submit_button("🗑️ Clear", use_container_width=True)
-        
+
         if clear:
             st.session_state.messages = []
             st.session_state.execution_trace = []
             st.rerun()
-        
+
         if submitted and query:
             # Add user message
             st.session_state.messages.append({"role": "user", "content": query})
-            
+
             # Submit to API
             with st.spinner("Submitting query..."):
                 job_id = submit_query(query)
-            
+
             if job_id:
                 st.session_state.current_job_id = job_id
-                
+
                 # Poll for results
                 progress = st.progress(0)
                 status_text = st.empty()
-                
+
                 for i in range(60):  # Max 60 seconds
                     status = get_job_status(job_id)
                     if status:
                         status_text.text(f"Status: {status['status']}")
                         progress.progress((i + 1) / 60)
-                        
+
                         if status["status"] == "completed":
                             result = status.get("result", {})
-                            
+
                             # Add response
                             response_text = result.get("response", "No response generated")
                             st.session_state.messages.append({
                                 "role": "assistant",
                                 "content": response_text,
                             })
-                            
+
                             # Update execution trace
                             for msg in result.get("messages", []):
                                 st.session_state.execution_trace.append({
                                     "type": msg.get("role", "thought"),
                                     "content": msg.get("content", ""),
                                 })
-                            
+
                             # Show entropy
                             entropy = result.get("dialectical_entropy", 0)
                             render_entropy_gauge(entropy)
-                            
+
                             progress.empty()
                             status_text.empty()
                             st.rerun()
                             break
-                        
+
                         elif status["status"] == "failed":
                             st.error(f"Query failed: {status.get('error')}")
                             break
-                    
+
                     time.sleep(1)
                 else:
                     st.warning("Query timed out. Check /jobs for status.")
-    
+
     with tab2:
         render_graph_explorer()
-    
+
     with tab3:
         render_hitl_panel()
-    
+
     # Footer
     st.divider()
     st.markdown("""

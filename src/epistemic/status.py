@@ -23,7 +23,7 @@ class EpistemicStatus(str, Enum):
     UNRESOLVED = "unresolved"
     SPECULATIVE = "speculative"
     REFUTED = "refuted"
-    
+
     @classmethod
     def from_evidence(
         cls,

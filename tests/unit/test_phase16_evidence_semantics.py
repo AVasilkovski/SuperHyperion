@@ -7,26 +7,24 @@ Tests for:
 - Validation evidence success-only invariant preservation
 """
 
-import pytest
-import json
-import hashlib
 
-from src.epistemology.evidence_roles import (
-    EvidenceRole,
-    FailureMode,
-    validate_evidence_role,
-    validate_failure_mode,
-    evidence_role_affects_belief,
-)
-from src.governance.fingerprinting import (
-    make_evidence_id,
-    make_negative_evidence_id,
-    make_capsule_id,
-)
+import pytest
+
 from src.agents.ontology_steward import (
     q_insert_negative_evidence,
 )
-
+from src.epistemology.evidence_roles import (
+    EvidenceRole,
+    FailureMode,
+    evidence_role_affects_belief,
+    validate_evidence_role,
+    validate_failure_mode,
+)
+from src.governance.fingerprinting import (
+    make_capsule_id,
+    make_evidence_id,
+    make_negative_evidence_id,
+)
 
 # =============================================================================
 # Evidence Role Tests
@@ -95,7 +93,7 @@ class TestEvidenceRoles:
         effects = evidence_role_affects_belief(EvidenceRole.UNDERCUT)
         assert effects["direction"] == 0
         assert effects["requires_hitl"] is True
-    
+
     def test_evidence_role_affects_belief_replicate(self):
         """Replicate role direction depends on outcome."""
         effects = evidence_role_affects_belief(EvidenceRole.REPLICATE)
@@ -132,7 +130,7 @@ class TestFingerprinting:
         """Same inputs should produce different IDs for different channels."""
         pos_id = make_evidence_id("sess-1", "claim-1", "exec-1", "qid-1")
         neg_id = make_negative_evidence_id("sess-1", "claim-1", "exec-1", "qid-1")
-        
+
         # Prefixes differ
         assert pos_id[:3] != neg_id[:4]
         # Hash parts are the same (same payload)
@@ -165,7 +163,7 @@ class TestNegativeEvidenceQuery:
             "confidence_score": 0.7,
         }
         query = q_insert_negative_evidence("sess-001", ev)
-        
+
         assert "negative-evidence" in query
         assert "claim-123" in query
         assert "failure-mode" in query
@@ -192,7 +190,7 @@ class TestNegativeEvidenceQuery:
             "template_qid": "numeric_consistency@v1.0.0",
         }
         query = q_insert_negative_evidence("sess-001", ev)
-        
+
         # Extract entity-id from query
         expected_id = make_negative_evidence_id(
             "sess-001", "claim-123", "exec-456", "numeric_consistency@v1.0.0"
@@ -204,21 +202,21 @@ class TestNegativeEvidenceQuery:
         ev = {"claim_id": "claim-123", "execution_id": "exec-456", "template_qid": "qid-1"}
         custom_id = "nev-custom-12345"
         query = q_insert_negative_evidence("sess-001", ev, evidence_id=custom_id)
-        
+
         assert custom_id in query
 
     def test_negative_evidence_default_role(self):
         """Default evidence role should be 'refute'."""
         ev = {"claim_id": "claim-123", "execution_id": "exec-1", "template_qid": "qid-1"}
         query = q_insert_negative_evidence("sess-001", ev)
-        
+
         assert 'has evidence-role "refute"' in query
 
     def test_negative_evidence_custom_role(self):
         """Custom evidence role should be used if provided."""
         ev = {"claim_id": "claim-123", "execution_id": "exec-1", "template_qid": "qid-1"}
         query = q_insert_negative_evidence("sess-001", ev, evidence_role="undercut")
-        
+
         assert 'has evidence-role "undercut"' in query
 
 
@@ -236,7 +234,7 @@ class TestInvariantPreservation:
         The new negative-evidence channel is separate.
         """
         from src.agents.ontology_steward import q_insert_validation_evidence
-        
+
         ev = {
             "claim_id": "claim-123",
             "execution_id": "exec-456",
@@ -246,7 +244,7 @@ class TestInvariantPreservation:
             "confidence_score": 0.9,
         }
         query = q_insert_validation_evidence("sess-001", ev)
-        
+
         # Validation evidence is a different entity type
         assert "validation-evidence" in query
         assert "negative-evidence" not in query
@@ -254,17 +252,17 @@ class TestInvariantPreservation:
     def test_evidence_channels_are_separate(self):
         """Positive and negative evidence channels should be completely separate."""
         from src.agents.ontology_steward import q_insert_validation_evidence
-        
+
         ev_pos = {"claim_id": "c1", "execution_id": "e1", "template_qid": "q1", "success": True, "scope_lock_id": "sl-1"}
         ev_neg = {"claim_id": "c1", "execution_id": "e1", "template_qid": "q1", "failure_mode": "null_effect", "scope_lock_id": "sl-1"}
-        
+
         query_pos = q_insert_validation_evidence("s1", ev_pos)
         query_neg = q_insert_negative_evidence("s1", ev_neg)
-        
+
         # Different entity types
         assert "validation-evidence" in query_pos
         assert "negative-evidence" in query_neg
-        
+
         # Different ID prefixes
         assert 'entity-id "ev-' in query_pos
         assert 'entity-id "nev-' in query_neg

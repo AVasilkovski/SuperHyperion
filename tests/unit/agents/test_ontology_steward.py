@@ -1,21 +1,22 @@
 
+
 import pytest
-from unittest.mock import MagicMock, patch
-from src.agents.ontology_steward import OntologySteward
+
 from src.agents.base_agent import AgentContext
-from datetime import datetime
+from src.agents.ontology_steward import OntologySteward
+
 
 class MockTypeDB:
     def __init__(self):
         self.inserts = []
         self.deletes = []
-        
-    def query_insert(self, query):
+
+    def query_insert(self, query, **kwargs):
         self.inserts.append(query)
-        
-    def query_delete(self, query):
+
+    def query_delete(self, query, **kwargs):
         self.deletes.append(query)
-        
+
     def connect(self):
         return True
 
@@ -45,12 +46,12 @@ async def test_persist_session_traces(steward, mock_db):
             ]
         }
     )
-    
+
     await steward.run(context)
-    
+
     # Check session insert
     assert any('has session-id "sess-123"' in q for q in mock_db.inserts)
-    
+
     # Check trace insert
     assert any('has node-name "verify"' in q for q in mock_db.inserts)
     assert any('has trace-summary "some result"' in q for q in mock_db.inserts)
@@ -65,16 +66,16 @@ async def test_persist_execution(steward, mock_db):
         "result": {"val": 42},
         "success": True
     }
-    
+
     context = AgentContext(
         graph_context={
             "session_id": "sess-123",
             "template_executions": [execution]
         }
     )
-    
+
     await steward.run(context)
-    
+
     # Check execution insert
     insert = next((q for q in mock_db.inserts if 'isa template-execution' in q), None)
     assert insert is not None
@@ -90,16 +91,16 @@ async def test_persist_proposal(steward, mock_db):
         "confidence_score": 0.8,
         "cap_reasons": ["fragile"]
     }
-    
+
     context = AgentContext(
         graph_context={
             "session_id": "sess-123",
             "epistemic_update_proposal": [proposal]
         }
     )
-    
+
     await steward.run(context)
-    
+
     # Check proposal insert
     insert = next((q for q in mock_db.inserts if 'isa epistemic-proposal' in q), None)
     assert insert is not None
@@ -118,27 +119,27 @@ async def test_execute_intent(steward, mock_db):
             "status": "supported"
         }
     }
-    
+
     context = AgentContext(
         graph_context={
             "session_id": "sess-123",
             "approved_write_intents": [intent]
         }
     )
-    
+
     await steward.run(context)
-    
+
     # Check execution success
     committed = context.graph_context.get("committed_intents", [])
     assert len(committed) == 1
     assert committed[0] == intent
-    
+
     # Check DB operations
     assert len(mock_db.deletes) >= 1
     # Find the specific delete for epistemic status
     delete_q = next((q for q in mock_db.deletes if 'delete $c has epistemic-status' in q), None)
     assert delete_q is not None
-    
+
     # Check insert (should be in inserts list)
     insert_q = next((q for q in mock_db.inserts if 'insert $c has epistemic-status' in q), None)
     assert insert_q is not None

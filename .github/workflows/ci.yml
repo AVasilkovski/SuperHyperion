@@ -9,11 +9,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
-    # 1. Start a fresh, empty TypeDB instance for this test run
+
+    # Ephemeral TypeDB — pinned to match requirements + init script
     services:
       typedb:
-        image: vaticle/typedb:latest
+        image: typedb/typedb:3.7.3
         ports:
           - 1729:1729
 
@@ -30,56 +30,52 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # Force clean state: remove collisions and reinstall exact driver version
+          pip uninstall -y typedb typedb-driver || true
+          pip install --no-cache-dir --force-reinstall "typedb-driver==3.7.0"
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio typedb-driver
+          pip install pytest pytest-cov pytest-asyncio
 
-      - name: Wait for TypeDB (Local)
-        run: sleep 10
+      - name: Debug TypeDB driver surface
+        run: |
+          python -c "import typedb.driver as d; print('driver file:', d.__file__); print('attrs:', [a for a in dir(d) if a in ('TypeDB','TransactionType','Credentials','DriverOptions','SessionType')])"
 
-      # 2. Initialize Database using YOUR client code
-      # This runs src/db/typedb_client.py, which connects to localhost:1729
-      # and loads src/schema/scientific_knowledge.tql automatically.
-      - name: Initialize Local Database
+      # Initialize DB + Schema (session-less 3.x API)
+      - name: Initialize TypeDB schema (CI)
         env:
           PYTHONPATH: .
           TYPEDB_HOST: localhost
           TYPEDB_PORT: 1729
           TYPEDB_DATABASE: scientific_knowledge
-        run: python src/db/typedb_client.py
+          TYPEDB_USERNAME: admin
+          TYPEDB_PASSWORD: password
+        run: python scripts/init_ci_db.py
 
-      # 3. Run Tests (Connecting to Localhost)
-      # We override the ENV vars so your config.py points to the Docker service
-      - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short
+      - name: Run tests
         env:
           PYTHONPATH: .
           TYPEDB_HOST: localhost
           TYPEDB_PORT: 1729
           TYPEDB_DATABASE: scientific_knowledge
+          TYPEDB_USERNAME: admin
+          TYPEDB_PASSWORD: password
+        run: pytest tests/ -v --tb=short
 
-      - name: Run integration tests
-        run: pytest tests/integration/ -v --tb=short
-        env:
-          PYTHONPATH: .
-          TYPEDB_HOST: localhost
-          TYPEDB_PORT: 1729
-          TYPEDB_DATABASE: scientific_knowledge
-
-      - name: Run e2e tests
-        run: pytest tests/e2e/ -v --tb=short
-        env:
-          PYTHONPATH: .
-          TYPEDB_HOST: localhost
-          TYPEDB_PORT: 1729
-          TYPEDB_DATABASE: scientific_knowledge
-
-      - name: Run security tests
-        run: pytest tests/security/ -v --tb=short
-        env:
-          PYTHONPATH: .
-          TYPEDB_HOST: localhost
-          TYPEDB_PORT: 1729
-          TYPEDB_DATABASE: scientific_knowledge
+      # Phase 16.3: WriteCap grep-ban — no agent except OntologySteward may write
+      - name: Grep-ban unauthorized writes
+        run: |
+          VIOLATIONS=$(grep -rnE "(insert_to_graph|query_insert|query_delete)" \
+            src/agents/ \
+            --include="*.py" \
+            --exclude="ontology_steward.py" \
+            --exclude="base_agent.py" \
+            || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::WriteCap violation — unauthorized write calls found:"
+            echo "$VIOLATIONS"
+            exit 1
+          fi
+          echo "✓ No unauthorized write calls found"
 
       - name: Upload test artifacts on failure
         if: failure()
@@ -95,10 +91,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install ruff
         run: pip install ruff
+
       - name: Run linter
-        run: ruff check src/ tests/ --output-format=github || true
+        run: ruff check src/ tests/ --output-format=github

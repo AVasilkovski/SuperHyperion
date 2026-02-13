@@ -10,8 +10,8 @@ Testing: InMemoryIntentStore (injected)
 import os
 from typing import Optional
 
-from src.hitl.intent_store import IntentStore, InMemoryIntentStore, TypeDBIntentStore
 from src.hitl.intent_service import WriteIntentService
+from src.hitl.intent_store import InMemoryIntentStore, IntentStore, TypeDBIntentStore
 
 
 def get_intent_store() -> IntentStore:
@@ -24,15 +24,15 @@ def get_intent_store() -> IntentStore:
     """
     if os.environ.get("SUPERHYPERION_TEST_MODE") == "1":
         return InMemoryIntentStore()
-    
+
     # Production: connect to TypeDB
     try:
         from typedb.driver import TypeDB
-        
+
         typedb_host = os.environ.get("TYPEDB_HOST", "localhost")
         typedb_port = os.environ.get("TYPEDB_PORT", "1729")
         database = os.environ.get("TYPEDB_DATABASE", "scientific_knowledge")
-        
+
         driver = TypeDB.core_driver(f"{typedb_host}:{typedb_port}")
         return TypeDBIntentStore(driver, database)
     except ImportError:

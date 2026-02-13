@@ -5,12 +5,12 @@ v2.1 Step 2: Refines user hypothesis H into precise H′.
 Removes ambiguity, identifies variables, asks clarifying questions.
 """
 
-from typing import Dict, Any, List
-from dataclasses import dataclass
-import logging
 import json
+import logging
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class ClarifiedHypothesis:
     assumptions: List[str]
     questions: List[str]
     is_testable: bool
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "original_hypothesis": self.original,
@@ -67,21 +67,21 @@ class ClarifierAgent(BaseAgent):
         H: "Protein X inhibits pathway Y"
         H′: "Protein X inhibits pathway Y under condition Z (pH=7.4, temp=37°C)"
     """
-    
+
     def __init__(self):
         super().__init__(name="Clarifier")
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """Clarify the user's hypothesis."""
         query = context.messages[-1].get("content", "") if context.messages else ""
-        
+
         # Use LLM to clarify
         response = self.generate(
             prompt=f"Clarify this scientific hypothesis:\n\n{query}",
             system=CLARIFIER_SYSTEM_PROMPT,
             temperature=0.3,
         )
-        
+
         # Parse response
         try:
             parsed = json.loads(response)
@@ -103,13 +103,13 @@ class ClarifierAgent(BaseAgent):
                 questions=[],
                 is_testable=True,
             )
-        
+
         # Store in context
         context.graph_context["clarified_hypothesis"] = clarified.to_dict()
         context.current_hypothesis = clarified.clarified
-        
+
         logger.info(f"Clarified hypothesis: {clarified.clarified}")
-        
+
         return context
 
 

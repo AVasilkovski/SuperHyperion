@@ -7,15 +7,16 @@ LLM selects template_id + params only. Templates are vetted Python callables.
 CRITICAL: No exec(), no eval(), no dynamic imports.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Type, Optional, Literal
-from dataclasses import dataclass
-from pydantic import BaseModel, Field, ConfigDict
-import numpy as np
-import logging
-import time
 import hashlib
 import json
+import logging
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Dict, List, Literal, Optional, Type
+
+import numpy as np
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ def sha256_json(data: Any) -> str:
 
 class Template(ABC):
     """Base class for callable templates."""
-    
+
     template_id: str
     description: str
     ParamModel: Type[BaseModel]
@@ -190,11 +191,11 @@ class Template(ABC):
     deterministic: bool = True
     max_runtime_ms: int = 2000
     is_write_template: bool = False
-    
+
     def validate(self, params: Dict[str, Any]) -> BaseModel:
         """Validate parameters against schema."""
         return self.ParamModel.model_validate(params)
-    
+
     def get_seed(self, params: BaseModel, session_id: str = "", claim_id: str = "") -> int:
         """Get deterministic seed for reproducibility."""
         seed = getattr(params, "seed", None)
@@ -203,7 +204,7 @@ class Template(ABC):
         # Deterministic seed from context
         hash_input = f"{session_id}:{claim_id}:{self.template_id}"
         return int(hashlib.sha256(hash_input.encode()).hexdigest()[:8], 16) % (2**31)
-    
+
     @abstractmethod
     def run(self, params: BaseModel, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute the template. Must be implemented by subclasses."""
@@ -219,23 +220,23 @@ class BootstrapCITemplate(Template):
     description = "Estimate effect with confidence interval via bootstrap"
     ParamModel = BootstrapCIParams
     OutputModel = BootstrapCIOutput
-    
+
     def run(self, params: BootstrapCIParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         seed = self.get_seed(params, context.get("session_id", ""), context.get("claim_id", ""))
         np.random.seed(seed)
-        
+
         data = np.array(params.data)
         n = len(data)
-        
+
         bootstrap_means = []
         for _ in range(params.n_bootstrap):
             sample = np.random.choice(data, size=n, replace=True)
             bootstrap_means.append(np.mean(sample))
-        
+
         bootstrap_means = np.array(bootstrap_means)
         alpha = 1 - params.confidence_level
-        
+
         return {
             "method": "bootstrap_ci",
             "estimate": float(np.mean(bootstrap_means)),
@@ -252,25 +253,25 @@ class BayesianUpdateTemplate(Template):
     description = "Conjugate normal-normal Bayesian posterior estimation"
     ParamModel = BayesianUpdateParams
     OutputModel = BayesianUpdateOutput
-    
+
     def run(self, params: BayesianUpdateParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         seed = self.get_seed(params, context.get("session_id", ""), context.get("claim_id", ""))
         np.random.seed(seed)
-        
+
         observations = np.array(params.observations)
         n_obs = len(observations)
         obs_mean = np.mean(observations)
-        
+
         prior_var = params.prior_std ** 2
         likelihood_var = params.likelihood_std ** 2
-        
+
         posterior_var = 1.0 / (1.0 / prior_var + n_obs / likelihood_var)
         posterior_mean = posterior_var * (params.prior_mean / prior_var + n_obs * obs_mean / likelihood_var)
         posterior_std = np.sqrt(posterior_var)
-        
+
         samples = np.random.normal(posterior_mean, posterior_std, params.n_samples)
-        
+
         return {
             "method": "bayesian_update",
             "posterior_mean": float(posterior_mean),
@@ -288,19 +289,19 @@ class ThresholdCheckTemplate(Template):
     ParamModel = ThresholdCheckParams
     OutputModel = ThresholdCheckOutput
     deterministic = True
-    
+
     def run(self, params: ThresholdCheckParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         values = np.array(params.values)
         mean_val = float(np.mean(values))
-        
+
         if params.direction == "above":
             passes = mean_val > params.threshold
             margin = mean_val - params.threshold
         else:
             passes = mean_val < params.threshold
             margin = params.threshold - mean_val
-        
+
         return {
             "method": "threshold_check",
             "passes": passes,
@@ -317,13 +318,13 @@ class NumericConsistencyTemplate(Template):
     ParamModel = NumericConsistencyParams
     OutputModel = NumericConsistencyOutput
     deterministic = True
-    
+
     def run(self, params: NumericConsistencyParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         observed = np.array(params.observed_values)
         observed_mean = float(np.mean(observed))
         deviation = abs(params.claimed_value - observed_mean)
-        
+
         return {
             "method": "numeric_consistency",
             "consistent": deviation <= params.tolerance,
@@ -339,26 +340,26 @@ class SensitivitySuiteTemplate(Template):
     description = "Prior perturbation analysis for fragility detection"
     ParamModel = SensitivitySuiteParams
     OutputModel = SensitivitySuiteOutput
-    
+
     def run(self, params: SensitivitySuiteParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         seed = self.get_seed(params, context.get("session_id", ""), context.get("claim_id", ""))
         np.random.seed(seed)
-        
+
         flip_count = 0
         base_supports = params.base_ci_low > 0 or params.base_ci_high < 0
-        
+
         for _ in range(params.n_perturbations):
             noise = np.random.normal(0, params.prior_widening_factor * 0.1)
             perturbed = params.base_result + noise
             width = (params.base_ci_high - params.base_ci_low) * params.prior_widening_factor
             perturbed_supports = (perturbed - width/2) > 0 or (perturbed + width/2) < 0
-            
+
             if base_supports != perturbed_supports:
                 flip_count += 1
-        
+
         flip_rate = flip_count / params.n_perturbations
-        
+
         return {
             "method": "sensitivity_suite",
             "flip_rate": float(flip_rate),
@@ -375,15 +376,15 @@ class ContradictionDetectTemplate(Template):
     ParamModel = ContradictionDetectParams
     OutputModel = ContradictionDetectOutput
     deterministic = True
-    
+
     def run(self, params: ContradictionDetectParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         contradictions = []
-        
+
         # Find evidence items that conflict
         supporting = [e for e in params.evidence_items if e.get("supports_claim", False)]
         refuting = [e for e in params.evidence_items if not e.get("supports_claim", True)]
-        
+
         for s in supporting:
             for r in refuting:
                 contradictions.append({
@@ -391,7 +392,7 @@ class ContradictionDetectTemplate(Template):
                     "refuting_id": r.get("id", "unknown"),
                     "claim_id": params.claim_id,
                 })
-        
+
         return {
             "method": "contradiction_detect",
             "contradictions": contradictions,
@@ -406,17 +407,17 @@ class CitationCheckTemplate(Template):
     ParamModel = CitationCheckParams
     OutputModel = CitationCheckOutput
     deterministic = True
-    
+
     def run(self, params: CitationCheckParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         sources = []
-        
+
         for item in params.evidence_bundle:
             if item.get("claim_id") == params.claim_id or item.get("hypothesis_id") == params.claim_id:
                 source = item.get("source", item.get("source_id", ""))
                 if source:
                     sources.append(source)
-        
+
         return {
             "method": "citation_check",
             "has_citations": len(sources) > 0,
@@ -431,13 +432,13 @@ class EffectDirectionTemplate(Template):
     ParamModel = EffectDirectionParams
     OutputModel = EffectDirectionOutput
     deterministic = True
-    
+
     def run(self, params: EffectDirectionParams, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         values = np.array(params.observations)
         mean_val = float(np.mean(values))
         std_val = float(np.std(values)) if len(values) > 1 else 0.0
-        
+
         # Determine actual direction
         if std_val > 0 and abs(mean_val) > std_val:
             actual = "positive" if mean_val > 0 else "negative"
@@ -445,7 +446,7 @@ class EffectDirectionTemplate(Template):
         else:
             actual = "zero"
             confidence = 1.0 - min(1.0, abs(mean_val) / (std_val + 1e-9)) if std_val > 0 else 1.0
-        
+
         return {
             "method": "effect_direction",
             "matches": actual == params.expected_direction,
@@ -477,11 +478,11 @@ class TemplateExecution:
 
 class TemplateRegistry:
     """Registry of callable templates."""
-    
+
     def __init__(self):
         self._templates: Dict[str, Template] = {}
         self._register_defaults()
-    
+
     def _register_defaults(self):
         """Register default templates."""
         self.register(BootstrapCITemplate())
@@ -492,24 +493,24 @@ class TemplateRegistry:
         self.register(ContradictionDetectTemplate())
         self.register(CitationCheckTemplate())
         self.register(EffectDirectionTemplate())
-    
+
     def register(self, template: Template):
         """Register a template."""
         self._templates[template.template_id] = template
-    
+
     def get(self, template_id: str) -> Template:
         """Get a template by ID."""
         if template_id not in self._templates:
             raise KeyError(f"Unknown template: {template_id}. Available: {list(self._templates.keys())}")
         return self._templates[template_id]
-    
+
     def list_templates(self) -> List[Dict[str, str]]:
         """List available templates."""
         return [
             {"id": t.template_id, "description": t.description}
             for t in self._templates.values()
         ]
-    
+
     def run_template(
         self,
         template_id: str,  # This might be qid or legacy id depending on caller
@@ -540,12 +541,12 @@ class TemplateRegistry:
                  )
             real_qid = template_qid
             real_tid = template_qid.split("@")[0]
-            
+
         # 2. Allow template_id as QID if fully qualified
         elif template_id and "@" in template_id:
             real_qid = template_id
             real_tid = template_id.split("@")[0]
-            
+
         # 3. CRITICAL: Hard Fail if no qualified ID (Kill @unqualified fallback)
         else:
              return TemplateExecution(
@@ -554,17 +555,17 @@ class TemplateRegistry:
                 success=False,
                 result={"error": f"UNQUALIFIED_TEMPLATE_QID: template_id '{template_id}' must be qualified (name@X.Y.Z) or template_qid provided."},
                 execution_id=""
-             ) 
-        
+             )
+
         template = self.get(real_tid)
-        
+
         # Enforce write template restrictions
         if template.is_write_template and caller_role != "steward":
             raise PermissionError(f"Write template '{template_id}' can only be called by steward")
-        
+
         context = context or {}
         warnings = []
-        
+
         # Validate params
         try:
             validated_params = template.validate(params)
@@ -582,13 +583,13 @@ class TemplateRegistry:
                 params_hash=sha256_json(params),
                 result_hash=sha256_json({"error": str(e)}),
             )
-        
+
         # Execute template
         start_time = time.time()
         try:
             result = template.run(validated_params, context)
             success = True
-            
+
             # Validate output against schema (Audit requirement)
             try:
                 template.OutputModel.model_validate(result)
@@ -596,22 +597,22 @@ class TemplateRegistry:
                 success = False
                 warnings.append(f"Output validation failed: {str(e)}")
                 result = {"error": f"Output validation failed: {str(e)}", "raw_result": result}
-                
+
         except Exception as e:
             logger.error(f"Template {template_id} execution failed: {e}")
             result = {"error": str(e)}
             success = False
             warnings.append(f"Execution failed: {e}")
-        
+
         runtime_ms = (time.time() - start_time) * 1000
-        
+
         if runtime_ms > template.max_runtime_ms:
             warnings.append(f"Exceeded max runtime: {runtime_ms:.1f}ms > {template.max_runtime_ms}ms")
-            
+
         params_dict = validated_params.model_dump()
         params_hash = sha256_json(params_dict)
         result_hash = sha256_json(result)
-        
+
         return TemplateExecution(
             execution_id=f"exec-{time.time_ns()}",
             template_qid=real_qid,

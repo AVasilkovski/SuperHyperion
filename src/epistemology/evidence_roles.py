@@ -17,10 +17,10 @@ Failure Modes (for negative-evidence):
 - nonidentifiable: Parameters could not be identified from data
 """
 
-from enum import Enum
-from typing import Optional
 import logging
 import math
+from enum import Enum
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def validate_evidence_role(role: Optional[str]) -> Optional[EvidenceRole]:
     """
     if role is None:
         return None
-    
+
     role_lower = role.lower().strip()
     try:
         return EvidenceRole(role_lower)
@@ -83,7 +83,7 @@ def validate_failure_mode(mode: Optional[str]) -> Optional[FailureMode]:
     """
     if mode is None:
         return None
-    
+
     mode_lower = mode.lower().strip()
     try:
         return FailureMode(mode_lower)
@@ -115,7 +115,7 @@ def require_evidence_role(role: Optional[str], default: EvidenceRole, *, strict:
     """
     if role is None:
         return default
-    
+
     try:
         role_lower = role.lower().strip()
         return EvidenceRole(role_lower)
@@ -152,7 +152,7 @@ def clamp_probability(value: float, name: str = "value") -> float:
     raw = float(value)
     if not math.isfinite(raw):
         raise ValueError(f"{name} must be finite, got {value}")
-    
+
     clamped = max(0.0, min(1.0, raw))
     if clamped != raw:
         logger.warning(f"{name} clamped from {raw} to {clamped}")

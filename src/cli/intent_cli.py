@@ -11,18 +11,16 @@ from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.syntax import Syntax
+from rich.table import Table
 
+from src.cli.wiring import get_service
 from src.hitl.intent_service import (
-    WriteIntentService,
+    IntentNotFoundError,
     IntentStatus,
     IntentTransitionError,
-    IntentNotFoundError,
-    ScopeLockRequiredError,
 )
-from src.cli.wiring import get_service
 
 # Create subcommand app
 intent_app = typer.Typer(
@@ -58,7 +56,7 @@ def list_intents(
 ):
     """List write-intents, optionally filtered by status."""
     service = get_service()
-    
+
     if status:
         try:
             status_enum = IntentStatus(status)
@@ -70,18 +68,18 @@ def list_intents(
     else:
         # List all non-terminal (pending review)
         intents = service.list_pending()
-    
+
     intents = intents[:limit]
-    
+
     if json:
         output = [i.to_dict() for i in intents]
         print(json_lib.dumps(output, indent=2, default=str))
         return
-    
+
     if not intents:
         console.print("[dim]No intents found[/dim]")
         return
-    
+
     table = Table(title=f"Write-Intents ({len(intents)})")
     table.add_column("Intent ID", style="cyan")
     table.add_column("Type", style="magenta")
@@ -89,7 +87,7 @@ def list_intents(
     table.add_column("Impact", justify="right")
     table.add_column("Scope Lock")
     table.add_column("Expires At")
-    
+
     for i in intents:
         expires = i.expires_at.strftime("%Y-%m-%d %H:%M") if i.expires_at else "-"
         table.add_row(
@@ -100,7 +98,7 @@ def list_intents(
             i.scope_lock_id or "-",
             expires,
         )
-    
+
     console.print(table)
 
 
@@ -124,16 +122,16 @@ def show_intent(
 ):
     """Show details of a specific intent."""
     service = get_service()
-    
+
     intent = service.get(intent_id)
     if not intent:
         console.print(f"[red]Intent not found: {intent_id}[/red]")
         raise typer.Exit(1)
-    
+
     events = []
     if history:
         events = service.get_history(intent_id)
-    
+
     if json:
         output = {
             "intent": intent.to_dict(),
@@ -141,7 +139,7 @@ def show_intent(
         }
         print(json_lib.dumps(output, indent=2, default=str))
         return
-    
+
     # Rich output
     panel_content = f"""[bold]Intent ID:[/bold] {intent.intent_id}
 [bold]Type:[/bold] {intent.intent_type}
@@ -151,15 +149,15 @@ def show_intent(
 [bold]Created:[/bold] {intent.created_at.isoformat()}
 [bold]Expires:[/bold] {intent.expires_at.isoformat() if intent.expires_at else "Never"}
 [bold]Supersedes:[/bold] {intent.supersedes_intent_id or "None"}"""
-    
+
     console.print(Panel(panel_content, title="Intent Details", border_style="blue"))
-    
+
     # Payload
     if intent.payload:
         payload_json = json_lib.dumps(intent.payload, indent=2, default=str)
         console.print("\n[bold]Payload:[/bold]")
         console.print(Syntax(payload_json, "json", theme="monokai"))
-    
+
     # History
     if history and events:
         console.print("\n[bold]Event History:[/bold]")
@@ -169,7 +167,7 @@ def show_intent(
         history_table.add_column("To", style="green")
         history_table.add_column("Actor")
         history_table.add_column("Rationale")
-        
+
         for e in events:
             history_table.add_row(
                 e.created_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -178,7 +176,7 @@ def show_intent(
                 f"{e.actor_type}:{e.actor_id}",
                 e.rationale or "-",
             )
-        
+
         console.print(history_table)
 
 
@@ -202,7 +200,7 @@ def approve_intent(
 ):
     """Approve an intent for execution."""
     service = get_service()
-    
+
     try:
         intent = service.approve(intent_id, approver_id=by, rationale=why)
         console.print(f"[green]✓ Approved:[/green] {intent.intent_id}")
@@ -235,7 +233,7 @@ def reject_intent(
 ):
     """Reject an intent (terminal)."""
     service = get_service()
-    
+
     try:
         intent = service.reject(intent_id, rejector_id=by, rationale=why)
         console.print(f"[red]✗ Rejected:[/red] {intent.intent_id}")
@@ -273,14 +271,14 @@ def defer_intent(
 ):
     """Defer an intent for later review."""
     service = get_service()
-    
+
     try:
         until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
     except ValueError:
         console.print(f"[red]Invalid datetime format: {until}[/red]")
         console.print("Expected ISO format: 2026-02-01T10:00:00Z")
         raise typer.Exit(1)
-    
+
     try:
         intent = service.defer(intent_id, deferrer_id=by, until=until_dt, rationale=why)
         console.print(f"[yellow]⏸ Deferred:[/yellow] {intent.intent_id}")
@@ -313,7 +311,7 @@ def cancel_intent(
 ):
     """Cancel an intent (terminal)."""
     service = get_service()
-    
+
     try:
         intent = service.cancel(intent_id, actor_id=by, rationale=why)
         console.print(f"[dim]⊘ Cancelled:[/dim] {intent.intent_id}")
@@ -350,17 +348,17 @@ def expire_stale(
 ):
     """Expire all stale intents past their expiry date."""
     service = get_service()
-    
+
     expired_ids = service.expire_stale(max_age_days=max_age_days)
-    
+
     if json:
         print(json_lib.dumps({"expired": expired_ids}))
         return
-    
+
     if not expired_ids:
         console.print("[dim]No stale intents to expire[/dim]")
         return
-    
+
     console.print(f"[yellow]Expired {len(expired_ids)} intent(s):[/yellow]")
     for eid in expired_ids:
         console.print(f"  • {eid}")

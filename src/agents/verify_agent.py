@@ -10,16 +10,16 @@ Responsibilities:
 3. Enforce Feynman heuristics (toy models, extremes, dimensions).
 """
 
-from typing import Dict, Any, Optional
 import logging
+import math
 import time
+from typing import Any, Dict, Optional
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 from src.graph.state import Evidence
-from src.montecarlo.templates import registry, TemplateExecution, sha256_json
+from src.montecarlo.templates import TemplateExecution, registry, sha256_json
 from src.montecarlo.types import ExperimentSpec, MCResult
 from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
-import math
 
 logger = logging.getLogger(__name__)
 
@@ -32,22 +32,22 @@ class VerifyAgent(BaseAgent):
     - Execution (CodeAct -> TemplateRegistry)
     - Analysis (Feynman Checks -> Evidence.is_fragile)
     """
-    
+
     def __init__(self, max_budget_ms: int = 30_000):
         super().__init__(name="VerifyAgent")
         self.registry = registry
         self.max_budget_ms = max_budget_ms
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """Run verification pipeline for all claims in context."""
         claims = context.graph_context.get("atomic_claims", [])
-        
+
         if not claims:
             logger.warning("No claims to verify")
             return context
-            
+
         context.graph_context["epistemic_mode"] = "grounded"
-        
+
         # Prepare storage
         if "template_executions" not in context.graph_context:
             context.graph_context["template_executions"] = []
@@ -55,14 +55,14 @@ class VerifyAgent(BaseAgent):
             context.graph_context["evidence"] = []
         if "negative_evidence" not in context.graph_context:
             context.graph_context["negative_evidence"] = []
-            
+
         # Process each claim through the MC pipeline
         for claim in claims:
              await self.run_mc_pipeline(claim, context)
-             
+
         # Aggregate reports (optional, for debugging/summary)
         self._aggregate_reports(context)
-        
+
         return context
 
     async def run_mc_pipeline(self, claim: Dict[str, Any], context: AgentContext) -> None:
@@ -70,7 +70,7 @@ class VerifyAgent(BaseAgent):
         Execute the Design -> Execute -> Analyze loop for a single claim.
         """
         claim_id = claim.get("claim_id", "unknown")
-        
+
         try:
             # 1) DESIGN (LLM) -> ExperimentSpec
             spec = await self._design_experiment_spec(claim, context)
@@ -80,10 +80,10 @@ class VerifyAgent(BaseAgent):
 
             # 2) EXECUTE (CodeAct) -> TemplateExecution (raw)
             execution = self._codeact_execute_template(spec, context)
-            
+
             # Persist execution audit trail immediately
             context.graph_context["template_executions"].append(self._execution_to_dict(execution))
-            
+
             if not execution.success:
                 logger.warning(f"Execution failed for {claim_id}: {execution.warnings}")
                 return
@@ -96,7 +96,7 @@ class VerifyAgent(BaseAgent):
                 mc_result = MCResult(
                     estimate=float(raw_res.get("estimate", raw_res.get("mean_value", raw_res.get("value", 0.0)))),
                     ci_95=(
-                        float(raw_res.get("ci_low", 0.0)), 
+                        float(raw_res.get("ci_low", 0.0)),
                         float(raw_res.get("ci_high", 0.0))
                     ),
                     variance=float(raw_res.get("variance", 0.0)),
@@ -112,25 +112,25 @@ class VerifyAgent(BaseAgent):
 
             # Run deterministic Feynman checks
             feynman = self._feynman_checks(spec, mc_result, execution)
-            
+
             # Apply Fragility Hard-Cap
             if not feynman["all_pass"]:
                 mc_result.is_fragile = True
-            
+
             # 4) PACK EVIDENCE
             # 4) PACK EVIDENCE
-            
+
             # --- Phase 16.1: Negative Evidence Branch ---
             if not mc_result.supports_claim:
                 # Retrieve governed semantics from Registry
                 # Use execution.template_qid (canonical) if available, else fallback
-                qid = execution.template_qid or f"{spec.template_id}@1.0.0" 
+                qid = execution.template_qid or f"{spec.template_id}@1.0.0"
                 template_spec = VERSIONED_REGISTRY.get_spec(qid)
-                
+
                 if template_spec:
                     epi = template_spec.epistemic
                     negative_strength = self._compute_negative_strength(epi, mc_result)
-                    
+
                     if epi.negative_role_on_fail != "none":
                         neg_evidence = {
                             "claim_id": spec.claim_id,
@@ -142,14 +142,14 @@ class VerifyAgent(BaseAgent):
                             "diagnostics": mc_result.diagnostics,
                             "metrics": self._extract_metrics(execution.result),
                             "provenance": {
-                                "template": spec.template_id, 
+                                "template": spec.template_id,
                                 "params": execution.params,
                                 "epistemic_context": epi.to_canonical_dict()
                             }
                         }
                         context.graph_context["negative_evidence"].append(neg_evidence)
                         logger.info(f"Emitted NEGATIVE evidence for {spec.claim_id} (role={epi.negative_role_on_fail})")
-                        
+
                         # Return early? Or emit both?
                         # Contract: If refuting, we do NOT emit positive evidence.
                         return
@@ -163,19 +163,19 @@ class VerifyAgent(BaseAgent):
                 template_qid=execution.template_qid,  # Phase 14.5: Qualified ID
                 scope_lock_id=spec.scope_lock_id,  # Phase 14.5: Scope lock
                 test_description=f"Template {spec.template_id}: {spec.hypothesis}",
-                
+
                 # Numeric Core
                 estimate=mc_result.estimate,
                 ci_95=mc_result.ci_95,
                 variance=mc_result.variance,
-                
+
                 # Diagnostics & Fragility
                 diagnostics=mc_result.diagnostics,
                 sensitivity=mc_result.sensitivity,
                 supports_claim=mc_result.supports_claim,
                 is_fragile=mc_result.is_fragile,
                 feynman=feynman,
-                
+
                 # Legacy / Audit
                 result=execution.result,
                 metrics=self._extract_metrics(execution.result),
@@ -184,13 +184,14 @@ class VerifyAgent(BaseAgent):
                 warnings=execution.warnings + ([f"CRITICAL: Budget exceeded {execution.runtime_ms}ms > {self.max_budget_ms}ms"] if execution.runtime_ms > self.max_budget_ms else []),
                 success=True
             )
-            
+
             # 4) PACK EVIDENCE
 
-            
-            context.graph_context["evidence"].append(self._evidence_to_dict(evidence))
+
+            # Store raw Evidence object (Steward handles serialization)
+            context.graph_context["evidence"].append(evidence)
             context.graph_context["latest_evidence"] = self._evidence_to_dict(evidence)
-            
+
             # Populate State Scalars (Phase 13 Requirement)
             context.graph_context["estimate"] = mc_result.estimate
             context.graph_context["ci_95"] = mc_result.ci_95
@@ -200,7 +201,7 @@ class VerifyAgent(BaseAgent):
             context.graph_context["supports_claim"] = mc_result.supports_claim
             context.graph_context["is_fragile"] = mc_result.is_fragile
             context.graph_context["feynman"] = feynman
-            
+
         except Exception as e:
             logger.error(f"Pipeline crashed for {claim_id}: {e}", exc_info=True)
 
@@ -218,10 +219,10 @@ class VerifyAgent(BaseAgent):
         """
         claim_id = claim.get("claim_id", "unknown")
         content = claim.get("content", "")
-        
+
         # Extract experiment hints for this claim (if available)
         hints = context.graph_context.get("experiment_hints", {}).get(claim_id)
-        
+
         # Log hint digest for audit trail (not raw content)
         hint_digest = None
         if hints:
@@ -235,9 +236,9 @@ class VerifyAgent(BaseAgent):
                 hint_digest = hashlib.sha256(
                     json_mod.dumps(hints, sort_keys=True, default=str).encode()
                 ).hexdigest()[:16]
-            
+
             logger.info(f"Designing experiment for {claim_id} with hint_digest={hint_digest}")
-        
+
         # Build hint-aware prompt section (for LLM prompting, not for spec)
         hint_section = ""
         if hints:
@@ -248,12 +249,12 @@ class VerifyAgent(BaseAgent):
                 h = hints
             else:
                 h = {}
-            
+
             mechanisms = h.get("candidate_mechanisms", [])
             sensitivity_axes = h.get("sensitivity_axes", [])
             falsification = h.get("falsification_criteria", [])
             priors = h.get("prior_suggestions", [])
-            
+
             if any([mechanisms, sensitivity_axes, falsification, priors]):
                 hint_section = f"""
 SPECULATIVE CONTEXT (use to inform design, do NOT echo in output):
@@ -262,8 +263,8 @@ SPECULATIVE CONTEXT (use to inform design, do NOT echo in output):
 - Falsification criteria: {falsification[:2] if falsification else 'None'}
 - Prior suggestions from analogies: {len(priors)} available
 """
-        
-        prompt = f"""Design a verification experiment for: "{content}" (ID: {claim_id}).
+
+        _prompt = f"""Design a verification experiment for: "{content}" (ID: {claim_id}).
 {hint_section}
 Available Templates:
 - bootstrap_ci: for effect sizes with data
@@ -274,11 +275,11 @@ Available Templates:
 Return JSON matching ExperimentSpec (claim_id, hypothesis, template_id, params).
 Do NOT include speculative content in the output.
 """
-        
+
         try:
             # Short circuit for testing if no LLM
             # response = await self.generate(prompt)
-             
+
             # Fallback/Heuristic for reliability in this implementation step
             # Use hint-aware template selection
             template_id = "numeric_consistency"  # default
@@ -287,12 +288,12 @@ Do NOT include speculative content in the output.
                 "observed_values": [0.4, 0.5, 0.6],
                 "tolerance": 0.2
             }
-            
+
             # Hint-aware template selection
             if hints:
                 h = hints.model_dump() if hasattr(hints, "model_dump") else hints
                 sensitivity_axes = h.get("sensitivity_axes", [])
-                
+
                 # If edge cases / sensitivity axes are provided, use sensitivity_suite
                 if sensitivity_axes:
                     template_id = "sensitivity_suite"
@@ -302,7 +303,7 @@ Do NOT include speculative content in the output.
                         "variation_range": 0.2,
                     }
                     logger.info(f"Selected sensitivity_suite for {claim_id} due to {len(sensitivity_axes)} sensitivity axes")
-            
+
             return ExperimentSpec(
                 claim_id=claim_id,
                 hypothesis=f"Verify that {content} holds",
@@ -321,7 +322,7 @@ Do NOT include speculative content in the output.
             "session_id": context.graph_context.get("session_id", "sess-unknown"),
             "claim_id": spec.claim_id
         }
-        
+
         # 1. Get Template Definition (Existence Check)
         try:
             self.registry.get(spec.template_id)
@@ -354,12 +355,12 @@ Do NOT include speculative content in the output.
     def _feynman_checks(self, spec: ExperimentSpec, r: MCResult, ex: TemplateExecution) -> Dict[str, Any]:
         """Deterministic Feynman Heuristics."""
         checks = {}
-        
+
         # 1) Toy Model
         # STRICT: Default to False if toy_ok missing for MC templates
         is_mc = spec.template_id in ["bootstrap_ci", "bayesian_update", "sensitivity_suite"]
         toy_ok = r.diagnostics.get("toy_ok")
-        
+
         if toy_ok is None:
              toy_pass = not is_mc # Fail if MC and missing
              toy_reason = "Missing toy_ok diagnostic" if is_mc else "opt-out"
@@ -371,7 +372,7 @@ Do NOT include speculative content in the output.
             "pass": toy_pass,
             "reason": toy_reason
         }
-        
+
         # 2) Extremes: Check validity bounds (e.g., probability in [0,1])
         # Simple heuristic: variance shouldn't be negative, probabilities in [0,1]
         extremes_pass = True
@@ -379,12 +380,12 @@ Do NOT include speculative content in the output.
         if r.variance < 0:
             extremes_pass = False
             reason = "Negative variance detected"
-        
+
         checks["extremes"] = {
             "pass": extremes_pass,
             "reason": reason
         }
-        
+
         # 3) Dimensions: Unit consistency (if provided)
         if spec.units and "estimate" in spec.units:
             checks["dimensions"] = {
@@ -396,14 +397,14 @@ Do NOT include speculative content in the output.
                 "pass": False, # Marking false to encourage unit usage, or True if optional
                 "reason": "No units provided"
             }
-            
+
         # 4) Independence: Check for red flags in diagnostics
         indep_flag = r.diagnostics.get("independence_red_flag", False)
         checks["independence"] = {
             "pass": not indep_flag,
             "reason": "Flag raised" if indep_flag else "No dependence flags"
         }
-        
+
         # 5) Diagnostics: ESS > 400 (if applicable)
         ess = r.diagnostics.get("ess")
         if ess is not None:
@@ -444,12 +445,12 @@ Do NOT include speculative content in the output.
         sens = r.sensitivity or {}
         prior_flip = sens.get("prior_widened_flips", False)
         noise_flip = sens.get("noise_model_flips", False)
-        
+
         checks["sensitivity"] = {
             "pass": not (prior_flip or noise_flip),
             "reason": f"PriorFlip={prior_flip}, NoiseFlip={noise_flip}"
         }
-        
+
         all_pass = all(c["pass"] for c in checks.values())
         return {"all_pass": all_pass, "checks": checks}
 
@@ -468,19 +469,19 @@ Do NOT include speculative content in the output.
             low = raw.get("ci_low", 0.0)
             high = raw.get("ci_high", 0.0)
             return not (low <= null_val <= high) # Reject null hypothesis
-        
+
         return True # Default optimistic
 
     def _compute_negative_strength(self, epi, result: MCResult) -> float:
         """Compute strength of negative evidence [0,1]."""
         if epi.strength_model == "binary_default":
             return 1.0
-        
+
         if epi.strength_model == "ci_proximity_to_null":
             # Heuristic: How far is the nearest CI bound from the null value?
             # Higher distance = stronger refutation (if result implies null is far away)
             # OR for replication: strength is confidence in the null-result.
-            
+
             # For now, simple implementation:
             # If we failed to reject null (replication failure), strength is high contextually
             # Mapping variance to strength: lower variance = higher strength of "null finding"
@@ -490,7 +491,7 @@ Do NOT include speculative content in the output.
             except:
                 pass
             return 0.5
-            
+
         return 0.5
 
     def _extract_metrics(self, result: Dict[str, Any]) -> Dict[str, float]:

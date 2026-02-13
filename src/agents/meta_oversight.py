@@ -9,11 +9,11 @@ Computes deterministic metrics only - no LLM summarization.
 Read-only access to TypeDB.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, date
-from typing import Dict, Any, List, Optional
 import json
 import logging
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class GuardPressure:
     missing_claim_id_failures: int = 0
     missing_claim_id_sources: List[str] = field(default_factory=list)
     residue_validator_trips: int = 0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "speculative_rejections": self.speculative_rejections,
@@ -44,7 +44,7 @@ class DriftIndicators:
     speculate_retrieval_trend: float = 0.0  # % of decisions = "speculate"
     epistemic_caps_triggered: int = 0
     cap_reasons: List[str] = field(default_factory=list)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "top_conflict_claims": self.top_conflict_claims,
@@ -60,7 +60,7 @@ class FragilityMetrics:
     flip_count: int = 0
     flipped_claims: List[Dict[str, Any]] = field(default_factory=list)
     high_sensitivity_axes: List[str] = field(default_factory=list)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "flip_count": self.flip_count,
@@ -77,7 +77,7 @@ class AuthorityQueue:
     expired_scope_locks: int = 0
     expired_lock_ids: List[str] = field(default_factory=list)
     auto_capped_proposals: int = 0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "pending_write_intents": self.pending_write_intents,
@@ -96,7 +96,7 @@ class Alert:
     category: str  # "guard", "fragility", "drift", "authority"
     message: str
     reference_id: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "alert_id": self.alert_id,
@@ -124,7 +124,7 @@ class MetaOversightReport:
     alerts: List[Alert] = field(default_factory=list)
     severity: str = "low"  # "low", "medium", "high", "critical"
     created_at: datetime = field(default_factory=datetime.now)
-    
+
     def compute_severity(self) -> str:
         """Compute overall report severity."""
         if self.guard_pressure.speculative_rejections > 10:
@@ -136,7 +136,7 @@ class MetaOversightReport:
         if self.drift_indicators.epistemic_caps_triggered > 10:
             return "medium"
         return "low"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "report_id": self.report_id,
@@ -149,10 +149,10 @@ class MetaOversightReport:
             "alerts": [a.to_dict() for a in self.alerts],
             "created_at": self.created_at.isoformat(),
         }
-    
+
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2)
-    
+
     def render_markdown(self) -> str:
         """Render report as human-readable Markdown."""
         lines = [
@@ -160,7 +160,7 @@ class MetaOversightReport:
             f"**Severity:** {self.severity.upper()}",
             "",
         ]
-        
+
         # Alerts section (top priority)
         if self.alerts:
             lines.append("## 🚨 Alerts")
@@ -168,7 +168,7 @@ class MetaOversightReport:
                 icon = "🔴" if alert.severity == "critical" else "🟡"
                 lines.append(f"- {icon} **{alert.category}**: {alert.message}")
             lines.append("")
-        
+
         # Guard Pressure
         lines.append("## Guard Pressure")
         gp = self.guard_pressure
@@ -176,7 +176,7 @@ class MetaOversightReport:
         lines.append(f"- Missing claim_id failures: **{gp.missing_claim_id_failures}**")
         lines.append(f"- Residue validator trips: **{gp.residue_validator_trips}**")
         lines.append("")
-        
+
         # Fragility
         lines.append("## Fragility & Sensitivity")
         fr = self.fragility
@@ -184,21 +184,21 @@ class MetaOversightReport:
         if fr.high_sensitivity_axes:
             lines.append(f"- High sensitivity axes: {', '.join(fr.high_sensitivity_axes)}")
         lines.append("")
-        
+
         # Drift Indicators
         lines.append("## Drift Indicators")
         di = self.drift_indicators
         lines.append(f"- Speculate retrieval trend: **{di.speculate_retrieval_trend:.1%}**")
         lines.append(f"- Epistemic caps triggered: **{di.epistemic_caps_triggered}**")
         lines.append("")
-        
+
         # Authority Queue
         lines.append("## Authority Queue")
         aq = self.authority_queue
         lines.append(f"- Pending write-intents: **{aq.pending_write_intents}**")
         lines.append(f"- Expired scope locks: **{aq.expired_scope_locks}**")
         lines.append(f"- Auto-capped proposals: **{aq.auto_capped_proposals}**")
-        
+
         return "\n".join(lines)
 
 
@@ -210,7 +210,7 @@ class MetaOversightAgent:
     Computes deterministic metrics only.
     No LLM summarization of computed values.
     """
-    
+
     def __init__(self, db_client=None):
         """
         Initialize with read-only DB client.
@@ -220,7 +220,7 @@ class MetaOversightAgent:
         """
         self.db_client = db_client
         self._alert_counter = 0
-    
+
     def generate_daily_report(
         self,
         report_date: Optional[date] = None,
@@ -232,13 +232,13 @@ class MetaOversightAgent:
         """
         report_date = report_date or date.today()
         report_id = f"report_{report_date.isoformat()}"
-        
+
         # Compute each section
         guard_pressure = self._compute_guard_pressure(report_date)
         drift_indicators = self._compute_drift_indicators(report_date)
         fragility = self._compute_fragility(report_date)
         authority_queue = self._compute_authority_queue(report_date)
-        
+
         # Create report
         report = MetaOversightReport(
             report_id=report_id,
@@ -248,40 +248,40 @@ class MetaOversightAgent:
             fragility=fragility,
             authority_queue=authority_queue,
         )
-        
+
         # Compute alerts and severity
         report.alerts = self._compute_alerts(report)
         report.severity = report.compute_severity()
-        
+
         logger.info(f"Generated oversight report: {report_id} (severity={report.severity})")
-        
+
         return report
-    
+
     def _compute_guard_pressure(self, report_date: date) -> GuardPressure:
         """Compute guard pressure metrics from DB."""
         # TODO: Implement actual TypeDB queries
         # For now, return placeholder
         return GuardPressure()
-    
+
     def _compute_drift_indicators(self, report_date: date) -> DriftIndicators:
         """Compute drift indicators from DB."""
         # TODO: Implement actual TypeDB queries
         return DriftIndicators()
-    
+
     def _compute_fragility(self, report_date: date) -> FragilityMetrics:
         """Compute fragility metrics from DB."""
         # TODO: Implement actual TypeDB queries
         return FragilityMetrics()
-    
+
     def _compute_authority_queue(self, report_date: date) -> AuthorityQueue:
         """Compute authority queue metrics from DB."""
         # TODO: Implement actual TypeDB queries
         return AuthorityQueue()
-    
+
     def _compute_alerts(self, report: MetaOversightReport) -> List[Alert]:
         """Generate alerts for threshold breaches."""
         alerts = []
-        
+
         # Guard pressure alerts
         if report.guard_pressure.speculative_rejections > 5:
             self._alert_counter += 1
@@ -291,7 +291,7 @@ class MetaOversightAgent:
                 category="guard",
                 message=f"{report.guard_pressure.speculative_rejections} speculative injection attempts blocked",
             ))
-        
+
         # Fragility alerts
         if report.fragility.flip_count > 3:
             self._alert_counter += 1
@@ -301,7 +301,7 @@ class MetaOversightAgent:
                 category="fragility",
                 message=f"{report.fragility.flip_count} claims flipped under perturbation",
             ))
-        
+
         # Authority queue alerts
         if report.authority_queue.pending_write_intents > 10:
             self._alert_counter += 1
@@ -311,7 +311,7 @@ class MetaOversightAgent:
                 category="authority",
                 message=f"{report.authority_queue.pending_write_intents} write-intents awaiting approval",
             ))
-        
+
         if report.authority_queue.expired_scope_locks > 0:
             self._alert_counter += 1
             alerts.append(Alert(
@@ -320,7 +320,7 @@ class MetaOversightAgent:
                 category="authority",
                 message=f"{report.authority_queue.expired_scope_locks} scope locks expired without action",
             ))
-        
+
         return alerts
 
 

@@ -17,7 +17,7 @@ Design principles:
 
 import hashlib
 import json
-from typing import Optional
+from typing import List, Optional
 
 
 def make_evidence_id(
@@ -117,3 +117,45 @@ def make_capsule_id(
     s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     h = hashlib.md5(s.encode("utf-8")).hexdigest()
     return f"cap-{h}"
+
+
+def make_proposal_id(
+    session_id: str,
+    claim_id: str,
+    action: str,
+    evidence_fingerprints: List[str],
+    policy_hash: str,
+) -> str:
+    """
+    Deterministic proposal ID using SHA-256.
+
+    Components: session context, action semantics, evidence fingerprints, policy hash.
+    Returns "prop-" + 24-char hex digest.
+    """
+    payload = {
+        "sid": session_id or "",
+        "cid": claim_id or "",
+        "act": action or "",
+        "evfp": sorted(evidence_fingerprints),
+        "ph": policy_hash,
+    }
+    s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    h = hashlib.sha256(s.encode("utf-8")).hexdigest()[:24]
+    return f"prop-{h}"
+
+
+def make_policy_hash() -> str:
+    """Canonical hash of current theory-change thresholds + operator version."""
+    from src.epistemology.theory_change_operator import (
+        FORK_THRESHOLD,
+        MIN_EVIDENCE_COUNT,
+        QUARANTINE_THRESHOLD,
+    )
+    payload = {
+        "FORK_THRESHOLD": FORK_THRESHOLD,
+        "QUARANTINE_THRESHOLD": QUARANTINE_THRESHOLD,
+        "MIN_EVIDENCE_COUNT": MIN_EVIDENCE_COUNT,
+        "OPERATOR_VERSION": "16.3.0",
+    }
+    s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]

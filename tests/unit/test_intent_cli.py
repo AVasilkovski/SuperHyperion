@@ -5,17 +5,17 @@ Tests for CLI commands using CliRunner.
 Injects InMemoryIntentStore to avoid TypeDB dependency.
 """
 
-import pytest
 import json
-from typer.testing import CliRunner
-from datetime import datetime, timedelta
-
-from src.cli.main import app
-from src.cli import wiring
-from src.hitl.intent_store import InMemoryIntentStore
-from src.hitl.intent_service import WriteIntentService, IntentStatus
-from src.hitl.intent_registry import IntentSpec, ScopeLockPolicy, ApprovalPolicy
 from unittest.mock import patch
+
+import pytest
+from typer.testing import CliRunner
+
+from src.cli import wiring
+from src.cli.main import app
+from src.hitl.intent_registry import ApprovalPolicy, IntentSpec, ScopeLockPolicy
+from src.hitl.intent_service import IntentStatus, WriteIntentService
+from src.hitl.intent_store import InMemoryIntentStore
 
 # Define a permissible test spec
 TEST_INTENT_SPEC = IntentSpec(
@@ -61,7 +61,7 @@ runner = CliRunner()
 def test_service():
     """Create a fresh test service with InMemory store and mocked registry."""
     store = InMemoryIntentStore()
-    
+
     with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {
         "test": TEST_INTENT_SPEC,
         "test_type": TEST_TYPE_SPEC,
@@ -84,7 +84,7 @@ class TestIntentList:
     def test_list_empty_shows_no_intents(self):
         """Empty list shows 'No intents found'."""
         result = runner.invoke(app, ["intent", "list"])
-        
+
         assert result.exit_code == 0
         assert "No intents found" in result.output
 
@@ -96,9 +96,9 @@ class TestIntentList:
             payload={"claim_id": "claim-001"},
         )
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(app, ["intent", "list"])
-        
+
         assert result.exit_code == 0
         # Table truncates IDs, check for prefix match
         assert "intent_" in result.output
@@ -108,10 +108,10 @@ class TestIntentList:
     def test_list_with_status_filter(self, test_service):
         """List filters by status."""
         intent = test_service.stage(intent_type="test", payload={})
-        
+
         # Staged, not yet submitted
         result = runner.invoke(app, ["intent", "list", "--status", "staged"])
-        
+
         assert result.exit_code == 0
         # Table truncates IDs, check for partial match
         assert intent.intent_id[:12] in result.output
@@ -120,9 +120,9 @@ class TestIntentList:
         """--json outputs valid JSON."""
         intent = test_service.stage(intent_type="test", payload={})
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(app, ["intent", "list", "--json"])
-        
+
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
@@ -140,9 +140,9 @@ class TestIntentShow:
             payload={"claim_id": "claim-001"},
             scope_lock_id="lock-123",
         )
-        
+
         result = runner.invoke(app, ["intent", "show", intent.intent_id])
-        
+
         assert result.exit_code == 0
         assert intent.intent_id in result.output
         assert "update_epistemic_status" in result.output
@@ -151,7 +151,7 @@ class TestIntentShow:
     def test_show_not_found_exits_1(self):
         """Show exits 1 for unknown intent."""
         result = runner.invoke(app, ["intent", "show", "nonexistent"])
-        
+
         assert result.exit_code == 1
         assert "not found" in result.output
 
@@ -159,9 +159,9 @@ class TestIntentShow:
         """Show --history includes events."""
         intent = test_service.stage(intent_type="test", payload={})
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(app, ["intent", "show", intent.intent_id, "--history"])
-        
+
         assert result.exit_code == 0
         assert "Event History" in result.output
         assert "awaiting_hitl" in result.output
@@ -170,9 +170,9 @@ class TestIntentShow:
         """--json outputs valid JSON with intent and history."""
         intent = test_service.stage(intent_type="test", payload={})
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(app, ["intent", "show", intent.intent_id, "--json", "--history"])
-        
+
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "intent" in data
@@ -187,15 +187,15 @@ class TestIntentApprove:
         """Approve sets status to approved."""
         intent = test_service.stage(intent_type="test", payload={})
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(
             app,
             ["intent", "approve", intent.intent_id, "--by", "Anton", "--why", "Looks good"],
         )
-        
+
         assert result.exit_code == 0
         assert "Approved" in result.output
-        
+
         # Verify in service
         updated = test_service.get(intent.intent_id)
         assert updated.status == IntentStatus.APPROVED
@@ -206,7 +206,7 @@ class TestIntentApprove:
             app,
             ["intent", "approve", "nonexistent", "--by", "Anton", "--why", "test"],
         )
-        
+
         assert result.exit_code == 1
         assert "not found" in result.output
 
@@ -214,12 +214,12 @@ class TestIntentApprove:
         """Approve from staged (not awaiting) exits 1."""
         intent = test_service.stage(intent_type="test", payload={})
         # Not submitted for review
-        
+
         result = runner.invoke(
             app,
             ["intent", "approve", intent.intent_id, "--by", "Anton", "--why", "test"],
         )
-        
+
         assert result.exit_code == 1
         assert "Transition error" in result.output
 
@@ -231,12 +231,12 @@ class TestIntentReject:
         """Reject sets status to rejected."""
         intent = test_service.stage(intent_type="test", payload={})
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(
             app,
             ["intent", "reject", intent.intent_id, "--by", "Anton", "--why", "Too risky"],
         )
-        
+
         assert result.exit_code == 0
         assert "Rejected" in result.output
 
@@ -248,7 +248,7 @@ class TestIntentDefer:
         """Defer sets status to deferred."""
         intent = test_service.stage(intent_type="test", payload={})
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(
             app,
             [
@@ -258,7 +258,7 @@ class TestIntentDefer:
                 "--why", "Need more info",
             ],
         )
-        
+
         assert result.exit_code == 0
         assert "Deferred" in result.output
 
@@ -266,7 +266,7 @@ class TestIntentDefer:
         """Defer with invalid date exits 1."""
         intent = test_service.stage(intent_type="test", payload={})
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(
             app,
             [
@@ -276,7 +276,7 @@ class TestIntentDefer:
                 "--why", "test",
             ],
         )
-        
+
         assert result.exit_code == 1
         assert "Invalid datetime" in result.output
 
@@ -287,12 +287,12 @@ class TestIntentCancel:
     def test_cancel_transitions_to_cancelled(self, test_service):
         """Cancel sets status to cancelled."""
         intent = test_service.stage(intent_type="test", payload={})
-        
+
         result = runner.invoke(
             app,
             ["intent", "cancel", intent.intent_id, "--by", "Anton", "--why", "No longer needed"],
         )
-        
+
         assert result.exit_code == 0
         assert "Cancelled" in result.output
 
@@ -303,7 +303,7 @@ class TestExpireStale:
     def test_expire_stale_no_intents(self):
         """Expire-stale with no stale intents."""
         result = runner.invoke(app, ["intent", "expire-stale"])
-        
+
         assert result.exit_code == 0
         assert "No stale intents" in result.output
 
@@ -315,16 +315,16 @@ class TestExpireStale:
             expires_in_days=-1,  # Already expired
         )
         test_service.submit_for_review(intent.intent_id)
-        
+
         result = runner.invoke(app, ["intent", "expire-stale"])
-        
+
         assert result.exit_code == 0
         assert intent.intent_id in result.output
 
     def test_expire_stale_json_output(self, test_service):
         """--json outputs list of expired IDs."""
         result = runner.invoke(app, ["intent", "expire-stale", "--json"])
-        
+
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "expired" in data

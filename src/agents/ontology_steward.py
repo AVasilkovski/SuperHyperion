@@ -1,26 +1,27 @@
-from typing import Dict, Any, Optional, List
-import time
+import hashlib
 import json
 import logging
-import math
+import time
 from dataclasses import asdict
+from typing import Any, Dict, List, Optional
 
-from src.agents.base_agent import BaseAgent, AgentContext
-
-from src.montecarlo.versioned_registry import VERSIONED_REGISTRY, get_latest_template  # Access explicit registry
-
-from src.montecarlo.template_metadata import sha256_json_strict
-from src.montecarlo.types import QID_RE
+from src.agents.base_agent import AgentContext, BaseAgent
+from src.epistemology.evidence_roles import (
+    EvidenceRole,
+    FailureMode,
+    clamp_probability,
+    require_evidence_role,
+    validate_evidence_role,
+    validate_failure_mode,
+)
 
 # Phase 16.1: Import from governance module
 from src.governance.fingerprinting import make_evidence_id, make_negative_evidence_id
-from src.epistemology.evidence_roles import (
-    validate_evidence_role,
-    validate_failure_mode,
-    require_evidence_role,
-    clamp_probability,
-    FailureMode,
-    EvidenceRole,
+from src.montecarlo.template_metadata import sha256_json_strict
+from src.montecarlo.types import QID_RE
+from src.montecarlo.versioned_registry import (  # Access explicit registry
+    VERSIONED_REGISTRY,
+    get_latest_template,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,27 +29,29 @@ class OntologySteward(BaseAgent):
     """
     Step 13: Updates the hypergraph with vetted knowledge and full v2.2 audit trails.
     """
-    
+
     def __init__(self, confidence_threshold: float = 0.7):
         super().__init__(name="OntologySteward")
+        from src.db.capabilities import WriteCap
+        self._write_cap = WriteCap._mint()
         self.confidence_threshold = confidence_threshold
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """Persist all v2.2 artifacts and execute approved writes."""
         session_id = context.graph_context.get("session_id", f"sess-{time.time_ns()}")
         user_query = context.graph_context.get("user_query", "unknown")
-        
+
         # 1. Persist Session
         try:
-             self.insert_to_graph(q_insert_session(session_id, user_query, "running"))
+             self.insert_to_graph(q_insert_session(session_id, user_query, "running"), cap=self._write_cap)
         except Exception as e:
-             logger.debug(f"Session insert skipped (session_id={session_id}): {e}") 
-        
+             logger.debug(f"Session insert skipped (session_id={session_id}): {e}")
+
         # 2. Persist Traces
         traces = context.graph_context.get("traces", [])
         for trace in traces:
-            self.insert_to_graph(q_insert_trace(session_id, trace))
-            
+            self.insert_to_graph(q_insert_trace(session_id, trace), cap=self._write_cap)
+
         # 2a. Persist Retrieval Assessment (Phase 12) — guarded
         ra = context.graph_context.get("retrieval_assessment")
         metrics = context.graph_context.get("retrieval_grade") or {}
@@ -71,12 +74,12 @@ class OntologySteward(BaseAgent):
                     "reasoning": metrics.get("reasoning", ""),
                     "refinement_count": metrics.get("refinement_count", 0),
                 }
-            self.insert_to_graph(q_insert_retrieval_assessment(session_id, ra))
+            self.insert_to_graph(q_insert_retrieval_assessment(session_id, ra), cap=self._write_cap)
 
         # 2b. Persist Meta-Critique (Phase 12)
         mc = context.graph_context.get("meta_critique", {})
         if mc:
-            self.insert_to_graph(q_insert_meta_critique(session_id, mc))
+            self.insert_to_graph(q_insert_meta_critique(session_id, mc), cap=self._write_cap)
 
         # 2c. Persist Speculative Hypotheses (Phase 11)
         spec_ctx = context.graph_context.get("speculative_context") or {}
@@ -91,12 +94,12 @@ class OntologySteward(BaseAgent):
                             alt_index=i,
                             alt=alt,
                             full_claim_blob=blob,
-                        ))
+                        ), cap=self._write_cap)
                         # Optional: Link to proposition if exists (best effort)
                         try:
                             self.insert_to_graph(q_insert_speculative_hypothesis_targets_proposition(
                                 session_id, claim_id, i
-                            ))
+                            ), cap=self._write_cap)
                         except Exception:
                             pass # Target proposition might not exist yet
                     except Exception as e:
@@ -107,21 +110,25 @@ class OntologySteward(BaseAgent):
         for exec_rec in executions:
             # Handle both dict and object
             ex_data = exec_rec.model_dump() if hasattr(exec_rec, "model_dump") else exec_rec
-            self.insert_to_graph(q_insert_execution(session_id, ex_data))
-            
+            self.insert_to_graph(q_insert_execution(session_id, ex_data), cap=self._write_cap)
+
             # Persist validation-evidence for successful executions (optional Phase 12.1)
             # SKIPPING here - we now persist the full 'Evidence' objects below
             pass
 
         # 3b. Persist Full Evidence Objects (Phase 13)
         evidence_list = context.graph_context.get("evidence", [])
+        _intent_id = context.graph_context.get("intent_id")
+        print(f"DEBUG_STEWARD: Found {len(evidence_list)} evidence items. intent_id={_intent_id}")
         for ev in evidence_list:
             ev_data = ev.model_dump() if hasattr(ev, "model_dump") else (
-                asdict(ev) if hasattr(ev, "__dataclass_fields__") else ev
+                asdict(ev) if hasattr(ev, "__dataclass_fields__") else (
+                    ev.__dict__ if hasattr(ev, "__dict__") else ev
+                )
             )
             try:
                 evidence_id = self._seal_evidence_dict_before_mint(session_id, ev_data, channel="positive")
-                self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data, evidence_id=evidence_id))
+                self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data, evidence_id=evidence_id, intent_id=_intent_id), cap=self._write_cap)
             except Exception as e:
                 logger.error(f"Evidence insert failed (id={ev_data.get('execution_id')}): {e}")
                 raise
@@ -143,7 +150,8 @@ class OntologySteward(BaseAgent):
                         neg_ev_data,
                         evidence_id=evidence_id,
                         evidence_role=evidence_role,
-                    )
+                    ),
+                    cap=self._write_cap,
                 )
             except Exception as e:
                 logger.error(
@@ -154,19 +162,19 @@ class OntologySteward(BaseAgent):
                     f"role={evidence_role}. error={e}"
                 )
                 raise
-        
+
         # 3d. Theory Change Operator (Phase 16.2) — proposal-only
         try:
             self._generate_and_stage_proposals(session_id)
         except Exception as e:
             logger.error(f"Phase 16.2 proposal generation failed (session={session_id}): {e}")
             # Non-fatal: don't block the rest of the pipeline
-        
+
         # 4. Persist Epistemic Proposals
         proposals = context.graph_context.get("epistemic_update_proposal", [])
         for prop in proposals:
-            self.insert_to_graph(q_insert_proposal(session_id, prop))
-            
+            self.insert_to_graph(q_insert_proposal(session_id, prop), cap=self._write_cap)
+
         # 5. Persist Write Intents (Staged)
         intents = context.graph_context.get("write_intents", [])
         for intent in intents:
@@ -175,54 +183,54 @@ class OntologySteward(BaseAgent):
              is_approved = any(a.get("intent_id") == intent.get("intent_id") for a in approved_list)
              if is_approved:
                  status = "approved"
-             
-             self.insert_to_graph(q_insert_write_intent(session_id, intent, status))
+
+             self.insert_to_graph(q_insert_write_intent(session_id, intent, status), cap=self._write_cap)
 
         # 6. Execute Approved Intents & Log Status Events
         approved_intents = context.graph_context.get("approved_write_intents", [])
         committed = []
         failed = []
-        
+
         for intent in approved_intents:
             success, err_msg = self._execute_intent(intent)
-            
+
             # Log status event
             final_status = "executed" if success else "failed"
             payload = {"intent_type": intent.get("intent_type", "unknown")}
             if err_msg:
                 payload["error"] = err_msg
-                
+
             self.insert_to_graph(q_insert_intent_status_event(
-                intent.get("intent_id"), 
-                final_status, 
+                intent.get("intent_id"),
+                final_status,
                 payload
-            ))
-            
+            ), cap=self._write_cap)
+
             if success:
                 committed.append(intent)
             else:
                 failed.append(intent)
-        
+
         # 7. Finalize Session (ended-at + run-status transition)
         final_status = "failed" if failed else "complete"
-        
+
         # Delete old ended-at first for idempotency
         if hasattr(self, 'db'):
-            self.db.query_delete(q_delete_session_ended_at(session_id))
+            self.db.query_delete(q_delete_session_ended_at(session_id), cap=self._write_cap)
         else:
             from src.db.typedb_client import typedb
-            typedb.query_delete(q_delete_session_ended_at(session_id))
+            typedb.query_delete(q_delete_session_ended_at(session_id), cap=self._write_cap)
 
-        self.insert_to_graph(q_set_session_ended_at(session_id))
+        self.insert_to_graph(q_set_session_ended_at(session_id), cap=self._write_cap)
 
         if hasattr(self, 'db'):
-            self.db.query_delete(q_delete_session_run_status(session_id))
-            self.db.query_insert(q_insert_session_run_status(session_id, final_status))
+            self.db.query_delete(q_delete_session_run_status(session_id), cap=self._write_cap)
+            self.db.query_insert(q_insert_session_run_status(session_id, final_status), cap=self._write_cap)
         else:
             # Fallback for compilation context
             from src.db.typedb_client import typedb
-            typedb.query_delete(q_delete_session_run_status(session_id))
-            typedb.query_insert(q_insert_session_run_status(session_id, final_status))
+            typedb.query_delete(q_delete_session_run_status(session_id), cap=self._write_cap)
+            typedb.query_insert(q_insert_session_run_status(session_id, final_status), cap=self._write_cap)
 
         # Summary logging
         logger.info(
@@ -231,11 +239,11 @@ class OntologySteward(BaseAgent):
             f"{len(proposals)} proposals, "
             f"{len(committed)} writes committed"
         )
-        
+
         # Update context for final output
         context.graph_context["committed_intents"] = committed
         context.graph_context["failed_intents"] = failed
-        
+
         return context
 
     def _execute_intent(self, intent: Dict) -> tuple[bool, Optional[str]]:
@@ -245,39 +253,39 @@ class OntologySteward(BaseAgent):
         """
         intent_type = intent.get("intent_type")
         payload = intent.get("payload", {})
-        
+
         try:
             if intent_type == "update_epistemic_status":
                 claim_id = payload.get("claim_id")
                 new_status = payload.get("status")
-                
+
                 # Separate queries for valid TypeQL
                 delete_q = f'''
                 match $c isa proposition, has entity-id "{escape(claim_id)}", has epistemic-status $old;
                 delete $c has epistemic-status $old;
                 '''
-                
+
                 insert_q = f'''
                 match $c isa proposition, has entity-id "{escape(claim_id)}";
                 insert $c has epistemic-status "{escape(new_status)}";
                 '''
-                
+
                 # Use base agent's DB connection directly
                 if hasattr(self, 'db'):
-                    self.db.query_delete(delete_q)
-                    self.db.query_insert(insert_q)
+                    self.db.query_delete(delete_q, cap=self._write_cap)
+                    self.db.query_insert(insert_q, cap=self._write_cap)
                 else:
                     # Fallback to global typedb instance if self.db not set (legacy)
                     from src.db.typedb_client import typedb
-                    typedb.query_delete(delete_q)
-                    typedb.query_insert(insert_q)
-                    
+                    typedb.query_delete(delete_q, cap=self._write_cap)
+                    typedb.query_insert(insert_q, cap=self._write_cap)
+
                 return True, None
-                
+
             elif intent_type == "create_claim":
                 # Implementation for creating new claims
                 pass
-                
+
             return True, None
         except Exception as e:
             logger.error(f"Failed to execute intent {intent}: {e}")
@@ -307,8 +315,8 @@ class OntologySteward(BaseAgent):
                 # Iterate registry to find it (or add get_latest_spec to registry)
                 # Easier: just scan VERSIONED_REGISTRY.
                 specs = [
-                    VERSIONED_REGISTRY.get_spec(qid) 
-                    for qid in VERSIONED_REGISTRY.list_all() 
+                    VERSIONED_REGISTRY.get_spec(qid)
+                    for qid in VERSIONED_REGISTRY.list_all()
                     if qid.startswith(f"{template_id}@")
                 ]
                 if not specs:
@@ -318,7 +326,7 @@ class OntologySteward(BaseAgent):
                 specs.sort(key=lambda s: s.version, reverse=True)
                 spec = specs[0]
                 version_str = str(spec.version)
-                
+
             except ValueError:
                 return # Not a registered template
 
@@ -330,18 +338,23 @@ class OntologySteward(BaseAgent):
                 if not driver:
                     from src.db.typedb_client import typedb
                     driver = typedb.driver
-                    
+
+                from src.montecarlo.template_store import TypeDBTemplateStore
                 store = TypeDBTemplateStore(driver)
-            
+
             # 3. Ensure metadata exists (Lazy Sync)
             # This handles first-run bootstrap without explicit "init" step
             meta = store.get_metadata(template_id, version_str)
             if not meta:
-                from src.montecarlo.template_metadata import TemplateMetadata, TemplateStatus, compute_code_hash
-                
+                from src.montecarlo.template_metadata import (
+                    TemplateMetadata,
+                    TemplateStatus,
+                    compute_code_hash,
+                )
+
                 # Check integrity before insert
                 current_code_hash = compute_code_hash(type(template))
-                
+
                 # Create and insert
                 new_meta = TemplateMetadata(
                     template_id=template_id,
@@ -353,7 +366,7 @@ class OntologySteward(BaseAgent):
                     approved_at=None,
                 )
                 store.insert_metadata(new_meta)
-            
+
             # 4. Execute Freeze
             store.freeze(
                 template_id=template_id,
@@ -362,11 +375,11 @@ class OntologySteward(BaseAgent):
                 claim_id=claim_id,
                 scope_lock_id=scope_lock_id,
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to freeze template {template_id}: {e}")
-    
-    
+
+
 
     def _seal_operator_before_mint(
         self,
@@ -385,7 +398,7 @@ class OntologySteward(BaseAgent):
          - code hash parity vs compute_code_hash_strict(VERSIONED_REGISTRY.get(qid))
          - freezes template on success (idempotent store call)
          """
-        
+
         if not scope_lock_id:
             raise ValueError("Seal failed: missing scope_lock_id")
         if not claim_id:
@@ -398,7 +411,7 @@ class OntologySteward(BaseAgent):
         # QID format: must be fully qualified
         if (not qid) or ("@" not in qid) or (not QID_RE.match(qid)):
             raise ValueError("Invalid template_qid format for seal")
-            
+
         template_id, version = qid.split("@", 1)
         template_id, version = template_id.strip(), version.strip()
         if not template_id or not version:
@@ -406,16 +419,16 @@ class OntologySteward(BaseAgent):
         store = getattr(self, "template_store", None)
         if store is None:
             raise ValueError("Seal failed: template_store not configured")
-            
+
         # Fetch metadata
         meta = store.get_metadata(template_id, version)
         if meta is None:
             raise ValueError(f"Seal failed: missing metadata for {qid}")
-            
+
         # Corrupt metadata (tests expect this exact phrase)
         if not getattr(meta, "spec_hash", None) or not getattr(meta, "code_hash", None):
             raise ValueError("Corrupt metadata")
-            
+
         # --- Spec hash parity ---
         from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
 
@@ -424,13 +437,13 @@ class OntologySteward(BaseAgent):
         expected_spec_hash = meta.spec_hash
         if actual_spec_hash != expected_spec_hash:
             raise ValueError("Spec hash mismatch")
-            
+
         # --- Code hash parity ---
         template_instance = VERSIONED_REGISTRY.get(qid)
         if template_instance is None:
         # tests match "Seal failed: Template instance .* not found"
             raise ValueError(f"Seal failed: Template instance {qid} not found")
-            
+
         from src.montecarlo.template_metadata import compute_code_hash_strict
 
         actual_code_hash = compute_code_hash_strict(template_instance)
@@ -446,8 +459,8 @@ class OntologySteward(BaseAgent):
             scope_lock_id=scope_lock_id,
             actor="system",
         )
-    
-    
+
+
     def _seal_evidence_dict_before_mint(
         self,
         session_id: str,
@@ -492,8 +505,12 @@ class OntologySteward(BaseAgent):
         match
             $s isa run-session, has session-id "{escape(session_id)}";
             (session: $s, evidence: $e) isa session-has-evidence;
-            $e isa evidence,
-                has entity-id $eid,
+            {{
+                $e isa! validation-evidence;
+            }} or {{
+                $e isa! negative-evidence;
+            }};
+            $e has entity-id $eid,
                 has claim-id $cid,
                 has scope-lock-id $slid,
                 has confidence-score $conf;
@@ -502,7 +519,7 @@ class OntologySteward(BaseAgent):
             $p isa proposition, has entity-id $pid;
         get $eid, $cid, $slid, $conf, $role, $pid;
         '''
-        
+
         try:
             base_rows = self._read_query(query_base)
         except Exception as e:
@@ -521,7 +538,7 @@ class OntologySteward(BaseAgent):
                 has refutation-strength $rs;
         get $eid, $fm, $rs;
         '''
-        
+
         neg_map = {}
         try:
             neg_rows = self._read_query(query_neg)
@@ -531,7 +548,7 @@ class OntologySteward(BaseAgent):
         except Exception as e:
             logger.warning(f"Evidence fetch (negative) failed (session={session_id}): {e}")
             # Non-fatal: just implies no negative fields available
-            
+
         # Merge negative fields into base rows
         enriched = []
         for row in base_rows:
@@ -540,7 +557,7 @@ class OntologySteward(BaseAgent):
                 row["fm"] = neg_map[eid].get("fm")
                 row["rs"] = neg_map[eid].get("rs")
             enriched.append(row)
-        
+
         return enriched
 
     def _to_operator_tuples(
@@ -551,8 +568,7 @@ class OntologySteward(BaseAgent):
         
         Channel inference: presence of fm/rs/failure-mode ⟹ negative
         """
-        from src.epistemology.evidence_roles import validate_evidence_role
-        
+
         out = []
         for r in ev_rows:
             # Role from DB variable or legacy keys
@@ -565,15 +581,15 @@ class OntologySteward(BaseAgent):
             if role is None:
                 logger.debug(f"Skipping evidence with invalid role: {role_raw}")
                 continue
-            
+
             # Channel from subtype markers (fm/rs presence ⟹ negative)
             is_negative = bool(
-                r.get("fm") or r.get("rs") 
+                r.get("fm") or r.get("rs")
                 or r.get("failure-mode") or r.get("failure_mode")
                 or r.get("refutation-strength") or r.get("refutation_strength")
             )
             channel = "negative" if is_negative else "validation"
-            
+
             out.append((r, role, channel))
         return out
 
@@ -584,17 +600,18 @@ class OntologySteward(BaseAgent):
         Rule: max confidence, tie-break on evidence entity-id ascending.
         """
         from src.epistemology.theory_change_operator import (
-            get_evidence_entity_id, get_confidence_value
+            get_confidence_value,
+            get_evidence_entity_id,
         )
-        
+
         def _extract_slid(ev):
             val = (
-                ev.get("slid") 
-                or ev.get("scope_lock_id") 
+                ev.get("slid")
+                or ev.get("scope_lock_id")
                 or ev.get("scope-lock-id")
             )
             return str(val).strip() if val else ""
-        
+
         scored = []
         for ev in evidence_list:
             slid = _extract_slid(ev)
@@ -603,10 +620,10 @@ class OntologySteward(BaseAgent):
             evid = get_evidence_entity_id(ev)
             conf = get_confidence_value(ev)
             scored.append((conf, evid, slid))
-        
+
         if not scored:
             return None
-        
+
         # Sort: max confidence first, then lexicographic by evid (deterministic)
         scored.sort(key=lambda t: (-t[0], t[1]))
         return scored[0][2]
@@ -615,19 +632,24 @@ class OntologySteward(BaseAgent):
         """
         Fetch session evidence, generate proposals, and stage intents.
         
-        Phase 16.2: Proposal-only mode (no direct mutations).
+        Phase 16.3: Non-circular proposal generation with deterministic IDs.
         """
         from src.epistemology.theory_change_operator import (
-            generate_proposal, get_claim_id, TheoryAction
+            TheoryAction,
+            compute_theory_change_action,
+            generate_proposal,
+            get_claim_id,
+            get_evidence_entity_id,
         )
+        from src.governance.fingerprinting import make_policy_hash, make_proposal_id
         from src.hitl.intent_service import write_intent_service
-        
+
         # 1. Fetch evidence
         session_evidence = self._fetch_session_evidence(session_id)
         if not session_evidence:
             logger.debug(f"No evidence to process for session {session_id}")
             return
-        
+
         # 2. Group by claim
         by_claim: Dict[str, List[Dict[str, Any]]] = {}
         for ev in session_evidence:
@@ -635,25 +657,52 @@ class OntologySteward(BaseAgent):
             if not cid:
                 continue
             by_claim.setdefault(cid, []).append(ev)
-        
-        # 3. Generate and stage proposals
+
+        # 3. Compute policy hash once per batch
+        policy_hash = make_policy_hash()
+
+        # 4. Generate and stage proposals (non-circular)
         staged_count = 0
         for claim_id, ev_list in by_claim.items():
             tuples = self._to_operator_tuples(ev_list)
             if not tuples:
                 continue
-            
-            proposal = generate_proposal(claim_id, tuples)
-            
+
+            # Step 1: Compute action FIRST (no proposal yet)
+            action, metadata = compute_theory_change_action(claim_id, tuples)
+
             # Skip HOLD actions (insufficient evidence)
-            if proposal.action == TheoryAction.HOLD:
+            if action == TheoryAction.HOLD:
                 logger.debug(f"Skipping HOLD proposal for claim {claim_id}")
                 continue
-            
+
+            # Step 2: Evidence fingerprint (includes role+channel)
+            evidence_fps = sorted(
+                f"{get_evidence_entity_id(ev)}:{role.value}:{channel}"
+                for ev, role, channel in tuples
+            )
+
+            # Filter missing IDs → HOLD (fail safe)
+            if any(fp.startswith("unknown:") or ":unknown:" in fp for fp in evidence_fps):
+                logger.warning(f"Skipping proposal for {claim_id} due to missing evidence IDs")
+                continue
+
+            # Step 3: Deterministic proposal_id
+            proposal_id = make_proposal_id(
+                session_id, claim_id, action.value, evidence_fps, policy_hash
+            )
+
+            # Step 4: Build proposal (no recompute)
+            proposal = generate_proposal(
+                claim_id, tuples,
+                proposal_id=proposal_id,
+                precomputed=(action, metadata),
+            )
+
             # Derive scope-lock deterministically
             scope_lock_id = self._derive_scope_lock_id(ev_list)
-            
-            # Stage proposal intent (AUTO approval for audit)
+
+            # Stage proposal intent
             try:
                 write_intent_service.stage(
                     intent_type="stage_epistemic_proposal",
@@ -661,12 +710,13 @@ class OntologySteward(BaseAgent):
                     lane="grounded",
                     scope_lock_id=scope_lock_id,
                     impact_score=proposal.conflict_score,
+                    proposal_id=proposal_id,
                 )
                 staged_count += 1
             except Exception as e:
                 logger.error(f"Failed to stage proposal for claim {claim_id}: {e}")
-        
-        logger.info(f"Phase 16.2: Staged {staged_count} proposal(s) for session {session_id}")
+
+        logger.info(f"Phase 16.3: Staged {staged_count} proposal(s) for session {session_id}")
 
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)
@@ -689,8 +739,8 @@ def sha256_json(data: Any) -> str:
 
 def q_insert_session(session_id: str, user_query: str, status: str) -> str:
     uq = escape(user_query)
-    # Check if exists first? TypeDB insert is additive. 
-    # If session-id is @key, duplicates will fail. 
+    # Check if exists first? TypeDB insert is additive.
+    # If session-id is @key, duplicates will fail.
     # For now, we assume this is the start or we catch the error.
     return f'''
     insert $s isa run-session,
@@ -741,13 +791,13 @@ def q_insert_trace(session_id: str, trace: dict) -> str:
 def q_insert_execution(session_id: str, ex: dict) -> str:
     params_hash = ex.get("params_hash") or sha256_json_strict(ex.get("params", {}))
     result_hash = ex.get("result_hash") or sha256_json_strict(ex.get("result", {}))
-    
+
     payload = {
         "warnings": ex.get("warnings", []),
         "result_summary": str(ex.get("result", ""))[:200]
     }
     payload_json = json.dumps(payload, sort_keys=True)
-    
+
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}";
     insert
@@ -768,7 +818,7 @@ def q_insert_execution(session_id: str, ex: dict) -> str:
 def q_insert_proposal(session_id: str, p: dict) -> str:
     # Also link to proposition via proposal-targets-proposition IF claim exists
     claim_id = p.get("claim_id")
-    
+
     base_insert = f'''
     match $s isa run-session, has session-id "{escape(session_id)}";
     insert
@@ -886,18 +936,18 @@ def q_insert_meta_critique(session_id: str, mc: dict) -> str:
       (session: $s, meta-critique: $m) isa session-has-meta-critique;
     '''
 
-def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optional[str] = None) -> str:
+def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optional[str] = None, intent_id: Optional[str] = None) -> str:
     # ------------------------------------------------------------------
     # Constitutional Gate (Phase 14.5)
     # ------------------------------------------------------------------
     exec_id = (ev.get("execution_id") or ev.get("execution-id") or "").strip()
-    
+
     # 1. Extract IDs first (needed for error messages)
     claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or "").strip()
     template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
     template_id = (ev.get("template_id") or ev.get("template-id") or "").strip()
     scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
-    
+
     # 2. Claim ID is REQUIRED (must check before other guards)
     if not claim_id:
         raise ValueError(f"CRITICAL: Validation evidence missing claim_id! (exec_id={exec_id})")
@@ -911,8 +961,8 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     # ------------------------------------------------------------------
     # 3. Speculative Guard (Phase 11) - Must run before success-only
     # ------------------------------------------------------------------
-    SPEC_KEYS = {"epistemic_status", "epistemic-status"}
-    SPEC_CONTEXT_KEYS = {"speculative_context", "speculative-context"}
+    spec_keys = {"epistemic_status", "epistemic-status"}
+    spec_context_keys = {"speculative_context", "speculative-context"}
 
     def is_speculative(obj):
         if isinstance(obj, str):
@@ -934,10 +984,10 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
         if isinstance(obj, dict):
             if obj.get("lane") == "speculative":
                 return True
-            for k in SPEC_KEYS:
+            for k in spec_keys:
                 if obj.get(k) == "speculative":
                     return True
-            if any(k in obj for k in SPEC_CONTEXT_KEYS):
+            if any(k in obj for k in spec_context_keys):
                 return True
             return any(is_speculative(v) for v in obj.values())
 
@@ -959,11 +1009,11 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
         success = raw_success.strip().lower() == "true"
     else:
         success = bool(raw_success)
-        
+
     # 5. Enforce Success-Only Policy (AFTER speculative/claim_id guards)
     if not success:
         raise ValueError(f"Policy violation: validation-evidence is success-only (exec_id={exec_id})")
-    
+
     # 6. Derive template_id from QID if missing
     if not template_id and template_qid and "@" in template_qid:
         template_id = template_qid.split("@", 1)[0]
@@ -973,7 +1023,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     # ------------------------------------------------------------------
     conf_raw = ev.get("confidence_score", ev.get("confidence", 0.0)) or 0.0
     conf = clamp_probability(conf_raw, "confidence_score")
-    
+
     # Prune excluded keys for JSON payload
     exclude = {
         "claim_id", "claim-id", "proposition_id",
@@ -983,9 +1033,11 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     base_json = ev.get("json") if isinstance(ev.get("json"), dict) else {}
     extra_fields = {k: v for k, v in ev.items() if k not in exclude}
     payload = {**base_json, **extra_fields}
-    
+
     if not evidence_id:
         evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
+
+    intent_clause = f',\n        has authorized-by-intent-id "{escape(intent_id)}"' if intent_id else ''
 
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}";
@@ -1000,13 +1052,11 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
         has scope-lock-id "{escape(scope_lock_id)}",
         has success {str(success).lower()},
         has confidence-score {conf},
-        has json "{escape(json.dumps(payload, sort_keys=True))}",
+        has json "{escape(json.dumps(payload, sort_keys=True))}"{intent_clause},
         has created-at {iso_now()};
     (session: $s, evidence: $v) isa session-has-evidence;
     (evidence: $v, proposition: $p) isa evidence-for-proposition,
         has evidence-role "support";
-
-
     '''
 
 def q_insert_speculative_hypothesis(
@@ -1089,14 +1139,14 @@ def q_insert_negative_evidence(
     template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
     template_id = (ev.get("template_id") or ev.get("template-id") or "").strip()
     scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
-    
+
     # Validate claim_id (same invariant as positive evidence)
     if not claim_id:
         raise ValueError(f"CRITICAL: Negative evidence missing claim_id! (exec_id={exec_id})")
-    
+
     # Validate and normalize evidence role (Phase 16.2: strict mode)
     role_enum = require_evidence_role(evidence_role, default=EvidenceRole.REFUTE, strict=True)
-    
+
     # Phase 16.2: Prevent channel misuse
     # SUPPORT is forbidden (use validation-evidence instead)
     # REFUTE, UNDERCUT, REPLICATE are allowed
@@ -1105,9 +1155,9 @@ def q_insert_negative_evidence(
             f"CRITICAL: negative-evidence cannot have role='support'. "
             f"Use validation-evidence for supporting evidence. (exec_id={exec_id})"
         )
-    
+
     role_value = role_enum.value
-    
+
     # Validate and normalize failure mode
     failure_mode_raw = ev.get("failure_mode") or ev.get("failure-mode")
     if role_enum == EvidenceRole.REPLICATE and not failure_mode_raw:
@@ -1118,18 +1168,18 @@ def q_insert_negative_evidence(
     failure_mode_raw = failure_mode_raw or "null_effect"
     failure_mode_enum = validate_failure_mode(failure_mode_raw) or FailureMode.NULL_EFFECT
     failure_mode_value = failure_mode_enum.value
-    
+
     # Phase 16.2: Clamp numeric fields to [0,1]
     refutation_strength_raw = float(ev.get("refutation_strength") or ev.get("refutation-strength") or 0.5)
     refutation_strength = clamp_probability(refutation_strength_raw, "refutation_strength")
-    
+
     conf_raw = float(ev.get("confidence_score") or ev.get("confidence-score") or 0.5)
     conf = clamp_probability(conf_raw, "confidence_score")
-    
+
     # Generate deterministic ID if not provided
     if not evidence_id:
         evidence_id = make_negative_evidence_id(session_id, claim_id, exec_id, template_qid)
-    
+
     # Prune excluded keys for JSON payload (same as validation-evidence)
     exclude = {
         "claim_id", "claim-id", "proposition_id",
@@ -1140,7 +1190,7 @@ def q_insert_negative_evidence(
     base_json = ev.get("json") if isinstance(ev.get("json"), dict) else {}
     extra_fields = {k: v for k, v in ev.items() if k not in exclude}
     payload = {**base_json, **extra_fields}
-    
+
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}";
     match $p isa proposition, has entity-id "{escape(claim_id)}";

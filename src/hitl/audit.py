@@ -4,12 +4,12 @@ HITL Audit Log
 v2.1 H6: Immutable audit trail for all human decisions.
 """
 
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Dict, Any, List, Optional
 import json
 import logging
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from src.hitl.base import HITLDecision
 
@@ -26,7 +26,7 @@ class HITLAuditEvent:
     actor_id: str
     action: str
     details: Dict[str, Any]
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "event_id": self.event_id,
@@ -37,7 +37,7 @@ class HITLAuditEvent:
             "action": self.action,
             "details": self.details,
         }
-    
+
     def to_json(self) -> str:
         return json.dumps(self.to_dict())
 
@@ -52,12 +52,12 @@ class HITLAuditLog:
         - Actor-tracked
         - Queryable by claim_id
     """
-    
+
     def __init__(self, log_path: Optional[Path] = None):
         self._events: List[HITLAuditEvent] = []
         self._event_counter = 0
         self.log_path = log_path
-    
+
     def log_decision(
         self,
         claim_id: str,
@@ -67,7 +67,7 @@ class HITLAuditLog:
         """Log a human decision."""
         self._event_counter += 1
         event_id = f"evt_{self._event_counter:06d}"
-        
+
         event = HITLAuditEvent(
             event_id=event_id,
             timestamp=datetime.now(),
@@ -80,10 +80,10 @@ class HITLAuditLog:
                 "gate_type": gate_type,
             },
         )
-        
+
         self._append_event(event)
         return event_id
-    
+
     def log_gate_triggered(
         self,
         claim_id: str,
@@ -93,7 +93,7 @@ class HITLAuditLog:
         """Log when a gate is triggered."""
         self._event_counter += 1
         event_id = f"evt_{self._event_counter:06d}"
-        
+
         event = HITLAuditEvent(
             event_id=event_id,
             timestamp=datetime.now(),
@@ -106,14 +106,14 @@ class HITLAuditLog:
                 "trigger_reason": trigger_reason,
             },
         )
-        
+
         self._append_event(event)
         return event_id
-    
+
     def _append_event(self, event: HITLAuditEvent) -> None:
         """Append event to log (immutable)."""
         self._events.append(event)
-        
+
         # Persist to file if path configured
         if self.log_path:
             try:
@@ -121,24 +121,24 @@ class HITLAuditLog:
                     f.write(event.to_json() + "\n")
             except Exception as e:
                 logger.error(f"Failed to persist audit event: {e}")
-        
+
         logger.info(f"Audit event logged: {event.event_id}")
-    
+
     def get_decision_history(self, claim_id: str) -> List[HITLAuditEvent]:
         """Get all audit events for a claim."""
         return [e for e in self._events if e.claim_id == claim_id]
-    
+
     def get_all_events(self) -> List[HITLAuditEvent]:
         """Get all audit events."""
         return list(self._events)  # Return copy
-    
+
     def get_decisions_by_actor(self, actor_id: str) -> List[HITLAuditEvent]:
         """Get all decisions made by a specific actor."""
         return [
-            e for e in self._events 
+            e for e in self._events
             if e.actor_id == actor_id and e.event_type == "decision"
         ]
-    
+
     def count_by_action(self) -> Dict[str, int]:
         """Count events by action type."""
         counts: Dict[str, int] = {}

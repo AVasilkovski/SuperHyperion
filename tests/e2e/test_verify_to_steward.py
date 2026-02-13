@@ -1,12 +1,13 @@
 
-import pytest
 import re
-from unittest.mock import MagicMock
 
-from src.agents.verify_agent import VerifyAgent
-from src.agents.ontology_steward import OntologySteward
+import pytest
+
 from src.agents.base_agent import AgentContext
+from src.agents.ontology_steward import OntologySteward
+from src.agents.verify_agent import VerifyAgent
 from src.db.typedb_client import TypeDBConnection
+
 
 # ----------------------------
 # Strict MockTypeDB
@@ -19,23 +20,32 @@ class StrictMockTypeDB(TypeDBConnection):
         self.propositions = set()
         self._mock_mode = True
 
-    def query_insert(self, query: str):
+    def query_insert(self, query: str, **kwargs):
         self.inserts.append(query)
 
         # Track inserted propositions
         if "insert" in query and "isa proposition" in query and 'has entity-id "' in query:
-            m = re.search(r'has entity-id "([^"]+)"', query)
+            # Robust regex: scan for entity-id anywhere in the query
+            m = re.search(r'has entity-id "([^"]+)"', query, re.DOTALL)
             if m:
                 self.propositions.add(m.group(1))
 
         # Enforce proposition existence when matching for links
         is_linking = ("isa evidence-for-proposition" in query) or ("isa proposal-targets-proposition" in query)
         if is_linking:
-            m = re.search(r'isa proposition, has entity-id "([^"]+)"', query)
+            # Robust regex: match proposition type and entity-id, ignoring intervening text
+            # We look for ANY mention of a proposition entity-id in a linking query
+            # CRITICAL: Use non-greedy match .*? to avoid skipping to the evidence entity-id
+            m = re.search(r'isa proposition.*?has entity-id "([^"]+)"', query, re.DOTALL)
+            
+            # Fallback: if not found, try simpler pattern just for the entity-id
+            if not m:
+                 m = re.search(r'has entity-id "([^"]+)"', query, re.DOTALL)
+
             if m and m.group(1) not in self.propositions:
                 raise RuntimeError(f"Missing proposition violation: {m.group(1)} was not found. Current propositions: {self.propositions}")
 
-    def query_delete(self, query: str):
+    def query_delete(self, query: str, **kwargs):
         self.deletes.append(query)
 
     def connect(self):
@@ -88,7 +98,7 @@ class TestVerifyAgent(VerifyAgent):
                 "consistent": True
             },
             success=True,
-            runtime_ms=self.mock_runtime,   
+            runtime_ms=self.mock_runtime,
             warnings=[]
         )
 
@@ -97,9 +107,9 @@ class TestOntologySteward(OntologySteward):
         super().__init__()
         self.db = db
 
-    def insert_to_graph(self, query: str):
-        self.db.query_insert(query)
-    
+    def insert_to_graph(self, query: str, *, cap=None):
+        self.db.query_insert(query, cap=cap)
+
     def _seal_operator_before_mint(self, *args, **kwargs):
         """Skip seal verification for mock E2E testing."""
         # In E2E tests, we don't have a real TypeDB, so skip seal
@@ -141,7 +151,7 @@ async def test_v22_e2e_verify_to_steward_happy():
     await steward.run(context)
 
     inserts = "\n".join(db.inserts)
-    deletes = "\n".join(db.deletes)
+    _deletes = "\n".join(db.deletes)
 
     # Session + lifecycle (status delete/insert + ended-at delete/insert)
     assert "isa run-session" in inserts
@@ -155,7 +165,7 @@ async def test_v22_e2e_verify_to_steward_happy():
     # Validation evidence persisted + linked to proposition
     assert "isa validation-evidence" in inserts
     assert "isa evidence-for-proposition" in inserts
-    
+
     # Check JSON payload for Feynman checks
     # Assert on escaped key presence directly (robust for TQL string)
     assert '\\"feynman\\":' in inserts, "Feynman report key not found in persisted JSON"
@@ -167,26 +177,26 @@ async def test_v22_e2e_budget_exceeded():
     """Case A: Budget exceeded -> Persist Fragility."""
     db = StrictMockTypeDB()
     db.query_insert('insert $p isa proposition, has entity-id "claim-budget";')
-    
+
     verify = TestVerifyAgent(max_budget_ms=100)
     verify.mock_runtime = 5000 # Exceeds budget
-    
+
     context = AgentContext(graph_context={
         "session_id": "sess-budget",
         "atomic_claims": [{"claim_id": "claim-budget", "content": "Too slow"}],
     })
-    
+
     context = await verify.run(context)
-    
+
     # Check memory state
     assert context.graph_context["is_fragile"] is True, "Scalar state not fragile"
-    
+
     # Run Steward
     steward = TestOntologySteward(db=db)
     await steward.run(context)
-    
+
     inserts = "\n".join(db.inserts)
-    
+
     # Check persistence of fragility
     # Look for escaped json key-value
     assert '\\"is_fragile\\": true' in inserts, "Fragility flag was not persisted as true in JSON"
@@ -196,23 +206,23 @@ async def test_v22_e2e_diagnostic_failure():
     """Case B: Diagnostics failure (missing ESS) -> Persist Fragility."""
     db = StrictMockTypeDB()
     db.query_insert('insert $p isa proposition, has entity-id "claim-diag";')
-    
+
     verify = TestVerifyAgent()
     verify.mock_diagnostics = {"toy_ok": True} # Missing ESS for MC template
-    
+
     context = AgentContext(graph_context={
         "session_id": "sess-diag",
         "atomic_claims": [{"claim_id": "claim-diag", "content": "Bad Diag"}],
     })
-    
+
     context = await verify.run(context)
-    
+
     assert context.graph_context["is_fragile"] is True, "Diagnostics failure didn't trigger fragility"
-    
+
     steward = TestOntologySteward(db=db)
     await steward.run(context)
-    
+
     inserts = "\n".join(db.inserts)
-    
+
     # Verify persistence
     assert '\\"is_fragile\\": true' in inserts, "Fragility flag from diagnostics was not persisted"

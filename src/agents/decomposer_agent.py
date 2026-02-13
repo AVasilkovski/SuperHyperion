@@ -5,12 +5,12 @@ v2.1 Step 3: Splits clarified hypothesis H′ into atomic claims C1...Cn.
 Each claim should be independently verifiable.
 """
 
-from typing import Dict, Any
-from dataclasses import dataclass
-import logging
 import json
+import logging
+from dataclasses import dataclass
+from typing import Any, Dict
 
-from src.agents.base_agent import BaseAgent, AgentContext
+from src.agents.base_agent import AgentContext, BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class AtomicClaim:
     relation: str
     object: str
     conditions: Dict[str, Any]
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "claim_id": self.claim_id,
@@ -79,27 +79,27 @@ class DecomposerAgent(BaseAgent):
         C2: "The effect direction is inhibition"
         C3: "Condition Z is required"
     """
-    
+
     def __init__(self):
         super().__init__(name="Decomposer")
-    
+
     async def run(self, context: AgentContext) -> AgentContext:
         """Decompose hypothesis into atomic claims."""
         hypothesis = context.current_hypothesis or context.graph_context.get(
             "clarified_hypothesis", {}
         ).get("clarified_hypothesis", "")
-        
+
         if not hypothesis:
             logger.warning("No hypothesis to decompose")
             return context
-        
+
         # Use LLM to decompose
         response = self.generate(
             prompt=f"Decompose this hypothesis into atomic claims:\n\n{hypothesis}",
             system=DECOMPOSER_SYSTEM_PROMPT,
             temperature=0.3,
         )
-        
+
         # Parse response
         claims = []
         try:
@@ -124,12 +124,12 @@ class DecomposerAgent(BaseAgent):
                 object="",
                 conditions={},
             )]
-        
+
         # Store in context (uses v2.1 atomic_claims field)
         context.graph_context["atomic_claims"] = [c.to_dict() for c in claims]
-        
+
         logger.info(f"Decomposed into {len(claims)} atomic claims")
-        
+
         return context
 
 

@@ -4,11 +4,11 @@ HITL Base Classes
 v2.1: Base classes for human-in-the-loop gates.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Any, Optional, Literal
-import logging
+from typing import Any, Dict, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class HITLDecision:
     rationale: str
     approver_id: str
     timestamp: datetime = field(default_factory=datetime.now)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "action": self.action,
@@ -42,7 +42,7 @@ class HITLPendingItem:
     confidence: float
     created_at: datetime = field(default_factory=datetime.now)
     decision: Optional[HITLDecision] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "item_id": self.item_id,
@@ -66,17 +66,17 @@ class HITLGate(ABC):
         or contradiction resolution requires a human checkpoint
         unless explicitly auto-approved by policy.
     """
-    
+
     @abstractmethod
     def should_trigger(self, context: Dict[str, Any]) -> bool:
         """Determine if human review is needed."""
         pass
-    
+
     @abstractmethod
     def create_pending_item(self, context: Dict[str, Any]) -> HITLPendingItem:
         """Create a pending item for human review."""
         pass
-    
+
     async def await_decision(
         self,
         pending: HITLPendingItem,
@@ -90,7 +90,7 @@ class HITLGate(ABC):
         """
         logger.info(f"HITL gate triggered: {pending.item_id}")
         return None
-    
+
     def process_decision(
         self,
         pending: HITLPendingItem,
@@ -98,16 +98,16 @@ class HITLGate(ABC):
     ) -> Dict[str, Any]:
         """Process a human decision."""
         pending.decision = decision
-        
+
         result = {
             "item_id": pending.item_id,
             "approved": decision.action == "approve",
             "action": decision.action,
             "rationale": decision.rationale,
         }
-        
+
         logger.info(
             f"HITL decision processed: {pending.item_id} -> {decision.action}"
         )
-        
+
         return result

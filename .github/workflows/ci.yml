@@ -9,13 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
-    # 1. Start a fresh, empty TypeDB instance for this test run
-    services:
-      typedb:
-        image: vaticle/typedb:latest
-        ports:
-          - 1729:1729
 
     # Ephemeral TypeDB — pinned to match docker-compose + driver
     services:

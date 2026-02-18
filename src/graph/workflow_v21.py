@@ -25,6 +25,7 @@ from src.agents import (
     validator_agent,
 )
 from src.epistemic import EpistemicClassifierAgent
+from src.graph.nodes.governance_gate import governance_gate_node
 from src.graph.state import AgentState, NodeType, create_initial_state
 from src.hitl import EpistemicApprovalGate, HighImpactWriteCheckpoint, audit_log
 
@@ -123,7 +124,17 @@ async def validate_node(state: AgentState) -> AgentState:
 
     result = await validator_agent.run(context)
 
-    state["evidence"] = result.graph_context.get("evidence", [])
+    # Phase 16.4: Normalize evidence dicts into steward insert contract
+    from src.graph.evidence_normalization import normalize_validation_evidence
+    raw_evidence = result.graph_context.get("evidence", [])
+    scope_lock_id = result.graph_context.get("scope_lock_id")
+    normalized = [
+        normalize_validation_evidence(ev, scope_lock_id=scope_lock_id)
+        for ev in raw_evidence
+    ]
+    state["evidence"] = normalized
+    result.graph_context["evidence"] = normalized
+
     state["code_executions"] = result.code_results
     state["graph_context"] = result.graph_context
     return state
@@ -238,13 +249,33 @@ async def epistemic_gate_node(state: AgentState) -> AgentState:
 
 
 async def integrate_node(state: AgentState) -> AgentState:
-    """Step 12: Synthesize dual outputs."""
+    """Step 12: Synthesize dual outputs (fail-closed on governance)."""
     logger.info("v2.1: Integrate Node")
     state["current_node"] = NodeType.INTEGRATE.value
+
+    # Phase 16.4 D4: Fail-closed governance guard
+    gov = state.get("governance")
+    if not gov:
+        msg = "HOLD: No governance artifacts. Pipeline incomplete (missing governance summary)."
+        logger.warning(f"integrate_node: {msg}")
+        state["response"] = msg
+        state["grounded_response"] = {"summary": msg, "status": "HOLD"}
+        state["speculative_alternatives"] = []
+        return state
+
+    if gov.get("status") == "HOLD":
+        reason = gov.get("hold_reason", "unknown")
+        msg = f"HOLD: {reason}"
+        logger.warning(f"integrate_node: {msg}")
+        state["response"] = msg
+        state["grounded_response"] = {"summary": msg, "status": "HOLD", "governance": gov}
+        state["speculative_alternatives"] = []
+        return state
 
     from src.agents.base_agent import AgentContext
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
+    context.graph_context["governance"] = gov  # Phase 16.4: inject for citations
     context.response = state.get("response")
 
     result = await integrator_agent.run(context)
@@ -378,9 +409,10 @@ def build_v21_workflow() -> StateGraph:
     workflow.add_node("uncertainty", uncertainty_node)
     workflow.add_node("meta_critic", meta_critic_node)
     workflow.add_node("epistemic_gate", epistemic_gate_node)
-    workflow.add_node("integrate", integrate_node)
     workflow.add_node("impact_gate", impact_gate_node)
     workflow.add_node("steward", steward_node)
+    workflow.add_node("governance_gate", governance_gate_node)  # Phase 16.4
+    workflow.add_node("integrate", integrate_node)
 
     # Set entry point
     workflow.set_entry_point("clarify")
@@ -399,19 +431,14 @@ def build_v21_workflow() -> StateGraph:
     workflow.add_edge("benchmark", "uncertainty")
     workflow.add_edge("uncertainty", "meta_critic")
     workflow.add_edge("meta_critic", "epistemic_gate")
-    workflow.add_edge("epistemic_gate", "integrate")
 
-    # Final stages
-    workflow.add_conditional_edges(
-        "integrate",
-        check_high_impact,
-        {
-            "impact_gate": "impact_gate",
-            "steward": "steward",
-        }
-    )
+    # Phase 16.4: Reordered final stages
+    # steward persists BEFORE integrate synthesizes (ledger-citable)
+    workflow.add_edge("epistemic_gate", "impact_gate")
     workflow.add_edge("impact_gate", "steward")
-    workflow.add_edge("steward", END)
+    workflow.add_edge("steward", "governance_gate")
+    workflow.add_edge("governance_gate", "integrate")
+    workflow.add_edge("integrate", END)
 
     return workflow
 

@@ -219,6 +219,9 @@ class AgentState(TypedDict):
     write_intents: List[Dict[str, Any]]
     approved_write_intents: List[Dict[str, Any]]
 
+    # Phase 16.4: Governance summary (required for fail-closed integrate)
+    governance: Optional[Dict[str, Any]]
+
 
     # =========================================================================
     # Original v1 Fields (kept for compatibility)
@@ -303,6 +306,7 @@ def create_initial_state(query: str) -> AgentState:
         epistemic_update_proposal=[],
         write_intents=[],
         approved_write_intents=[],
+        governance=None,  # Phase 16.4: set by governance_gate_node
         # Original v1 Fields
         messages=[{"role": "user", "content": query}],
         query=query,

@@ -120,6 +120,12 @@ class OntologySteward(BaseAgent):
         evidence_list = context.graph_context.get("evidence", [])
         _intent_id = context.graph_context.get("intent_id")
         print(f"DEBUG_STEWARD: Found {len(evidence_list)} evidence items. intent_id={_intent_id}")
+        # Phase 16.4: Accumulators for governance outputs
+        persisted_evidence_ids = []
+        proposal_error = None
+        latest_intent_id = None
+        latest_proposal_id = None
+
         for ev in evidence_list:
             ev_data = ev.model_dump() if hasattr(ev, "model_dump") else (
                 asdict(ev) if hasattr(ev, "__dataclass_fields__") else (
@@ -128,7 +134,9 @@ class OntologySteward(BaseAgent):
             )
             try:
                 evidence_id = self._seal_evidence_dict_before_mint(session_id, ev_data, channel="positive")
+                ev_data["evidence_id"] = evidence_id  # Phase 16.4 B2: expose for downstream citation
                 self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data, evidence_id=evidence_id, intent_id=_intent_id), cap=self._write_cap)
+                persisted_evidence_ids.append(evidence_id)
             except Exception as e:
                 logger.error(f"Evidence insert failed (id={ev_data.get('execution_id')}): {e}")
                 raise
@@ -144,6 +152,7 @@ class OntologySteward(BaseAgent):
                 evidence_id = self._seal_evidence_dict_before_mint(
                     session_id, neg_ev_data, channel="negative"
                 )
+                neg_ev_data["evidence_id"] = evidence_id  # Phase 16.4 B2
                 self.insert_to_graph(
                     q_insert_negative_evidence(
                         session_id,
@@ -153,6 +162,7 @@ class OntologySteward(BaseAgent):
                     ),
                     cap=self._write_cap,
                 )
+                persisted_evidence_ids.append(evidence_id)
             except Exception as e:
                 logger.error(
                     "Negative evidence insert failed: "
@@ -168,7 +178,7 @@ class OntologySteward(BaseAgent):
             self._generate_and_stage_proposals(session_id)
         except Exception as e:
             logger.error(f"Phase 16.2 proposal generation failed (session={session_id}): {e}")
-            # Non-fatal: don't block the rest of the pipeline
+            proposal_error = str(e)  # Phase 16.4 B3: capture for governance gate
 
         # 4. Persist Epistemic Proposals
         proposals = context.graph_context.get("epistemic_update_proposal", [])
@@ -243,6 +253,28 @@ class OntologySteward(BaseAgent):
         # Update context for final output
         context.graph_context["committed_intents"] = committed
         context.graph_context["failed_intents"] = failed
+
+        # Phase 16.4 B3: Expose stable governance outputs
+        context.graph_context["persisted_all_evidence_ids"] = persisted_evidence_ids
+        
+        # P1 Bug Fix: Derive governance IDs from staged proposal intents if context is missing them
+        # In v2.1, _generate_and_stage_proposals stages directly via service
+        from src.hitl.intent_service import write_intent_service
+        staged_proposals = write_intent_service.list_staged(intent_type="stage_epistemic_proposal")
+        
+        if not intents and staged_proposals:
+             # Use the staged proposals as 'latest' for governance summary
+             # P1 Bug Fix: handle dict return from service
+             first_prop = staged_proposals[-1]
+             latest_intent_id = first_prop.get("intent_id")
+             latest_proposal_id = first_prop.get("payload", {}).get("proposal_id")
+        else:
+             latest_intent_id = intents[-1].get("intent_id") if intents else None
+             latest_proposal_id = proposals[-1].get("proposal_id") if proposals else None
+
+        context.graph_context["latest_staged_intent_id"] = latest_intent_id
+        context.graph_context["latest_staged_proposal_id"] = latest_proposal_id
+        context.graph_context["proposal_generation_error"] = proposal_error
 
         return context
 
@@ -468,14 +500,16 @@ class OntologySteward(BaseAgent):
         *,
         channel: str = "positive",
     ) -> str:
-        exec_id = (ev.get("execution_id") or ev.get("execution-id") or "").strip()
+        raw_exec = ev.get("execution_id") or ev.get("execution-id") or ev.get("codeact_execution_id")
+        exec_id = str(raw_exec).strip() if raw_exec is not None else ""
         claim_id = (
             ev.get("claim_id")
             or ev.get("claim-id")
             or ev.get("proposition_id")
+            or ev.get("hypothesis_id")
             or ""
         ).strip()
-        template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
+        template_qid = (ev.get("template_qid") or ev.get("template-qid") or "codeact-v1@1.0").strip()
         scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
 
         if channel == "negative":
@@ -718,6 +752,10 @@ class OntologySteward(BaseAgent):
 
         logger.info(f"Phase 16.3: Staged {staged_count} proposal(s) for session {session_id}")
 
+    def _read_query(self, query: str) -> List[Dict]:
+        """Alias for query_graph (used by evidence fetcher)."""
+        return self.query_graph(query)
+
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)
 # ============================================================================
@@ -940,10 +978,11 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     # ------------------------------------------------------------------
     # Constitutional Gate (Phase 14.5)
     # ------------------------------------------------------------------
-    exec_id = (ev.get("execution_id") or ev.get("execution-id") or "").strip()
+    raw_exec = ev.get("execution_id") or ev.get("execution-id") or ev.get("codeact_execution_id")
+    exec_id = str(raw_exec).strip() if raw_exec is not None else ""
 
     # 1. Extract IDs first (needed for error messages)
-    claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or "").strip()
+    claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or ev.get("hypothesis_id") or "").strip()
     template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
     template_id = (ev.get("template_id") or ev.get("template-id") or "").strip()
     scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
@@ -1134,9 +1173,10 @@ def q_insert_negative_evidence(
     - role validation is strict (typos raise errors immediately)
     """
     # Extract required fields
-    claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or "").strip()
-    exec_id = (ev.get("execution_id") or ev.get("execution-id") or "").strip()
-    template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
+    claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or ev.get("hypothesis_id") or "").strip()
+    raw_exec = ev.get("execution_id") or ev.get("execution-id") or ev.get("codeact_execution_id")
+    exec_id = str(raw_exec).strip() if raw_exec is not None else ""
+    template_qid = (ev.get("template_qid") or ev.get("template-qid") or "codeact-v1@1.0").strip()
     template_id = (ev.get("template_id") or ev.get("template-id") or "").strip()
     scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
 

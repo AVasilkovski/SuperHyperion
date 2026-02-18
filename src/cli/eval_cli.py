@@ -77,13 +77,14 @@ async def _run_single_eval(query: str, run_index: int) -> dict:
     start = time.perf_counter()
 
     try:
-        from src.graph.workflow_v21 import build_workflow
+        from src.graph.workflow_v21 import build_v21_workflow
 
         state = create_initial_state(query)
-        workflow = build_workflow()
+        # Compile workflow
+        app = build_v21_workflow().compile()
 
         # Run the workflow
-        result = await workflow.ainvoke(state)
+        result = await app.ainvoke(state)
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         metrics["latency_ms"] = elapsed_ms

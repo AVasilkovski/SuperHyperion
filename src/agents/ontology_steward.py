@@ -264,8 +264,10 @@ class OntologySteward(BaseAgent):
         
         if not intents and staged_proposals:
              # Use the staged proposals as 'latest' for governance summary
-             latest_intent_id = staged_proposals[-1].intent_id
-             latest_proposal_id = staged_proposals[-1].payload.get("proposal_id")
+             # P1 Bug Fix: handle dict return from service
+             first_prop = staged_proposals[-1]
+             latest_intent_id = first_prop.get("intent_id")
+             latest_proposal_id = first_prop.get("payload", {}).get("proposal_id")
         else:
              latest_intent_id = intents[-1].get("intent_id") if intents else None
              latest_proposal_id = proposals[-1].get("proposal_id") if proposals else None
@@ -749,6 +751,10 @@ class OntologySteward(BaseAgent):
                 logger.error(f"Failed to stage proposal for claim {claim_id}: {e}")
 
         logger.info(f"Phase 16.3: Staged {staged_count} proposal(s) for session {session_id}")
+
+    def _read_query(self, query: str) -> List[Dict]:
+        """Alias for query_graph (used by evidence fetcher)."""
+        return self.query_graph(query)
 
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)

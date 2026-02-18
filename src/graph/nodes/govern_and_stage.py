@@ -7,10 +7,9 @@ proposals, and stages write-intents BEFORE the Steward persists them.
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Dict, List
 
-from src.agents.base_agent import AgentContext
-from src.epistemology.evidence_roles import EvidenceRole, validate_evidence_role
+from src.epistemology.evidence_roles import validate_evidence_role
 from src.epistemology.theory_change_operator import (
     TheoryAction,
     compute_theory_change_action,

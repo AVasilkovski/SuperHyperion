@@ -29,8 +29,6 @@ class IntegratorAgent(BaseAgent):
 
     async def run(self, context: AgentContext) -> AgentContext:
         """Synthesize dual outputs from grounded and speculative lanes."""
-    async def run(self, context: AgentContext) -> AgentContext:
-        """Synthesize dual outputs from grounded and speculative lanes."""
 
         # Synthesize grounded answer
         grounded_answer = self._synthesize_grounded(context)

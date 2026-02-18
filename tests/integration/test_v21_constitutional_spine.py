@@ -1,12 +1,14 @@
-import pytest
 import asyncio
-from src.graph.nodes.govern_and_stage import govern_and_stage_node
-from src.graph.nodes.governance_gate import governance_gate_node
-from src.graph.state import create_initial_state
-from src.graph.evidence_normalization import normalize_validation_evidence
+
+import pytest
+
 from src.epistemology.theory_change_operator import TheoryAction
 from src.governance.fingerprinting import make_evidence_id
+from src.graph.evidence_normalization import normalize_validation_evidence
+from src.graph.nodes.govern_and_stage import govern_and_stage_node
+from src.graph.state import create_initial_state
 from src.hitl.intent_service import write_intent_service
+
 
 @pytest.mark.asyncio
 async def test_evidence_fingerprint_integrity():
@@ -48,7 +50,7 @@ async def test_proposal_generation_logic_revise():
     ]
     
     # Run the Constitutional Spine node
-    new_state = await govern_and_stage_node(state)
+    await govern_and_stage_node(state)
     
     # Check if proposals were staged
     proposals = write_intent_service.list_staged()
@@ -75,7 +77,7 @@ async def test_channel_enforcement_rejection():
         }
     ]
     
-    new_state = await govern_and_stage_node(state)
+    await govern_and_stage_node(state)
     # The actual "Spine" policy usually forbids certain mixes.
     pass
 

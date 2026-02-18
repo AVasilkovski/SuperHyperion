@@ -643,7 +643,7 @@ class WriteIntentService:
         for iid in intent_ids:
             intent = self._get_or_raise(iid)
             if intent.status != IntentStatus.APPROVED:
-                raise ValueError(f"Intent {iid} is not APPROVED (status={intent.value})")
+                raise ValueError(f"Intent {iid} is not APPROVED (status={intent.status.value})")
             intents.append(intent)
 
         # Collect distinct scope_lock_ids (None counts as distinct scope)

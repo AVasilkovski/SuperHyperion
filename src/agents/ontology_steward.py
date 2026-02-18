@@ -256,8 +256,20 @@ class OntologySteward(BaseAgent):
 
         # Phase 16.4 B3: Expose stable governance outputs
         context.graph_context["persisted_all_evidence_ids"] = persisted_evidence_ids
-        latest_intent_id = intents[-1].get("intent_id") if intents else None
-        latest_proposal_id = proposals[-1].get("proposal_id") if proposals else None
+        
+        # P1 Bug Fix: Derive governance IDs from staged proposal intents if context is missing them
+        # In v2.1, _generate_and_stage_proposals stages directly via service
+        from src.hitl.intent_service import write_intent_service
+        staged_proposals = write_intent_service.list_staged(intent_type="stage_epistemic_proposal")
+        
+        if not intents and staged_proposals:
+             # Use the staged proposals as 'latest' for governance summary
+             latest_intent_id = staged_proposals[-1].intent_id
+             latest_proposal_id = staged_proposals[-1].payload.get("proposal_id")
+        else:
+             latest_intent_id = intents[-1].get("intent_id") if intents else None
+             latest_proposal_id = proposals[-1].get("proposal_id") if proposals else None
+
         context.graph_context["latest_staged_intent_id"] = latest_intent_id
         context.graph_context["latest_staged_proposal_id"] = latest_proposal_id
         context.graph_context["proposal_generation_error"] = proposal_error

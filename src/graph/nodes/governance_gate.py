@@ -17,7 +17,6 @@ Contract (Phase 16.5 upgrade):
 from __future__ import annotations
 
 import logging
-from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.graph.state import AgentState

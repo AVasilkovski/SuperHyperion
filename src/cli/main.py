@@ -11,9 +11,9 @@ Usage:
 import typer
 from rich.console import Console
 
+from src.cli.eval_cli import eval_app
 from src.cli.intent_cli import intent_app
 from src.cli.replay_cli import replay_app
-from src.cli.eval_cli import eval_app
 
 # Create main app
 app = typer.Typer(

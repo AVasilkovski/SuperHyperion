@@ -250,7 +250,7 @@ def run_eval(
         status_style = {
             "PASS": "[green]PASS[/green]",
             "HOLD": f"[yellow]HOLD[/yellow] ({r['hold_code'] or '?'})",
-            "ERROR": f"[red]ERROR[/red]",
+            "ERROR": "[red]ERROR[/red]",
         }.get(r["status"], r["status"])
 
         run_table.add_row(

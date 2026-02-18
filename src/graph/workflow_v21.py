@@ -316,7 +316,8 @@ async def integrate_node(state: AgentState) -> AgentState:
         import hashlib as _hashlib
         import json as _json
         from datetime import datetime as _dt
-        from src.governance.fingerprinting import make_run_capsule_id, make_capsule_manifest_hash
+
+        from src.governance.fingerprinting import make_capsule_manifest_hash, make_run_capsule_id
 
         user_query = state.get("original_query") or state.get("query") or ""
         query_hash = _hashlib.sha256(user_query.encode("utf-8")).hexdigest()[:32]
@@ -353,7 +354,9 @@ async def integrate_node(state: AgentState) -> AgentState:
             db = TypeDBConnection()
             if not db._mock_mode:
                 evidence_snapshot_json = _json.dumps(sorted(evidence_ids), separators=(",", ":"))
-                _esc = lambda s: (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+                def _esc(s):
+                    return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+
                 insert_q = f'''
                 insert
                     $cap isa run-capsule,

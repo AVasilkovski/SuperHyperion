@@ -10,16 +10,13 @@ responses without requiring a live database.
 """
 
 import asyncio
-from collections import namedtuple
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.graph.state import create_initial_state
-from src.hitl.intent_store import InMemoryIntentStore
-from src.hitl.intent_service import WriteIntentService, WriteIntent, IntentStatus
-
+from src.hitl.intent_service import IntentStatus, WriteIntent
 
 # =============================================================================
 # Helpers
@@ -113,8 +110,8 @@ async def test_integrator_holds_on_fake_evidence_id():
     but Integrator MUST HOLD with EVIDENCE_MISSING_FROM_LEDGER because
     the ledger doesn't have ev-fake999.
     """
-    from src.graph.workflow_v21 import integrate_node
     from src.agents.integrator_agent import integrator_agent
+    from src.graph.workflow_v21 import integrate_node
 
     real_ids = ["ev-real-001", "ev-real-002"]
     fake_id = "ev-fake999"
@@ -193,8 +190,8 @@ async def test_integrator_holds_on_scope_mismatch():
     Evidence exists but scope-lock-id differs from expected.
     Integrator MUST HOLD with EVIDENCE_SCOPE_MISMATCH.
     """
-    from src.graph.workflow_v21 import integrate_node
     from src.agents.integrator_agent import integrator_agent
+    from src.graph.workflow_v21 import integrate_node
 
     evidence_ids = ["ev-scope-001", "ev-scope-002"]
 
@@ -236,8 +233,8 @@ async def test_integrator_holds_on_claim_mismatch():
     Evidence exists but claim-id doesn't match the claim being synthesized.
     Integrator MUST HOLD with EVIDENCE_CLAIM_MISMATCH.
     """
-    from src.graph.workflow_v21 import integrate_node
     from src.agents.integrator_agent import integrator_agent
+    from src.graph.workflow_v21 import integrate_node
 
     evidence_ids = ["ev-claim-001", "ev-claim-002"]
 

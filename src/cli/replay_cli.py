@@ -12,12 +12,10 @@ a PASS/FAIL verdict.
 """
 
 import json as json_lib
-import hashlib
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 
 replay_app = typer.Typer(
     name="replay",
@@ -37,7 +35,8 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
             console.print("[yellow]⚠ TypeDB unavailable (mock mode)[/yellow]")
             return None
 
-        _esc = lambda s: (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+        def _esc(s):
+            return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
         query = f'''
         match
             $cap isa run-capsule,

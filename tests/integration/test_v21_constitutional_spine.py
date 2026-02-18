@@ -179,9 +179,10 @@ async def test_integrate_fails_closed_on_hold():
 @pytest.mark.asyncio
 async def test_integrate_includes_evidence_ids():
     """Phase 16.4 E1-3: Grounded claims include evidence_ids when STAGED."""
-    from src.graph.workflow_v21 import integrate_node
-    from src.agents.integrator_agent import integrator_agent
     from unittest.mock import patch
+
+    from src.agents.integrator_agent import integrator_agent
+    from src.graph.workflow_v21 import integrate_node
 
     state = create_initial_state("Test query")
 

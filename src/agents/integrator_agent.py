@@ -29,6 +29,8 @@ class IntegratorAgent(BaseAgent):
 
     async def run(self, context: AgentContext) -> AgentContext:
         """Synthesize dual outputs from grounded and speculative lanes."""
+    async def run(self, context: AgentContext) -> AgentContext:
+        """Synthesize dual outputs from grounded and speculative lanes."""
 
         # Synthesize grounded answer
         grounded_answer = self._synthesize_grounded(context)
@@ -57,16 +59,18 @@ class IntegratorAgent(BaseAgent):
         evidence = context.graph_context.get("evidence", [])
         uncertainty = context.graph_context.get("uncertainty", {})
         classifications = context.graph_context.get("classifications", [])
+        governance = context.graph_context.get("governance", {})
 
         grounded_claims = []
 
         for claim in claims:
             claim_id = claim.get("claim_id", "unknown")
 
-            # Get evidence for this claim
+            # Phase 16.4 C1: Match evidence by claim_id OR hypothesis_id
             claim_evidence = [
                 e for e in evidence
-                if e.get("hypothesis_id") == claim_id and e.get("success", False)
+                if (e.get("claim_id") == claim_id or e.get("hypothesis_id") == claim_id)
+                and e.get("success", False)
             ]
 
             # Get uncertainty
@@ -80,12 +84,18 @@ class IntegratorAgent(BaseAgent):
 
             # Only include claims with evidence
             if claim_evidence:
+                # Phase 16.4 C1: Per-claim evidence IDs (minted by steward B2)
+                claim_evidence_ids = [
+                    e.get("evidence_id") for e in claim_evidence
+                    if e.get("evidence_id")
+                ]
                 grounded_claims.append({
                     "claim_id": claim_id,
                     "content": claim.get("content", ""),
                     "status": claim_class.get("status", "speculative"),
                     "confidence": 1.0 - claim_uncertainty.get("total", 0.5),
                     "evidence_count": len(claim_evidence),
+                    "evidence_ids": claim_evidence_ids,
                 })
 
         return {
@@ -93,6 +103,12 @@ class IntegratorAgent(BaseAgent):
             "summary": self._generate_grounded_summary(grounded_claims),
             "confidence_level": self._compute_overall_confidence(grounded_claims),
             "known_limits": self._identify_limits(context),
+            # Phase 16.4 C1: Top-level governance citations
+            "governance": {
+                "cited_intent_id": governance.get("intent_id"),
+                "cited_proposal_id": governance.get("proposal_id"),
+                "persisted_evidence_ids": governance.get("persisted_evidence_ids", []),
+            },
         }
 
     def _synthesize_speculative(self, context: AgentContext) -> List[Dict[str, Any]]:

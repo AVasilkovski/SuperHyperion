@@ -159,3 +159,55 @@ def make_policy_hash() -> str:
     }
     s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
+
+
+def make_run_capsule_id(
+    session_id: str,
+    query_hash: str,
+    scope_lock_id: str,
+    intent_id: str,
+    proposal_id: str,
+    evidence_ids: List[str],
+) -> str:
+    """
+    Deterministic run capsule ID generator (Phase 16.6).
+
+    Creates a stable ID for a sealed run bundle that pins the exact session,
+    query, scope lock, governance anchors, and evidence snapshot.
+
+    Returns "run-" + 32-char SHA-256 hex digest (36 chars total).
+
+    Args:
+        session_id: Session identifier
+        query_hash: SHA-256 of the user query
+        scope_lock_id: Scope lock ID for this run
+        intent_id: Write intent ID
+        proposal_id: Proposal ID
+        evidence_ids: All evidence IDs included in this run
+    """
+    payload = {
+        "sid": session_id or "",
+        "qh": query_hash or "",
+        "slid": scope_lock_id or "",
+        "iid": intent_id or "",
+        "pid": proposal_id or "",
+        "evids": sorted(evidence_ids or []),
+    }
+    s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    h = hashlib.sha256(s.encode("utf-8")).hexdigest()[:32]
+    return f"run-{h}"
+
+
+def make_capsule_manifest_hash(capsule_id: str, manifest: dict) -> str:
+    """
+    Compute the integrity hash for a capsule manifest (Phase 16.6).
+
+    Returns 64-char SHA-256 hex digest of the canonical JSON representation.
+    """
+    canonical = {
+        "capsule_id": capsule_id,
+        **{k: v for k, v in sorted(manifest.items())},
+    }
+    s = json.dumps(canonical, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+

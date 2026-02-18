@@ -264,18 +264,134 @@ async def integrate_node(state: AgentState) -> AgentState:
         return state
 
     if gov.get("status") == "HOLD":
+        hold_code = gov.get("hold_code", "UNKNOWN")
         reason = gov.get("hold_reason", "unknown")
-        msg = f"HOLD: {reason}"
+        msg = f"HOLD: [{hold_code}] {reason}"
         logger.warning(f"integrate_node: {msg}")
         state["response"] = msg
-        state["grounded_response"] = {"summary": msg, "status": "HOLD", "governance": gov}
+        state["grounded_response"] = {"summary": msg, "status": "HOLD", "hold_code": hold_code, "governance": gov}
         state["speculative_alternatives"] = []
         return state
+
+    # Phase 16.5: Ledger primacy hard proof (blocks synthesis if evidence is unproven)
+    gc = state.get("graph_context", {}) or {}
+    # P1 Fix: Harden session_id source to prevent false HOLDs
+    session_id = (
+        gov.get("session_id") 
+        or state.get("session_id") 
+        or gc.get("session_id") 
+        or "session-untracked"
+    )
+    evidence_ids = gov.get("persisted_evidence_ids", [])
+    expected_scope = gov.get("scope_lock_id")
+
+    # Derive expected claim IDs from the claims being synthesized
+    atomic_claims = gc.get("atomic_claims", [])
+    expected_claim_ids = {
+        c.get("claim_id") for c in atomic_claims
+        if c.get("claim_id")
+    } or None  # None means "skip claim check" if no claims available
+
+    primacy_ok, primacy_code, primacy_details = integrator_agent._verify_evidence_primacy(
+        session_id=session_id,
+        evidence_ids=evidence_ids,
+        expected_scope_lock_id=expected_scope,
+        expected_claim_ids=expected_claim_ids,
+    )
+
+    if not primacy_ok:
+        hold_reason = primacy_details.get("hold_reason", f"Primacy check failed: {primacy_code}")
+        msg = f"HOLD: [{primacy_code}] {hold_reason}"
+        logger.warning(f"integrate_node: {msg}")
+        state["response"] = msg
+        state["grounded_response"] = {
+            "summary": msg,
+            "status": "HOLD",
+            "hold_code": primacy_code,
+            "details": primacy_details,
+            "governance": gov,
+        }
+        state["speculative_alternatives"] = []
+        return state
+
+    logger.info(f"integrate_node: Primacy verified ({primacy_details.get('verified_count', 0)} evidence IDs)")
+
+    # Phase 16.6: Build and persist run capsule (only after primacy proves evidence)
+    run_capsule = None
+    try:
+        import hashlib as _hashlib
+        import json as _json
+        from datetime import datetime as _dt
+
+        from src.governance.fingerprinting import make_capsule_manifest_hash, make_run_capsule_id
+
+        user_query = state.get("original_query") or state.get("query") or ""
+        query_hash = _hashlib.sha256(user_query.encode("utf-8")).hexdigest()[:32]
+
+        capsule_id = make_run_capsule_id(
+            session_id=session_id,
+            query_hash=query_hash,
+            scope_lock_id=expected_scope or "",
+            intent_id=gov.get("intent_id") or "",
+            proposal_id=gov.get("proposal_id") or "",
+            evidence_ids=evidence_ids,
+        )
+
+        manifest = {
+            "session_id": session_id,
+            "query_hash": query_hash,
+            "scope_lock_id": expected_scope or "",
+            "intent_id": gov.get("intent_id") or "",
+            "proposal_id": gov.get("proposal_id") or "",
+            "evidence_ids": sorted(evidence_ids),
+        }
+        capsule_hash = make_capsule_manifest_hash(capsule_id, manifest)
+
+        run_capsule = {
+            "capsule_id": capsule_id,
+            "capsule_hash": capsule_hash,
+            **manifest,
+            "created_at": _dt.now().isoformat(),
+        }
+
+        # Attempt TypeDB persistence (graceful degradation)
+        try:
+            from src.db.typedb_client import TypeDBConnection
+            db = TypeDBConnection()
+            if not db._mock_mode:
+                evidence_snapshot_json = _json.dumps(sorted(evidence_ids), separators=(",", ":"))
+                def _esc(s):
+                    return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+
+                insert_q = f'''
+                insert
+                    $cap isa run-capsule,
+                        has capsule-id "{_esc(capsule_id)}",
+                        has session-id "{_esc(session_id)}",
+                        has query-hash "{_esc(query_hash)}",
+                        has scope-lock-id "{_esc(expected_scope or "")}",
+                        has intent-id "{_esc(gov.get("intent_id") or "")}",
+                        has proposal-id "{_esc(gov.get("proposal_id") or "")}",
+                        has evidence-snapshot "{_esc(evidence_snapshot_json)}",
+                        has capsule-hash "{_esc(capsule_hash)}";
+                '''
+                from src.db.capabilities import WriteCap
+                db.query_insert(insert_q, cap=WriteCap._mint())
+                logger.info(f"integrate_node: Run capsule persisted: {capsule_id}")
+            else:
+                logger.debug(f"integrate_node: [MOCK] Run capsule built: {capsule_id}")
+        except Exception as e:
+            logger.warning(f"integrate_node: Capsule persistence skipped (DB unavailable): {e}")
+
+    except Exception as e:
+        logger.warning(f"integrate_node: Capsule creation failed: {e}")
 
     from src.agents.base_agent import AgentContext
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.graph_context["governance"] = gov  # Phase 16.4: inject for citations
+    if run_capsule:
+        context.graph_context["run_capsule"] = run_capsule
     context.response = state.get("response")
 
     result = await integrator_agent.run(context)
@@ -284,6 +400,8 @@ async def integrate_node(state: AgentState) -> AgentState:
     state["speculative_alternatives"] = result.graph_context.get("speculative_alternatives", [])
     state["response"] = result.response
     state["graph_context"] = result.graph_context
+    if run_capsule:
+        state["run_capsule"] = run_capsule
     return state
 
 

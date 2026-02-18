@@ -179,6 +179,9 @@ async def test_integrate_fails_closed_on_hold():
 @pytest.mark.asyncio
 async def test_integrate_includes_evidence_ids():
     """Phase 16.4 E1-3: Grounded claims include evidence_ids when STAGED."""
+    from unittest.mock import patch
+
+    from src.agents.integrator_agent import integrator_agent
     from src.graph.workflow_v21 import integrate_node
 
     state = create_initial_state("Test query")
@@ -189,6 +192,8 @@ async def test_integrate_includes_evidence_ids():
         "persisted_evidence_ids": ["ev-abc123", "ev-def456"],
         "intent_id": "intent-001",
         "proposal_id": "prop-001",
+        "session_id": "sess-test-ev",
+        "scope_lock_id": "lock-001",
     }
 
     # Set up evidence with minted evidence_ids (from steward B2)
@@ -216,7 +221,14 @@ async def test_integrate_includes_evidence_ids():
     ]
     state["atomic_claims"] = state["graph_context"]["atomic_claims"]
 
-    result = await integrate_node(state)
+    # Phase 16.5: Mock primacy query to return matching evidence
+    mock_db_rows = [
+        {"id": "ev-abc123", "claim": "test-claim-1", "scope": "lock-001"},
+        {"id": "ev-def456", "claim": "test-claim-1", "scope": "lock-001"},
+    ]
+
+    with patch.object(integrator_agent, "query_graph", return_value=mock_db_rows):
+        result = await integrate_node(state)
 
     # Should NOT be HOLD
     assert "HOLD" not in (result.get("response") or "")

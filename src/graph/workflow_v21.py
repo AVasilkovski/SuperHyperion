@@ -274,7 +274,8 @@ async def integrate_node(state: AgentState) -> AgentState:
         return state
 
     # Phase 16.5: Ledger primacy hard proof (blocks synthesis if evidence is unproven)
-    session_id = gov.get("session_id")
+    # P1 Fix: Harden session_id source to prevent false HOLDs
+    session_id = gov.get("session_id") or state.get("session_id") or gc.get("session_id")
     evidence_ids = gov.get("persisted_evidence_ids", [])
     expected_scope = gov.get("scope_lock_id")
 

@@ -56,28 +56,19 @@ def _run_coherence_checks(
             "Intent payload has no evidence_ids (empty or missing)",
         )
 
-    # Check 4: Evidence set equality (set equality + length check for duplicates)
-    intent_set = set(intent_evidence_ids)
-    state_set = set(persisted_ids)
-    if intent_set != state_set or len(intent_evidence_ids) != len(persisted_ids):
-        # Compute diff for diagnostics
-        only_in_intent = intent_set - state_set
-        only_in_state = state_set - intent_set
-        dup_intent = len(intent_evidence_ids) - len(intent_set)
-        dup_state = len(persisted_ids) - len(state_set)
-        detail_parts = []
-        if only_in_intent:
-            detail_parts.append(f"only_in_intent={sorted(only_in_intent)}")
-        if only_in_state:
-            detail_parts.append(f"only_in_state={sorted(only_in_state)}")
-        if dup_intent:
-            detail_parts.append(f"intent_duplicates={dup_intent}")
-        if dup_state:
-            detail_parts.append(f"state_duplicates={dup_state}")
-        detail = "; ".join(detail_parts) if detail_parts else "set sizes differ"
+    # Check 4: Evidence set equality (multiset comparison for duplicates)
+    from collections import Counter
+    intent_counts = Counter(intent_evidence_ids)
+    state_counts = Counter(persisted_ids)
+    if intent_counts != state_counts:
+        # P2 Badge: Detailed multi-set breakdown for diagnostics
+        # (intent_counts - state_counts) gives IDs appearing more in intent
+        diff_intent = intent_counts - state_counts
+        diff_state = state_counts - intent_counts
+        detail = f"diff_intent={list(diff_intent.elements())}; diff_state={list(diff_state.elements())}"
         return (
             "EVIDENCE_SET_MISMATCH",
-            f"Evidence set mismatch between intent and state: {detail}",
+            f"Evidence multiset mismatch: {detail}",
         )
 
     # Check 5: Scope lock coherence (only if both sides carry a scope_lock_id)

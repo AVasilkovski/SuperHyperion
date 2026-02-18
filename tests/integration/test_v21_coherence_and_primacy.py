@@ -177,7 +177,7 @@ async def test_governance_gate_holds_on_intent_evidence_set_mismatch():
     gov = result["governance"]
     assert gov["status"] == "HOLD"
     assert gov["hold_code"] == "EVIDENCE_SET_MISMATCH"
-    assert "only_in_intent" in gov["hold_reason"] or "only_in_state" in gov["hold_reason"]
+    assert "diff_intent" in gov["hold_reason"] or "diff_state" in gov["hold_reason"]
 
 
 # =============================================================================

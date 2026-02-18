@@ -102,7 +102,7 @@ async def governance_gate_node(state: AgentState) -> AgentState:
     intent_id = gc.get("latest_staged_intent_id")
     proposal_id = gc.get("latest_staged_proposal_id")
     error = gc.get("proposal_generation_error")
-    session_id = gc.get("session_id")
+    session_id = (gc.get("session_id") or state.get("session_id"))
 
     # Fail fast: upstream errors or missing inputs → HOLD immediately
     hold_code: Optional[str] = None

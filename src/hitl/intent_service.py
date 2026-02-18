@@ -772,6 +772,12 @@ class WriteIntentService:
     # Queries
     # =========================================================================
 
+    def list_staged(self, intent_type: str = None) -> list:
+        staged = self._store.list_intents_by_status('staged')
+        if intent_type:
+            staged = [i for i in staged if i['intent_type'] == intent_type]
+        return staged
+
     def get(self, intent_id: str) -> Optional[WriteIntent]:
         """Get an intent by ID."""
         # Check cache first

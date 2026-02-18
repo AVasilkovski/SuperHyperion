@@ -215,9 +215,9 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
 
     "stage_epistemic_proposal": IntentSpec(
         intent_type="stage_epistemic_proposal",
-        allowed_fields=frozenset({"proposal_id", "action", "claim_id", "evidence_ids", "conflict_score", "rationale"}),
-        required_fields=frozenset({"proposal_id", "action", "claim_id"}),
-        required_id_fields=frozenset({"proposal_id", "claim_id"}),
+        allowed_fields=frozenset({"action", "claim_id", "evidence_ids", "conflict_score", "rationale"}),
+        required_fields=frozenset({"action", "claim_id"}),
+        required_id_fields=frozenset({"claim_id"}),
         allowed_lanes=frozenset({"grounded", "speculative"}),
         scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},

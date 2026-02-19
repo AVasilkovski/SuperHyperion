@@ -37,7 +37,24 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
 
         def _esc(s):
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
-        query = f'''
+        query_with_mutations = f'''
+        match
+            $cap isa run-capsule,
+                has capsule-id $cid,
+                has session-id $sid,
+                has query-hash $qh,
+                has scope-lock-id $slid,
+                has intent-id $iid,
+                has proposal-id $pid,
+                has evidence-snapshot $esnap,
+                has mutation-snapshot $msnap,
+                has capsule-hash $chash;
+            $cid == "{_esc(capsule_id)}";
+        get $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $msnap, $chash;
+        '''
+
+        # Backward compatibility: pre-16.8 capsules do not have mutation-snapshot.
+        query_legacy = f'''
         match
             $cap isa run-capsule,
                 has capsule-id $cid,
@@ -51,7 +68,12 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
             $cid == "{_esc(capsule_id)}";
         get $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $chash;
         '''
-        rows = db.query_fetch(query)
+
+        rows = db.query_fetch(query_with_mutations)
+        has_mutation_snapshot = True
+        if not rows:
+            rows = db.query_fetch(query_legacy)
+            has_mutation_snapshot = False
         if not rows:
             return None
 
@@ -64,6 +86,7 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
             "intent_id": row.get("iid"),
             "proposal_id": row.get("pid"),
             "evidence_ids": json_lib.loads(row.get("esnap", "[]")),
+            "mutation_ids": json_lib.loads(row.get("msnap", "[]")) if has_mutation_snapshot else [],
             "capsule_hash": row.get("chash"),
         }
     except Exception as e:
@@ -75,6 +98,40 @@ def _recompute_capsule_hash(capsule_id: str, manifest: dict) -> str:
     """Recompute capsule manifest hash for integrity check."""
     from src.governance.fingerprinting import make_capsule_manifest_hash
     return make_capsule_manifest_hash(capsule_id, manifest)
+
+
+def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str]) -> tuple[bool, dict]:
+    """Verify all manifest mutation_ids are linked to this capsule in the ledger."""
+    if not mutation_ids:
+        return True, {"verified_count": 0, "missing": []}
+
+    try:
+        from src.db.typedb_client import TypeDBConnection
+
+        db = TypeDBConnection()
+        if db._mock_mode:
+            return True, {"verified_count": 0, "missing": list(mutation_ids), "skipped": "mock_mode"}
+
+        def _esc(s):
+            return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+
+        seen = set()
+        for mutation_id in mutation_ids:
+            query = f'''
+            match
+                $cap isa run-capsule, has capsule-id "{_esc(capsule_id)}";
+                $mut isa mutation-event, has mutation-id "{_esc(mutation_id)}";
+                (mutation-event: $mut, capsule: $cap) isa asserted-by;
+            get $mut;
+            '''
+            rows = db.query_fetch(query)
+            if rows:
+                seen.add(mutation_id)
+
+        missing = sorted(set(mutation_ids) - seen)
+        return len(missing) == 0, {"verified_count": len(seen), "missing": missing}
+    except Exception as e:
+        return False, {"verified_count": 0, "missing": list(mutation_ids), "error": str(e)}
 
 
 @replay_app.command("verify")
@@ -110,6 +167,7 @@ def verify_run(
         "intent_id": capsule["intent_id"],
         "proposal_id": capsule["proposal_id"],
         "evidence_ids": sorted(capsule["evidence_ids"]),
+        "mutation_ids": sorted(capsule.get("mutation_ids") or []),
     }
     recomputed_hash = _recompute_capsule_hash(run_id, manifest)
     hash_match = recomputed_hash == capsule["capsule_hash"]
@@ -137,8 +195,17 @@ def verify_run(
         if primacy_details.get("hold_reason"):
             console.print(f"    {primacy_details['hold_reason']}")
 
-    # 4. Overall verdict
-    overall = hash_match and primacy_ok
+    # 4. Mutation linkage verification (Phase 16.8)
+    mutation_ok, mutation_details = _verify_mutation_linkage(run_id, capsule.get("mutation_ids") or [])
+    if mutation_ok:
+        console.print(f"  [green]✓[/green] Mutation linkage: PASS ({mutation_details.get('verified_count', 0)} linked)")
+    else:
+        console.print("  [red]✗[/red] Mutation linkage: FAIL")
+        if mutation_details.get("missing"):
+            console.print(f"    Missing: {mutation_details['missing']}")
+
+    # 5. Overall verdict
+    overall = hash_match and primacy_ok and mutation_ok
     verdict = "PASS" if overall else "FAIL"
 
     if json:
@@ -149,6 +216,8 @@ def verify_run(
             "primacy": "PASS" if primacy_ok else "FAIL",
             "primacy_code": primacy_code,
             "primacy_details": primacy_details,
+            "mutation_linkage": "PASS" if mutation_ok else "FAIL",
+            "mutation_details": mutation_details,
             "capsule": capsule,
         }
         print(json_lib.dumps(result, indent=2, default=str))
@@ -166,6 +235,8 @@ def verify_run(
             failures.append("manifest integrity")
         if not primacy_ok:
             failures.append(f"ledger primacy ({primacy_code})")
+        if not mutation_ok:
+            failures.append("mutation linkage")
         console.print(Panel(
             f"[bold red]FAIL[/bold red] — {', '.join(failures)}",
             border_style="red",

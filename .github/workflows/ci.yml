@@ -78,7 +78,7 @@ jobs:
           for i in range(1, 31):
               try:
                   driver = TypeDB.driver(addr, creds, opts)
-                  _ = [d.name for d in driver.databases().all()]
+                  _ = [d.name for d in driver.databases.all()]
                   driver.close()
                   print(f"TypeDB ready: {addr}")
                   raise SystemExit(0)

@@ -41,7 +41,7 @@ def connect_with_retries(
 def ensure_database(driver, db: str):
     existing = {d.name for d in driver.databases.all()}
     if db not in existing:
-        driver.databases().create(db)
+        driver.databases.create(db)
         print(f"[apply_schema] created database: {db}")
     else:
         print(f"[apply_schema] database exists: {db}")

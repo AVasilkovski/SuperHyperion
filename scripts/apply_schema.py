@@ -5,7 +5,11 @@ import sys
 import time
 from pathlib import Path
 
+<<<<<<< HEAD
 from typedb.driver import TypeDB, Credentials, DriverOptions, SessionType, TransactionType
+=======
+from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
+>>>>>>> origin/main
 
 
 def env_bool(name: str, default: str = "false") -> bool:
@@ -49,10 +53,16 @@ def ensure_database(driver, db: str):
 
 def apply_schema(driver, db: str, schema_path: Path):
     schema = schema_path.read_text(encoding="utf-8")
+<<<<<<< HEAD
     with driver.session(db, SessionType.SCHEMA) as session:
         with session.transaction(TransactionType.WRITE) as tx:
             tx.query().define(schema)
             tx.commit()
+=======
+    with driver.transaction(db, TransactionType.SCHEMA) as tx:
+        tx.query(schema).resolve()
+        tx.commit()
+>>>>>>> origin/main
     print(f"[apply_schema] schema applied: {schema_path}")
 
 

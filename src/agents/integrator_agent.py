@@ -38,6 +38,34 @@ class IntegratorAgent(BaseAgent):
 
     async def run(self, context: AgentContext) -> AgentContext:
         """Synthesize dual outputs from grounded and speculative lanes."""
+        session_id = context.graph_context.get("session_id")
+        governance = context.graph_context.get("governance", {})
+        evidence_ids = governance.get("persisted_evidence_ids", [])
+        expected_scope = context.graph_context.get("expected_scope_lock_id")
+        
+        # Determine expected claims for primacy check
+        expected_claims = set()
+        for claim in context.graph_context.get("atomic_claims", []):
+            if claim.get("claim_id"):
+                expected_claims.add(claim.get("claim_id"))
+
+        # Phase 16.5: Ledger Primacy Verification
+        if evidence_ids and session_id:
+            passed, hold_code, details = self._verify_evidence_primacy(
+                session_id=session_id,
+                evidence_ids=evidence_ids,
+                expected_scope_lock_id=expected_scope,
+                expected_claim_ids=expected_claims
+            )
+            
+            if not passed:
+                logger.warning(f"Integrator: Primacy verification FAILED ({hold_code}): {details}")
+                context.response = f"HOLD: {details.get('hold_reason', 'Evidence primacy failure')}"
+                if "grounded_response" not in context.graph_context:
+                    context.graph_context["grounded_response"] = {"status": "HOLD", "reason": hold_code}
+                else:
+                    context.graph_context["grounded_response"]["status"] = "HOLD"
+                return context
 
         # Synthesize grounded answer
         grounded_answer = self._synthesize_grounded(context)
@@ -95,6 +123,14 @@ class IntegratorAgent(BaseAgent):
         if not session_id:
             return False, "EVIDENCE_MISSING_FROM_LEDGER", {"reason": "No session_id provided"}
 
+<<<<<<< HEAD
+=======
+        # Phase 16.5: Mock mode bypass (for showcase/CI without TypeDB)
+        from src.db.typedb_client import typedb
+        if getattr(typedb, "_mock_mode", False):
+            logger.debug("Integrator: [MOCK] Skipping primacy check (ledger unavailable)")
+            return True, None, {"mock": True}
+>>>>>>> origin/main
         # Deduplicate input while preserving diagnostics
         input_set = set(evidence_ids)
 

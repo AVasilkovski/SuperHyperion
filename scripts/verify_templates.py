@@ -16,18 +16,17 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from montecarlo.versioned_registry import VERSIONED_REGISTRY
 from montecarlo.template_metadata import (
-    TemplateVersion,
-    TemplateCapability,
     TemplateStatus,
+    TemplateVersion,
     compute_code_hash,
 )
+from montecarlo.versioned_registry import VERSIONED_REGISTRY
 
 
 class VerificationResult:

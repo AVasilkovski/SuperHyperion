@@ -155,6 +155,9 @@ attribute capsule-id, value string;
 attribute query-hash, value string;
 attribute evidence-snapshot, value string;     # JSON array of evidence IDs frozen at run time
 attribute capsule-hash, value string;          # SHA-256 of the entire capsule manifest
+attribute mutation-id, value string;
+attribute mutation-snapshot, value string;     # JSON array of mutation IDs linked to capsule
+attribute mutation-type, value string;
 
 # ============================================================================
 # ENTITY TYPES
@@ -241,7 +244,8 @@ entity proposition sub probabilistic-entity,
     plays belief-assertion:subject,
     plays proposal-targets-proposition:proposition,
     plays evidence-for-proposition:proposition,
-    plays speculative-hypothesis-targets-proposition:proposition;
+    plays speculative-hypothesis-targets-proposition:proposition,
+    plays affects:proposition;
 
 entity predicate-cluster,
     owns canonical-form,
@@ -470,7 +474,20 @@ entity run-capsule,
     owns evidence-snapshot,
     owns capsule-hash,
     owns created-at,
-    plays session-has-capsule:capsule;
+    plays session-has-capsule:capsule,
+    plays asserted-by:capsule;
+
+entity mutation-event,
+    owns mutation-id @key,
+    owns session-id,
+    owns intent-id,
+    owns proposal-id,
+    owns claim-id,
+    owns mutation-type,
+    owns to-status,
+    owns created-at,
+    plays asserted-by:mutation-event,
+    plays affects:mutation-event;
 
 entity template-lifecycle-event,
     owns entity-id @key,
@@ -616,3 +633,5 @@ relation intent-has-status-event, relates write-intent, relates intent-status-ev
 relation session-has-speculative-hypothesis, relates session, relates hypothesis;
 relation speculative-hypothesis-targets-proposition, relates hypothesis, relates proposition;
 relation session-has-capsule, relates session, relates capsule;
+relation asserted-by, relates mutation-event, relates capsule;
+relation affects, relates mutation-event, relates proposition;

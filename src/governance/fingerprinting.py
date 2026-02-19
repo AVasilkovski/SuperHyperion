@@ -211,3 +211,24 @@ def make_capsule_manifest_hash(capsule_id: str, manifest: dict) -> str:
     s = json.dumps(canonical, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
+
+def make_mutation_id(
+    session_id: str,
+    intent_id: str,
+    claim_id: str,
+    proposed_status: str,
+) -> str:
+    """
+    Deterministic mutation-event ID generator (Phase 16.8).
+
+    Returns "mut-" + 24-char SHA-256 digest.
+    """
+    payload = {
+        "sid": session_id or "",
+        "iid": intent_id or "",
+        "cid": claim_id or "",
+        "to": proposed_status or "",
+    }
+    s = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    h = hashlib.sha256(s.encode("utf-8")).hexdigest()[:24]
+    return f"mut-{h}"

@@ -344,6 +344,7 @@ async def integrate_node(state: AgentState) -> AgentState:
             "intent_id": gov.get("intent_id") or "",
             "proposal_id": gov.get("proposal_id") or "",
             "evidence_ids": sorted(evidence_ids),
+            "mutation_ids": sorted(gov.get("mutation_ids") or []),
         }
         capsule_hash = make_capsule_manifest_hash(capsule_id, manifest)
 
@@ -360,6 +361,7 @@ async def integrate_node(state: AgentState) -> AgentState:
             db = TypeDBConnection()
             if not db._mock_mode:
                 evidence_snapshot_json = _json.dumps(sorted(evidence_ids), separators=(",", ":"))
+                mutation_snapshot_json = _json.dumps(sorted(gov.get("mutation_ids") or []), separators=(",", ":"))
                 def _esc(s):
                     return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
 
@@ -373,11 +375,33 @@ async def integrate_node(state: AgentState) -> AgentState:
                         has intent-id "{_esc(gov.get("intent_id") or "")}",
                         has proposal-id "{_esc(gov.get("proposal_id") or "")}",
                         has evidence-snapshot "{_esc(evidence_snapshot_json)}",
+                        has mutation-snapshot "{_esc(mutation_snapshot_json)}",
                         has capsule-hash "{_esc(capsule_hash)}";
                 '''
                 from src.db.capabilities import WriteCap
                 db.query_insert(insert_q, cap=WriteCap._mint())
                 logger.info(f"integrate_node: Run capsule persisted: {capsule_id}")
+
+                mutation_events = state.get("graph_context", {}).get("mutation_events", []) or []
+                for event in mutation_events:
+                    claim_id = event.get("claim_id", "")
+                    mutation_q = f"""
+                    match
+                        $cap isa run-capsule, has capsule-id "{_esc(capsule_id)}";
+                        $prop isa proposition, has entity-id "{_esc(claim_id)}";
+                    insert
+                        $mut isa mutation-event,
+                            has mutation-id "{_esc(event.get('mutation_id', ''))}",
+                            has session-id "{_esc(event.get('session_id', session_id))}",
+                            has intent-id "{_esc(event.get('intent_id', ''))}",
+                            has proposal-id "{_esc(event.get('proposal_id', ''))}",
+                            has claim-id "{_esc(claim_id)}",
+                            has mutation-type "{_esc(event.get('mutation_type', 'unknown'))}",
+                            has to-status "{_esc(event.get('to_status', ''))}";
+                        (mutation-event: $mut, capsule: $cap) isa asserted-by;
+                        (mutation-event: $mut, proposition: $prop) isa affects;
+                    """
+                    db.query_insert(mutation_q, cap=WriteCap._mint())
             else:
                 logger.debug(f"integrate_node: [MOCK] Run capsule built: {capsule_id}")
         except Exception as e:

@@ -23,6 +23,7 @@ from src.epistemology.evidence_roles import (
 from src.governance.fingerprinting import (
     make_capsule_id,
     make_evidence_id,
+    make_mutation_id,
     make_negative_evidence_id,
 )
 
@@ -135,6 +136,14 @@ class TestFingerprinting:
         assert pos_id[:3] != neg_id[:4]
         # Hash parts are the same (same payload)
         assert pos_id[3:] == neg_id[4:]
+
+
+    def test_make_mutation_id_deterministic(self):
+        """Mutation IDs should be deterministic and namespaced."""
+        id1 = make_mutation_id("sess-1", "intent-1", "claim-1", "verified")
+        id2 = make_mutation_id("sess-1", "intent-1", "claim-1", "verified")
+        assert id1 == id2
+        assert id1.startswith("mut-")
 
     def test_make_capsule_id_deterministic(self):
         """Capsule IDs should be deterministic."""

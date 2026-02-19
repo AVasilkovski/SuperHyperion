@@ -34,7 +34,7 @@ class OllamaClient:
         self.base_url = base_url or config.ollama.base_url
         self.model = model or config.ollama.model
         self.embedding_model = embedding_model or config.ollama.embedding_model
-        self._client = httpx.Client(timeout=120.0)
+        self._client = httpx.Client(timeout=300.0)
 
     def generate(
         self,

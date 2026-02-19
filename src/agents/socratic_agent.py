@@ -70,6 +70,15 @@ class SocraticDebateAgent(BaseAgent):
             if not debate.consensus_reached:
                 await self._conduct_round(debate)
 
+        # Phase 16.7 Fix: Set a response summary for the workflow
+        active = self.get_active_debates()
+        if active:
+            count = len(active)
+            props = ", ".join([d.proposition[:30] + "..." for d in list(active.values())[:2]])
+            context.response = f"Active Socratic debate(s) on {count} proposition(s): {props}"
+        else:
+            context.response = "No active high-entropy debates."
+
         return context
 
     def _find_high_entropy_propositions(self) -> List[Dict]:

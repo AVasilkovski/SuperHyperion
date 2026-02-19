@@ -42,6 +42,9 @@ from .templates import (
     ThresholdCheckOutput,
     ThresholdCheckParams,
     ThresholdCheckTemplate,
+    CodeActOutput,
+    CodeActParams,
+    CodeActTemplate,
 )
 
 
@@ -239,6 +242,20 @@ EFFECT_DIRECTION_SPEC = TemplateSpec(
 )
 
 
+CODEACT_V1_SPEC = TemplateSpec(
+    template_id="codeact_v1",
+    version=TemplateVersion(1, 0, 0),
+    description="Ad-hoc code execution for validation experiments",
+    param_schema=_schema_from_model(CodeActParams),
+    output_schema=_schema_from_model(CodeActOutput),
+    invariants=["success is boolean"],
+    depends_on=[],
+    capabilities=set(),
+    required_tests=[],
+    deterministic=False,
+)
+
+
 # =============================================================================
 # Build Versioned Registry
 # =============================================================================
@@ -257,6 +274,7 @@ def build_versioned_registry() -> VersionedTemplateRegistry:
         (ContradictionDetectTemplate(), CONTRADICTION_DETECT_SPEC),
         (CitationCheckTemplate(), CITATION_CHECK_SPEC),
         (EffectDirectionTemplate(), EFFECT_DIRECTION_SPEC),
+        (CodeActTemplate(), CODEACT_V1_SPEC),
     ]
 
     for template, spec in templates_specs:

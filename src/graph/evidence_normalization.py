@@ -17,7 +17,7 @@ def normalize_validation_evidence(
     ev: Dict[str, Any],
     *,
     scope_lock_id: Optional[str] = None,
-    template_qid_default: str = "codeact-v1@1.0",
+    template_qid_default: str = "codeact_v1@1.0.0",
 ) -> Dict[str, Any]:
     """
     Normalize ValidatorAgent evidence dict into OntologySteward insert contract.

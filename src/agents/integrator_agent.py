@@ -3,25 +3,34 @@ Integrator Agent
 
 v2.1 Step 12: Synthesizes dual outputs (grounded + speculative).
 The final synthesis agent before ontology updates.
+
+Phase 16.5: Adds ledger primacy verification (_verify_evidence_primacy)
+to prove cited evidence IDs actually exist in TypeDB and match
+session/scope/claim before synthesis is allowed.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.agents.base_agent import AgentContext, BaseAgent
 
 logger = logging.getLogger(__name__)
 
+# Maximum evidence IDs per OR-disjunction query before chunking.
+_OR_DISJUNCTION_THRESHOLD = 50
+
 
 class IntegratorAgent(BaseAgent):
     """
     Step 12: Synthesizes final answer with dual outputs.
-    
+
     Produces:
         A. Grounded Answer - what is currently justified
         B. Speculative Alternatives - hypotheses worth exploring
-    
+
     This is the final synthesis before ontology updates.
+
+    Phase 16.5: Also performs ledger primacy verification before synthesis.
     """
 
     def __init__(self):
@@ -50,6 +59,162 @@ class IntegratorAgent(BaseAgent):
         logger.info("Synthesized dual outputs")
 
         return context
+
+    # =========================================================================
+    # Phase 16.5: Ledger Primacy Verification
+    # =========================================================================
+
+    def _verify_evidence_primacy(
+        self,
+        session_id: str,
+        evidence_ids: List[str],
+        expected_scope_lock_id: Optional[str] = None,
+        expected_claim_ids: Optional[Set[str]] = None,
+    ) -> Tuple[bool, Optional[str], Dict[str, Any]]:
+        """
+        Verify evidence IDs against the TypeDB ledger (hard proof).
+
+        Checks:
+          1. Existence — all evidence_ids are persisted in ledger
+          2. Session ownership — evidence belongs to this session (via session-has-evidence)
+          3. Scope coherence — all evidence has matching scope-lock-id
+          4. Claim alignment — evidence claim-ids are within expected set
+
+        Uses OR-disjunction for TypeQL queries (TypeDB 3.x compatible).
+        For large evidence sets (>50), chunks queries to avoid oversized TypeQL.
+
+        Returns:
+            (passed, hold_code, details) where:
+            - passed: True if all checks pass
+            - hold_code: machine-parsable code if failed, None if passed
+            - details: dict with diagnostics (missing IDs, mismatched scopes, etc.)
+        """
+        if not evidence_ids:
+            return False, "EVIDENCE_MISSING_FROM_LEDGER", {"reason": "No evidence IDs to verify"}
+
+        if not session_id:
+            return False, "EVIDENCE_MISSING_FROM_LEDGER", {"reason": "No session_id provided"}
+
+        # Deduplicate input while preserving diagnostics
+        input_set = set(evidence_ids)
+
+        # Fetch evidence rows from ledger in chunks
+        all_rows: List[Dict[str, Any]] = []
+        id_list = sorted(input_set)
+
+        for chunk_start in range(0, len(id_list), _OR_DISJUNCTION_THRESHOLD):
+            chunk = id_list[chunk_start : chunk_start + _OR_DISJUNCTION_THRESHOLD]
+            rows = self._fetch_evidence_by_ids(session_id, chunk)
+            all_rows.extend(rows)
+
+        # Build result set from returned rows
+        returned_ids: Set[str] = set()
+        returned_scopes: Dict[str, str] = {}  # evidence_id → scope
+        returned_claims: Dict[str, str] = {}  # evidence_id → claim
+
+        for row in all_rows:
+            eid = row.get("id") or row.get("eid")
+            if eid:
+                returned_ids.add(eid)
+                scope = row.get("scope") or row.get("slid")
+                claim = row.get("claim") or row.get("cid")
+                if scope:
+                    returned_scopes[eid] = str(scope)
+                if claim:
+                    returned_claims[eid] = str(claim)
+
+        # ── Check 1: Completeness ──
+        missing = input_set - returned_ids
+        if missing:
+            return False, "EVIDENCE_MISSING_FROM_LEDGER", {
+                "hold_reason": f"{len(missing)} evidence ID(s) not found in ledger for session {session_id}",
+                "missing": sorted(missing),
+                "expected_count": len(input_set),
+                "returned_count": len(returned_ids),
+            }
+
+        # ── Check 2: Session ownership ──
+        # Already enforced by the match clause (session-has-evidence join).
+        # If an ID is in `missing`, it failed session ownership.
+
+        # ── Check 3: Scope coherence ──
+        if expected_scope_lock_id:
+            mismatched_scopes = {
+                eid: scope
+                for eid, scope in returned_scopes.items()
+                if scope != expected_scope_lock_id
+            }
+            if mismatched_scopes:
+                return False, "EVIDENCE_SCOPE_MISMATCH", {
+                    "hold_reason": f"{len(mismatched_scopes)} evidence ID(s) have wrong scope-lock-id",
+                    "expected_scope": expected_scope_lock_id,
+                    "mismatched": mismatched_scopes,
+                }
+
+        # ── Check 4: Claim alignment ──
+        if expected_claim_ids:
+            mismatched_claims = {
+                eid: claim
+                for eid, claim in returned_claims.items()
+                if claim not in expected_claim_ids
+            }
+            if mismatched_claims:
+                return False, "EVIDENCE_CLAIM_MISMATCH", {
+                    "hold_reason": f"{len(mismatched_claims)} evidence ID(s) cite unexpected claims",
+                    "expected_claims": sorted(expected_claim_ids),
+                    "mismatched": mismatched_claims,
+                }
+
+        # All checks passed
+        return True, None, {
+            "verified_count": len(returned_ids),
+            "session_id": session_id,
+        }
+
+    def _fetch_evidence_by_ids(
+        self,
+        session_id: str,
+        evidence_ids: List[str],
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch evidence rows from TypeDB using OR-disjunction.
+
+        Returns list of dicts with keys: id, claim, scope.
+        """
+        if not evidence_ids:
+            return []
+
+        # Escape function (same as ontology_steward)
+        def _esc(s: str) -> str:
+            return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+
+        # Build OR-disjunction clauses
+        or_clauses = " or ".join(
+            f'{{ $id == "{_esc(eid)}"; }}'
+            for eid in evidence_ids
+        )
+
+        query = f'''
+        match
+            $s isa run-session, has session-id "{_esc(session_id)}";
+            (session: $s, evidence: $ev) isa session-has-evidence;
+            $ev isa evidence,
+                has entity-id $id,
+                has claim-id $claim,
+                has scope-lock-id $scope;
+            {or_clauses};
+        get $id, $claim, $scope;
+        '''
+
+        try:
+            return self.query_graph(query)
+        except Exception as e:
+            logger.error(f"Primacy TypeQL query failed (session={session_id}): {e}")
+            return []
+
+    # =========================================================================
+    # Synthesis methods
+    # =========================================================================
 
     def _synthesize_grounded(self, context: AgentContext) -> Dict[str, Any]:
         """Synthesize the grounded answer from evidence."""

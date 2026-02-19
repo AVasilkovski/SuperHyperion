@@ -258,7 +258,7 @@ Execution is organized by **tracks + milestones**, not calendar estimates.
 
 ### Release Train (Ordered)
 
-#### Milestone A — `EPI-16.8` / `OPS-1.1` (ACTIVE)
+#### Milestone A — `EPI-16.8` / `OPS-1.1` (LOCKED)
 1. **EPI-16.8 Audit Spine Completion**
    - Mutation-event model and capsule linkage as mandatory invariant.
    - Fail-closed governance on missing mutation linkage metadata.
@@ -272,6 +272,11 @@ Execution is organized by **tracks + milestones**, not calendar estimates.
 4. **OPS-1.1 Operational Guardrails**
    - Canonical gate/hold codes.
    - Node-level duration/failure/gate telemetry in governance artifacts.
+
+Milestone A completion evidence:
+- Mutation linkage is fail-closed and replay-verifiable.
+- Steward emits deterministic write-result trail (`steward_write_results`).
+- Governance output is validated under `contract_version: v1` and includes gate telemetry (`gate_code`, `failure_reason`, `duration_ms`).
 
 #### Milestone B — `EPI-17.0` / `OPS-2.0` / `TRUST-1.0` (PLANNED)
 1. **TRUST-1.0 Policy Core (minimal)**

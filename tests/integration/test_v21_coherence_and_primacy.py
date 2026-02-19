@@ -307,3 +307,7 @@ async def test_governance_gate_holds_on_missing_capsule_linkage_metadata():
     gov = result["governance"]
     assert gov["status"] == "HOLD"
     assert gov["hold_code"] == "MISSING_CAPSULE_LINKAGE"
+    assert gov["contract_version"] == "v1"
+    assert gov["gate_code"] == "MISSING_CAPSULE_LINKAGE"
+    assert gov["failure_reason"] == gov["hold_reason"]
+    assert gov["duration_ms"] >= 0

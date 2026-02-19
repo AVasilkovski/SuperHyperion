@@ -1134,7 +1134,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     extra_fields = {k: v for k, v in ev.items() if k not in exclude}
     
     # Standardize payload for JSON serialization
-    from dataclasses import is_dataclass, asdict
+    from dataclasses import asdict, is_dataclass
     def _to_json_ready(obj):
         if is_dataclass(obj):
             return asdict(obj)

@@ -10,6 +10,7 @@ on:
     paths:
       - 'src/schema/**'
       - 'scripts/apply_schema.py'
+      - '.github/workflows/staging-schema-deploy.yml'
 
 jobs:
   deploy-schema:
@@ -45,24 +46,25 @@ jobs:
 
       - name: 'Apply schema to TypeDB Cloud staging'
         env:
-          TYPEDB_HOST: "${{ secrets.TYPEDB_CLOUD_HOST }}"
-          TYPEDB_PORT: "${{ secrets.TYPEDB_CLOUD_PORT }}"
-          TYPEDB_USERNAME: "${{ secrets.TYPEDB_CLOUD_USER }}"
-          TYPEDB_PASSWORD: "${{ secrets.TYPEDB_CLOUD_PASSWORD }}"
+          TYPEDB_ADDRESS: "${{ secrets.TYPEDB_ADDRESS }}"
+          TYPEDB_DATABASE: "${{ secrets.TYPEDB_DATABASE }}"
+          TYPEDB_USERNAME: "${{ secrets.TYPEDB_USERNAME }}"
+          TYPEDB_PASSWORD: "${{ secrets.TYPEDB_PASSWORD }}"
           TYPEDB_TLS: 'true'
-          TYPEDB_DATABASE: 'scientific_knowledge'
         run: |
           python scripts/apply_schema.py \
             --schema src/schema/scientific_knowledge.tql \
-            --database "$TYPEDB_DATABASE"
+            --address "$TYPEDB_ADDRESS" \
+            --database "$TYPEDB_DATABASE" \
+            --username "$TYPEDB_USERNAME" \
+            --password "$TYPEDB_PASSWORD"
 
       - name: 'Connectivity smoke check'
         env:
-          TYPEDB_HOST: "${{ secrets.TYPEDB_CLOUD_HOST }}"
-          TYPEDB_PORT: "${{ secrets.TYPEDB_CLOUD_PORT }}"
-          TYPEDB_USERNAME: "${{ secrets.TYPEDB_CLOUD_USER }}"
-          TYPEDB_PASSWORD: "${{ secrets.TYPEDB_CLOUD_PASSWORD }}"
-          TYPEDB_TLS: 'true'
+          TYPEDB_ADDRESS: "${{ secrets.TYPEDB_ADDRESS }}"
+          TYPEDB_USERNAME: "${{ secrets.TYPEDB_USERNAME }}"
+          TYPEDB_PASSWORD: "${{ secrets.TYPEDB_PASSWORD }}"
+          TYPEDB_DATABASE: "${{ secrets.TYPEDB_DATABASE }}"
         run: |
           python - << 'EOF'
           import os, logging
@@ -71,14 +73,13 @@ jobs:
           # Silence driver logging noise
           logging.basicConfig(level=logging.INFO)
           
-          host = os.environ.get('TYPEDB_HOST')
-          port = os.environ.get('TYPEDB_PORT')
+          addr = os.environ.get('TYPEDB_ADDRESS')
           user = os.environ.get('TYPEDB_USERNAME')
           pw = os.environ.get('TYPEDB_PASSWORD')
+          db_name = os.environ.get('TYPEDB_DATABASE')
           
           ca = os.getenv('TYPEDB_ROOT_CA_PATH')
           
-          addr = f"{host}:{port}"
           creds = Credentials(user, pw)
           opts = DriverOptions(is_tls_enabled=True, tls_root_ca_path=ca)
           
@@ -87,7 +88,7 @@ jobs:
           try:
               dbs = [d.name for d in driver.databases.all()]
               print(f"Staging DBs: {dbs}")
-              assert 'scientific_knowledge' in dbs, "scientific_knowledge not found!"
+              assert db_name in dbs, f"{db_name} not found!"
               print("Connectivity smoke: PASS")
           finally:
               driver.close()

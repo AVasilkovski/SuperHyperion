@@ -59,6 +59,7 @@ def main():
     p = argparse.ArgumentParser(description="Apply TypeDB schema (local Core or Cloud TLS).")
     p.add_argument("--schema", default=os.getenv("TYPEDB_SCHEMA", "src/schema/scientific_knowledge.tql"))
     p.add_argument("--database", default=os.getenv("TYPEDB_DATABASE", "scientific_knowledge"))
+    p.add_argument("--address", default=os.getenv("TYPEDB_ADDRESS"))
     p.add_argument("--host", default=os.getenv("TYPEDB_HOST", "localhost"))
     p.add_argument("--port", default=os.getenv("TYPEDB_PORT", "1729"))
     p.add_argument("--username", default=os.getenv("TYPEDB_USERNAME", "admin"))
@@ -72,12 +73,12 @@ def main():
     if not schema_path.exists():
         raise FileNotFoundError(f"Schema file not found: {schema_path}")
 
-    address = f"{args.host}:{args.port}"
+    address = args.address if args.address else f"{args.host}:{args.port}"
     
     # Track 5: CI stabilization guard
     # If in CI and secrets are missing (resulting in ":" or empty strings), skip.
     is_ci = os.getenv("GITHUB_ACTIONS") == "true"
-    if is_ci and (not args.host or not args.port or address == ":"):
+    if is_ci and (not address or address == ":"):
         print(f"[apply_schema] SKIP: Skipping Cloud deployment in CI (secrets missing for branch/PR)")
         return 0
 

@@ -123,14 +123,11 @@ class IntegratorAgent(BaseAgent):
         if not session_id:
             return False, "EVIDENCE_MISSING_FROM_LEDGER", {"reason": "No session_id provided"}
 
-<<<<<<< HEAD
-=======
         # Phase 16.5: Mock mode bypass (for showcase/CI without TypeDB)
         from src.db.typedb_client import typedb
         if getattr(typedb, "_mock_mode", False):
             logger.debug("Integrator: [MOCK] Skipping primacy check (ledger unavailable)")
             return True, None, {"mock": True}
->>>>>>> origin/main
         # Deduplicate input while preserving diagnostics
         input_set = set(evidence_ids)
 

@@ -135,8 +135,6 @@ async def governance_gate_node(state: AgentState) -> AgentState:
         # State-side scope_lock_id: try graph_context or fall back to intent's
         state_scope_lock_id = gc.get("scope_lock_id") or scope_lock_id_from_intent
         resolved_scope_lock_id = state_scope_lock_id
-<<<<<<< HEAD
-
         hold_code, hold_reason = _run_coherence_checks(
             intent=intent,
             persisted_ids=persisted_ids,
@@ -156,18 +154,6 @@ async def governance_gate_node(state: AgentState) -> AgentState:
         # Ensure we have a mock intent_id for downstream
         intent_id = intent_id or "intent-showcase-auto"
         proposal_id = proposal_id or "prop-showcase-auto"
-=======
-
-        hold_code, hold_reason = _run_coherence_checks(
-            intent=intent,
-            persisted_ids=persisted_ids,
-            expected_proposal_id=proposal_id,
-            state_scope_lock_id=state_scope_lock_id,
-        )
-
-        if hold_code is None:
-            status = "STAGED"
->>>>>>> origin/main
 
     state["governance"] = {
         "status": status,

@@ -5,11 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-<<<<<<< HEAD
-from typedb.driver import TypeDB, Credentials, DriverOptions, SessionType, TransactionType
-=======
 from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
->>>>>>> origin/main
 
 
 def env_bool(name: str, default: str = "false") -> bool:
@@ -53,16 +49,9 @@ def ensure_database(driver, db: str):
 
 def apply_schema(driver, db: str, schema_path: Path):
     schema = schema_path.read_text(encoding="utf-8")
-<<<<<<< HEAD
-    with driver.session(db, SessionType.SCHEMA) as session:
-        with session.transaction(TransactionType.WRITE) as tx:
-            tx.query().define(schema)
-            tx.commit()
-=======
     with driver.transaction(db, TransactionType.SCHEMA) as tx:
         tx.query(schema).resolve()
         tx.commit()
->>>>>>> origin/main
     print(f"[apply_schema] schema applied: {schema_path}")
 
 
@@ -84,6 +73,14 @@ def main():
         raise FileNotFoundError(f"Schema file not found: {schema_path}")
 
     address = f"{args.host}:{args.port}"
+    
+    # Track 5: CI stabilization guard
+    # If in CI and secrets are missing (resulting in ":" or empty strings), skip.
+    is_ci = os.getenv("GITHUB_ACTIONS") == "true"
+    if is_ci and (not args.host or not args.port or address == ":"):
+        print(f"[apply_schema] SKIP: Skipping Cloud deployment in CI (secrets missing for branch/PR)")
+        return 0
+
     print(f"[apply_schema] connecting to {address} tls={tls} ca={ca_path}")
 
     driver = connect_with_retries(address, args.username, args.password, tls, ca_path)

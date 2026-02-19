@@ -26,6 +26,9 @@ from .templates import (
     CitationCheckOutput,
     CitationCheckParams,
     CitationCheckTemplate,
+    CodeActOutput,
+    CodeActParams,
+    CodeActTemplate,
     ContradictionDetectOutput,
     ContradictionDetectParams,
     ContradictionDetectTemplate,
@@ -42,9 +45,6 @@ from .templates import (
     ThresholdCheckOutput,
     ThresholdCheckParams,
     ThresholdCheckTemplate,
-    CodeActOutput,
-    CodeActParams,
-    CodeActTemplate,
 )
 
 

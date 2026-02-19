@@ -229,3 +229,83 @@ Core guarantees covered:
 - coherence + primacy
 - capsule hashing + replay verification
 - eval harness
+
+------------------------------------------------------------
+## ARCHITECTURE EVOLUTION PLAN — TRUST RUNTIME SERIES
+------------------------------------------------------------
+
+This section replaces week-based roadmap labels with an industry-standard release train.
+Execution is organized by **tracks + milestones**, not calendar estimates.
+
+### Naming Unification Standard
+
+- **Tracks**
+  - `EPI` — epistemic mechanics and verification guarantees.
+  - `OPS` — operational reliability and deployment safety.
+  - `TRUST` — enterprise control plane and policy governance.
+- **Milestone format**: `<TRACK>-<MAJOR>.<MINOR>` (example: `EPI-17.0`).
+- **Status labels**: `PLANNED`, `ACTIVE`, `HARDENING`, `LOCKED`.
+- **No week-based labels** in architecture planning (no "NOW/NEXT/LATER").
+
+### Track Model
+
+| Track | Scope | Active Series |
+|------|-------|---------------|
+| Epistemic Core | Truth mechanics, deterministic mutation pipeline | EPI 16.x |
+| Audit & Coverage | Objective trust guarantees and replay fidelity | EPI 17.x |
+| Operational Spine | CI/CD + migration and deployment safety | OPS 2.x |
+| Enterprise Trust Layer | Policy control plane + operator APIs + RBAC | TRUST 1.x |
+
+### Release Train (Ordered)
+
+#### Milestone A — `EPI-16.8` / `OPS-1.1` (ACTIVE)
+1. **EPI-16.8 Audit Spine Completion**
+   - Mutation-event model and capsule linkage as mandatory invariant.
+   - Fail-closed governance on missing mutation linkage metadata.
+   - Replay verification includes capsule↔mutation linkage completeness.
+2. **OPS-1.1 Steward Write Hardening**
+   - Deterministic idempotency anchors and structured write-result trail.
+   - Deterministic failure semantics for partial/failed durable writes.
+3. **EPI-16.8 Contract Freeze v1**
+   - Strict typed handoff contracts at critical boundaries.
+   - Unknown-field rejection and cross-lane leakage rejection.
+4. **OPS-1.1 Operational Guardrails**
+   - Canonical gate/hold codes.
+   - Node-level duration/failure/gate telemetry in governance artifacts.
+
+#### Milestone B — `EPI-17.0` / `OPS-2.0` / `TRUST-1.0` (PLANNED)
+1. **TRUST-1.0 Policy Core (minimal)**
+   - Explicit policy toggles and threshold checks.
+   - Deterministic policy evaluation; no DSL in this milestone.
+2. **OPS-2.0 Additive Migration Framework**
+   - Ordered migration files + migration runner + schema-version tracking.
+   - Additive schema changes only.
+3. **EPI-17.0 Coverage Logging**
+   - Sample event logs with policy label, seed, and bucket tags.
+   - Capsule-level coverage summary metrics.
+4. **OPS-2.0 Objective Holdout CI Suite**
+   - Frozen holdout scenarios with regression thresholds in CI.
+
+#### Milestone C — `EPI-17.1` / `TRUST-1.1` (PLANNED)
+1. **EPI-17.1 Sampling Budget Enforcement**
+   - Budgeted policy mixes only after baseline metrics stabilize.
+2. **TRUST-1.1 Control Plane + RBAC**
+   - `list_capsules`, `list_intents`, `diff_runs`, `export_audit_bundle`, `list_policy_violations`.
+3. **TRUST-1.1 Reliability Program**
+   - Confidence composition and operational SLOs.
+
+### Deliberate Non-Goals (anti-vanity constraints)
+
+- No PKI signature layer in this transition series.
+- No swarm-agent expansion.
+- No multi-cloud orchestration complexity.
+- No heavy confidence math before baseline observability.
+- No premature vector retrieval expansion.
+
+### Execution Principle
+
+Trust is produced by enforceable invariants, not claims:
+- deterministic mutation identifiers,
+- mandatory mutation attribution to capsules,
+- replay verifiability,
+- policy-enforced hold behavior.

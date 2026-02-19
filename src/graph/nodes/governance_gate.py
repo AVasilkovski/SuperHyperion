@@ -102,6 +102,8 @@ async def governance_gate_node(state: AgentState) -> AgentState:
     intent_id = gc.get("latest_staged_intent_id")
     proposal_id = gc.get("latest_staged_proposal_id")
     error = gc.get("proposal_generation_error")
+    mutation_ids = gc.get("mutation_ids", []) or []
+    committed_intents = gc.get("committed_intents", []) or []
     session_id = (gc.get("session_id") or state.get("session_id"))
 
     # Fail fast: upstream errors or missing inputs → HOLD immediately
@@ -119,6 +121,9 @@ async def governance_gate_node(state: AgentState) -> AgentState:
     elif not intent_id:
         hold_code = "NO_INTENT_STAGED"
         hold_reason = "No intent staged — cannot verify coherence"
+    elif committed_intents and not mutation_ids:
+        hold_code = "MISSING_CAPSULE_LINKAGE"
+        hold_reason = "Durable mutations committed without mutation_ids for capsule linkage"
     else:
         # Phase 16.5: Load canonical intent record and run coherence checks
         intent = None
@@ -163,6 +168,7 @@ async def governance_gate_node(state: AgentState) -> AgentState:
         "persisted_evidence_ids": persisted_ids,
         "intent_id": intent_id,
         "proposal_id": proposal_id,
+        "mutation_ids": mutation_ids,
         "scope_lock_id": resolved_scope_lock_id,
         "hold_code": hold_code,
         "hold_reason": hold_reason,

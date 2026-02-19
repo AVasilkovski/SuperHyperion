@@ -276,3 +276,34 @@ if __name__ == "__main__":
     asyncio.run(test_integrator_holds_on_scope_mismatch())
     asyncio.run(test_integrator_holds_on_claim_mismatch())
     print("All Phase 16.5 coherence & primacy tests passed.")
+
+
+@pytest.mark.asyncio
+async def test_governance_gate_holds_on_missing_capsule_linkage_metadata():
+    """Committed intents without mutation_ids must fail-closed before integration."""
+    from src.graph.nodes.governance_gate import governance_gate_node
+
+    state = create_initial_state("Test query — missing capsule linkage")
+    state["graph_context"]["persisted_all_evidence_ids"] = ["ev-aaa"]
+    state["graph_context"]["latest_staged_intent_id"] = "intent-ok-001"
+    state["graph_context"]["latest_staged_proposal_id"] = "prop-ok-001"
+    state["graph_context"]["proposal_generation_error"] = None
+    state["graph_context"]["committed_intents"] = [{"intent_id": "intent-ok-001"}]
+    state["graph_context"]["mutation_ids"] = []
+
+    valid_intent = _make_staged_intent(
+        intent_id="intent-ok-001",
+        proposal_id="prop-ok-001",
+        evidence_ids=["ev-aaa"],
+    )
+    mock_intent = _make_write_intent_from_dict(valid_intent)
+
+    mock_svc = MagicMock()
+    mock_svc.get.return_value = mock_intent
+
+    with patch("src.hitl.intent_service.write_intent_service", mock_svc):
+        result = await governance_gate_node(state)
+
+    gov = result["governance"]
+    assert gov["status"] == "HOLD"
+    assert gov["hold_code"] == "MISSING_CAPSULE_LINKAGE"

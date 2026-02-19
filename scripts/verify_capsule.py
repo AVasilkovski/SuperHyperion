@@ -9,8 +9,8 @@ import logging
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.append(os.getcwd())
+# Add project root to path
+sys.path.append(str(Path(__file__).parent.parent))
 
 from src.agents.integrator_agent import integrator_agent
 from src.db.typedb_client import typedb
@@ -30,6 +30,9 @@ def reverify(capsule_path: str):
     logger.info(f"Verifying session: {session_id}")
     logger.info(f"Evidence count:   {len(evidence_ids)}")
     
+    # Ensure TypeDB state is initialized (triggers mock-mode if driver missing)
+    typedb.connect()
+
     # Run primacy check
     passed, code, details = integrator_agent._verify_evidence_primacy(
         session_id=session_id,

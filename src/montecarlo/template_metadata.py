@@ -205,7 +205,7 @@ def normalize_ast(source: str) -> str:
         return source
 
 
-def compute_code_hash(cls: type, strict: bool = False) -> str:
+def compute_code_hash(obj: Any, strict: bool = False) -> str:
     """
     Compute hash of the entire template class implementation.
     
@@ -213,12 +213,14 @@ def compute_code_hash(cls: type, strict: bool = False) -> str:
     If strict=True, raises exception on failure instead of returning placeholder.
     """
     try:
-        source = inspect.getsource(cls)
+        # Resolve to class if an instance is passed
+        target = obj if inspect.isclass(obj) or inspect.isfunction(obj) else type(obj)
+        source = inspect.getsource(target)
         normalized = normalize_ast(source)
         return hashlib.sha256(normalized.encode()).hexdigest()
     except (OSError, TypeError) as e:
         if strict:
-            raise RuntimeError(f"Failed to compute code hash for {cls}: {e}")
+            raise RuntimeError(f"Failed to compute code hash for {target}: {e}")
         # If we can't inspect source (e.g. REPL), return placeholder
         # In PROD this should probably fail, but for now we maintain robustness
         return f"hash-error-{str(e)}"

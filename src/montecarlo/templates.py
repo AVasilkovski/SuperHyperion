@@ -93,6 +93,14 @@ class EffectDirectionParams(BaseModel):
     expected_direction: Literal["positive", "negative", "zero"]
 
 
+class CodeActParams(BaseModel):
+    """Placeholder for ad-hoc CodeAct experiment parameters."""
+    model_config = ConfigDict(extra="forbid")
+    claim_id: str
+    code_hash: str
+    n_iterations: int = 1
+
+
 # =============================================================================
 # Template Output Models
 # =============================================================================
@@ -164,6 +172,13 @@ class EffectDirectionOutput(BaseModel):
     actual_direction: str
     confidence: float
     mean_value: float
+
+
+class CodeActOutput(BaseModel):
+    method: str = "codeact_v1"
+    success: bool
+    stdout: str
+    return_code: int = 0
 
 
 # =============================================================================
@@ -456,6 +471,25 @@ class EffectDirectionTemplate(Template):
         }
 
 
+class CodeActTemplate(Template):
+    """Template for ad-hoc code execution via CodeAct."""
+    template_id = "codeact_v1"
+    description = "Ad-hoc code execution for validation experiments"
+    ParamModel = CodeActParams
+    OutputModel = CodeActOutput
+    deterministic = False  # External code can be non-deterministic
+
+    def run(self, params: CodeActParams, context: Optional[Dict] = None) -> Dict[str, Any]:
+        # This is a placeholder since ValidatorAgent runs the code directly.
+        # But we need it in the registry for sealing evidence.
+        return {
+            "method": "codeact_v1",
+            "success": True,
+            "stdout": "Executed via ValidatorAgent",
+            "return_code": 0
+        }
+
+
 # =============================================================================
 # Template Registry
 # =============================================================================
@@ -493,6 +527,7 @@ class TemplateRegistry:
         self.register(ContradictionDetectTemplate())
         self.register(CitationCheckTemplate())
         self.register(EffectDirectionTemplate())
+        self.register(CodeActTemplate())
 
     def register(self, template: Template):
         """Register a template."""

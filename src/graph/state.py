@@ -83,12 +83,13 @@ class Evidence:
     that references a successful template execution.
     """
     hypothesis_id: str
-    claim_id: Optional[str]
-    template_id: str
-    template_qid: Optional[str] = None  # Phase 14.5: Qualified template ID
+    claim_id: Optional[str] = None
+    template_id: str = "codeact_v1"
+    template_qid: Optional[str] = "codeact_v1@1.0.0"  # Phase 14.5: Qualified template ID
     scope_lock_id: Optional[str] = None  # Phase 14.5: Scope lock ID
     test_description: str = ""
     execution_id: str = ""
+    codeact_execution_id: Optional[int] = None  # v2.1: traceability to CodeAct executor
     result: Dict[str, Any] = field(default_factory=dict)
     metrics: Dict[str, float] = field(default_factory=dict)
 
@@ -222,6 +223,9 @@ class AgentState(TypedDict):
     # Phase 16.4: Governance summary (required for fail-closed integrate)
     governance: Optional[Dict[str, Any]]
 
+    # Phase 16.6: Run Capsule (reproducibility artifact)
+    run_capsule: Optional[Dict[str, Any]]
+    session_id: Optional[str]
 
     # =========================================================================
     # Original v1 Fields (kept for compatibility)
@@ -272,8 +276,10 @@ class AgentState(TypedDict):
 
 
 
-def create_initial_state(query: str) -> AgentState:
+def create_initial_state(query: str, session_id: Optional[str] = None) -> AgentState:
     """Create initial state for a new query."""
+    import uuid
+    sid = session_id or f"sess-{uuid.uuid4().hex[:8]}"
     return AgentState(
         # v2.1 Epistemic Fields
         epistemic_mode="speculative",  # Start in speculative lane
@@ -307,10 +313,12 @@ def create_initial_state(query: str) -> AgentState:
         write_intents=[],
         approved_write_intents=[],
         governance=None,  # Phase 16.4: set by governance_gate_node
+        run_capsule=None,
+        session_id=sid,
         # Original v1 Fields
         messages=[{"role": "user", "content": query}],
         query=query,
-        graph_context={},
+        graph_context={"session_id": sid},
         entities=[],
         hypotheses=[],
         code_executions=[],

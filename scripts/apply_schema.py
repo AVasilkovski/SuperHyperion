@@ -73,6 +73,14 @@ def main():
         raise FileNotFoundError(f"Schema file not found: {schema_path}")
 
     address = f"{args.host}:{args.port}"
+    
+    # Track 5: CI stabilization guard
+    # If in CI and secrets are missing (resulting in ":" or empty strings), skip.
+    is_ci = os.getenv("GITHUB_ACTIONS") == "true"
+    if is_ci and (not args.host or not args.port or address == ":"):
+        print(f"[apply_schema] SKIP: Skipping Cloud deployment in CI (secrets missing for branch/PR)")
+        return 0
+
     print(f"[apply_schema] connecting to {address} tls={tls} ca={ca_path}")
 
     driver = connect_with_retries(address, args.username, args.password, tls, ca_path)

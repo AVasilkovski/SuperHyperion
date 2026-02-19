@@ -6,7 +6,7 @@ Implements CodeAct as belief gatekeeper and HITL gates.
 """
 
 import logging
-from typing import Literal
+from typing import Literal, Optional
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
@@ -567,18 +567,19 @@ workflow_v21 = build_v21_workflow()
 app_v21 = workflow_v21.compile(checkpointer=memory_v21)
 
 
-async def run_v21_query(query: str, thread_id: str = "default") -> AgentState:
+async def run_v21_query(query: str, thread_id: str = "default", session_id: Optional[str] = None) -> AgentState:
     """
     Run a query through the v2.1 workflow.
     
     Args:
         query: User's hypothesis to investigate
         thread_id: Thread ID for checkpointing
+        session_id: Optional session ID override
         
     Returns:
         Final agent state with dual outputs
     """
-    initial_state = create_initial_state(query)
+    initial_state = create_initial_state(query, session_id=session_id)
     cfg = {"configurable": {"thread_id": thread_id}}
 
     final_state = await app_v21.ainvoke(initial_state, cfg)

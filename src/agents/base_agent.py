@@ -24,6 +24,7 @@ class AgentContext:
     code_results: List[Dict[str, Any]] = field(default_factory=list)
     dialectical_entropy: float = 0.0
     current_hypothesis: Optional[str] = None
+    response: Optional[str] = None
 
 
 class BaseAgent(ABC):

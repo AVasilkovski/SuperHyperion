@@ -37,7 +37,7 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
 
         def _esc(s):
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
-        query = f'''
+        query_with_mutations = f'''
         match
             $cap isa run-capsule,
                 has capsule-id $cid,
@@ -52,7 +52,28 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
             $cid == "{_esc(capsule_id)}";
         get $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $msnap, $chash;
         '''
-        rows = db.query_fetch(query)
+
+        # Backward compatibility: pre-16.8 capsules do not have mutation-snapshot.
+        query_legacy = f'''
+        match
+            $cap isa run-capsule,
+                has capsule-id $cid,
+                has session-id $sid,
+                has query-hash $qh,
+                has scope-lock-id $slid,
+                has intent-id $iid,
+                has proposal-id $pid,
+                has evidence-snapshot $esnap,
+                has capsule-hash $chash;
+            $cid == "{_esc(capsule_id)}";
+        get $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $chash;
+        '''
+
+        rows = db.query_fetch(query_with_mutations)
+        has_mutation_snapshot = True
+        if not rows:
+            rows = db.query_fetch(query_legacy)
+            has_mutation_snapshot = False
         if not rows:
             return None
 
@@ -65,7 +86,7 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
             "intent_id": row.get("iid"),
             "proposal_id": row.get("pid"),
             "evidence_ids": json_lib.loads(row.get("esnap", "[]")),
-            "mutation_ids": json_lib.loads(row.get("msnap", "[]")),
+            "mutation_ids": json_lib.loads(row.get("msnap", "[]")) if has_mutation_snapshot else [],
             "capsule_hash": row.get("chash"),
         }
     except Exception as e:

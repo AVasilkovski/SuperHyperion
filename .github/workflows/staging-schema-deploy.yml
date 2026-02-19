@@ -76,10 +76,6 @@ jobs:
           user = os.environ.get('TYPEDB_USERNAME')
           pw = os.environ.get('TYPEDB_PASSWORD')
           
-          if not host or not port:
-              print("SKIP: TYPEDB_HOST/PORT missing. Skipping connectivity smoke check in CI (likely PR context).")
-              raise SystemExit(0)
-              
           ca = os.getenv('TYPEDB_ROOT_CA_PATH')
           
           addr = f"{host}:{port}"

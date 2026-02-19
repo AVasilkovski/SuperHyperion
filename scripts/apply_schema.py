@@ -49,10 +49,9 @@ def ensure_database(driver, db: str):
 
 def apply_schema(driver, db: str, schema_path: Path):
     schema = schema_path.read_text(encoding="utf-8")
-    with driver.session(db, SessionType.SCHEMA) as session:
-        with session.transaction(TransactionType.WRITE) as tx:
-            tx.query().define(schema)
-            tx.commit()
+    with driver.transaction(db, TransactionType.SCHEMA) as tx:
+        tx.query(schema).resolve()
+        tx.commit()
     print(f"[apply_schema] schema applied: {schema_path}")
 
 

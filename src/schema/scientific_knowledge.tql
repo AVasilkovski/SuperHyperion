@@ -150,6 +150,12 @@ attribute superseded-by, value string;
 attribute event-type, value string;
 attribute actor, value string;
 
+# --- Run Capsule (Phase 16.6) ---
+attribute capsule-id, value string;
+attribute query-hash, value string;
+attribute evidence-snapshot, value string;     # JSON array of evidence IDs frozen at run time
+attribute capsule-hash, value string;          # SHA-256 of the entire capsule manifest
+
 # ============================================================================
 # ENTITY TYPES
 # ============================================================================
@@ -275,7 +281,8 @@ entity run-session,
     plays session-has-scope-draft:session,
     plays session-has-scope-lock:session,
     plays session-has-meta-oversight:session,
-    plays session-has-speculative-hypothesis:session;
+    plays session-has-speculative-hypothesis:session,
+    plays session-has-capsule:session;
 
 entity trace-entry,
     owns step-index,
@@ -453,6 +460,18 @@ entity template-metadata,
     owns created-at,
     plays template-has-lifecycle-event:template;
 
+entity run-capsule,
+    owns capsule-id @key,
+    owns session-id,
+    owns query-hash,
+    owns scope-lock-id,
+    owns intent-id,
+    owns proposal-id,
+    owns evidence-snapshot,
+    owns capsule-hash,
+    owns created-at,
+    plays session-has-capsule:capsule;
+
 entity template-lifecycle-event,
     owns entity-id @key,
     owns template-id,
@@ -596,3 +615,4 @@ relation evidence-for-proposition,
 relation intent-has-status-event, relates write-intent, relates intent-status-event;
 relation session-has-speculative-hypothesis, relates session, relates hypothesis;
 relation speculative-hypothesis-targets-proposition, relates hypothesis, relates proposition;
+relation session-has-capsule, relates session, relates capsule;

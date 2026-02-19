@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-from typedb.driver import TypeDB, Credentials, DriverOptions, TransactionType
+from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
 
 
 def env_bool(name: str, default: str = "false") -> bool:

@@ -1,12 +1,15 @@
 import asyncio
+
 import pytest
+
+from src.db.typedb_client import typedb
 from src.epistemology.theory_change_operator import TheoryAction
 from src.governance.fingerprinting import make_evidence_id
 from src.graph.evidence_normalization import normalize_validation_evidence
 from src.graph.nodes.govern_and_stage import govern_and_stage_node
 from src.graph.state import create_initial_state
 from src.hitl.intent_service import write_intent_service
-from src.db.typedb_client import typedb
+
 
 @pytest.fixture(autouse=True)
 def setup_mock_db():

@@ -64,6 +64,7 @@ def main():
     p.add_argument("--port", default=os.getenv("TYPEDB_PORT", "1729"))
     p.add_argument("--username", default=os.getenv("TYPEDB_USERNAME", "admin"))
     p.add_argument("--password", default=os.getenv("TYPEDB_PASSWORD", "password"))
+    p.add_argument("--recreate", action="store_true", help="Delete and recreate the database before applying.")
     args = p.parse_args()
 
     tls = env_bool("TYPEDB_TLS", "false")
@@ -86,6 +87,11 @@ def main():
 
     driver = connect_with_retries(address, args.username, args.password, tls, ca_path)
     try:
+        if args.recreate:
+            if driver.databases.contains(args.database):
+                driver.databases.get(args.database).delete()
+                print(f"[apply_schema] database deleted: {args.database}")
+        
         ensure_database(driver, args.database)
         apply_schema(driver, args.database, schema_path)
     finally:

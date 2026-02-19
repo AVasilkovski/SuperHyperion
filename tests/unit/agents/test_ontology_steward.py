@@ -134,6 +134,13 @@ async def test_execute_intent(steward, mock_db):
     assert len(committed) == 1
     assert committed[0] == intent
 
+    write_results = context.graph_context.get("steward_write_results", [])
+    assert len(write_results) == 1
+    assert write_results[0]["contract_version"] == "v1"
+    assert write_results[0]["status"] == "executed"
+    assert write_results[0]["duration_ms"] >= 0
+    assert write_results[0]["idempotency_key"].startswith("iw-")
+
     # Check DB operations
     assert len(mock_db.deletes) >= 1
     # Find the specific delete for epistemic status

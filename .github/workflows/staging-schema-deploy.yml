@@ -1,0 +1,94 @@
+name: staging-schema-deploy
+
+# Ops 1.0: Deploy schema to TypeDB Cloud staging on pushes to main.
+# Isolated via GitHub Environment — PR workflows cannot access these secrets.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/schema/**'
+      - 'scripts/apply_schema.py'
+
+jobs:
+  deploy-schema:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@v4
+
+      - name: 'Set up Python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 'Install typedb-driver'
+        run: |
+          python -m pip install --upgrade pip
+          pip install "typedb-driver==3.7.0"
+
+      - name: 'Decode TypeDB root CA (if provided)'
+        env:
+          TYPEDB_ROOT_CA_B64: "${{ secrets.TYPEDB_ROOT_CA_B64 }}"
+        run: |
+          if [ -n "$TYPEDB_ROOT_CA_B64" ]; then
+            echo "$TYPEDB_ROOT_CA_B64" | base64 -d > ca.pem
+            echo "TYPEDB_ROOT_CA_PATH=$(pwd)/ca.pem" >> $GITHUB_ENV
+            echo "CA decoded and set."
+          else
+            echo "No CA provided, skipping."
+          fi
+
+      - name: 'Apply schema to TypeDB Cloud staging'
+        env:
+          TYPEDB_HOST: "${{ secrets.TYPEDB_CLOUD_HOST }}"
+          TYPEDB_PORT: "${{ secrets.TYPEDB_CLOUD_PORT }}"
+          TYPEDB_USERNAME: "${{ secrets.TYPEDB_CLOUD_USER }}"
+          TYPEDB_PASSWORD: "${{ secrets.TYPEDB_CLOUD_PASSWORD }}"
+          TYPEDB_TLS: 'true'
+          TYPEDB_DATABASE: 'scientific_knowledge'
+        run: |
+          python scripts/apply_schema.py \
+            --schema src/schema/scientific_knowledge.tql \
+            --database "$TYPEDB_DATABASE"
+
+      - name: 'Connectivity smoke check'
+        env:
+          TYPEDB_HOST: "${{ secrets.TYPEDB_CLOUD_HOST }}"
+          TYPEDB_PORT: "${{ secrets.TYPEDB_CLOUD_PORT }}"
+          TYPEDB_USERNAME: "${{ secrets.TYPEDB_CLOUD_USER }}"
+          TYPEDB_PASSWORD: "${{ secrets.TYPEDB_CLOUD_PASSWORD }}"
+          TYPEDB_TLS: 'true'
+        run: |
+          python - << 'EOF'
+          import os, logging
+          from typedb.driver import TypeDB, Credentials, DriverOptions
+          
+          # Silence driver logging noise
+          logging.basicConfig(level=logging.INFO)
+          
+          host = os.environ.get('TYPEDB_HOST')
+          port = os.environ.get('TYPEDB_PORT')
+          user = os.environ.get('TYPEDB_USERNAME')
+          pw = os.environ.get('TYPEDB_PASSWORD')
+          
+          ca = os.getenv('TYPEDB_ROOT_CA_PATH')
+          
+          addr = f"{host}:{port}"
+          creds = Credentials(user, pw)
+          opts = DriverOptions(is_tls_enabled=True, tls_root_ca_path=ca)
+          
+          print(f"Connecting to {addr} (TLS=True)...")
+          driver = TypeDB.driver(addr, creds, opts)
+          try:
+              dbs = [d.name for d in driver.databases.all()]
+              print(f"Staging DBs: {dbs}")
+              assert 'scientific_knowledge' in dbs, "scientific_knowledge not found!"
+              print("Connectivity smoke: PASS")
+          finally:
+              driver.close()
+          EOF

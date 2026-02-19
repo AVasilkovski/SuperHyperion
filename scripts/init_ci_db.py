@@ -27,7 +27,7 @@ RETRY_DELAY = 2
 
 def main():
     try:
-        from typedb.driver import TypeDB, TransactionType, Credentials, DriverOptions
+        from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
     except Exception as e:
         print(f"FATAL: TypeDB driver API not importable via typedb.driver: {e}", file=sys.stderr)
         sys.exit(1)

@@ -163,8 +163,8 @@ async def test_steward_succeeds_if_seal_passes():
     assert len(validation_calls) == 1
 
 @pytest.mark.asyncio
-async def test_steward_rejects_failed_evidence():
-    """Verify failed evidence raises policy violation (Phase 16.1: reject loud, not silent skip)."""
+async def test_steward_accepts_failed_evidence_for_audit():
+    """Verify failed evidence is persisted for audit (Phase 16.5 stabilization)."""
     steward = OntologySteward()
     steward.insert_to_graph = MagicMock()
     steward._seal_operator_before_mint = MagicMock()
@@ -182,11 +182,13 @@ async def test_steward_rejects_failed_evidence():
         }]
     }
 
-    # Phase 16.1: Failed evidence should raise ValueError (reject loud, not silent skip)
-    with pytest.raises(ValueError) as exc_info:
-        await steward.run(context)
-
-    assert "success-only" in str(exc_info.value).lower() or "policy violation" in str(exc_info.value).lower()
+    # Should NOT raise ValueError anymore, but log a warning and proceed
+    await steward.run(context)
+    
+    # Verify insert WAS called (Phase 16.5 change)
+    calls = steward.insert_to_graph.call_args_list
+    validation_calls = [c.args[0] for c in calls if "validation-evidence" in c.args[0]]
+    assert len(validation_calls) == 1
 
 @pytest.mark.asyncio
 async def test_seal_method_checks_hash_parity():
@@ -252,10 +254,7 @@ async def test_seal_method_checks_hash_parity():
 # =============================================================================
 
 def test_q_insert_validation_evidence_success_canonicalization():
-    """Verify 'false' string prevents minting (raise ValueError) or sets success=False."""
-    # The policy now says: q_insert_validation_evidence RAISES if success is false.
-    # So if we pass success="false", it should parse to False, and then raise ValueError.
-
+    """Verify 'false' string sets success=False (allowed for audit)."""
     ev = {
         "success": "false",
         "claim_id": "c1",
@@ -263,19 +262,19 @@ def test_q_insert_validation_evidence_success_canonicalization():
         "scope_lock_id": "sl1"
     }
 
-    with pytest.raises(ValueError, match="Policy violation: validation-evidence is success-only"):
-        q_insert_validation_evidence("sess1", ev)
+    query = q_insert_validation_evidence("sess1", ev)
+    assert "has success false" in query
 
-def test_q_insert_validation_evidence_rejects_failed_evidence():
-    """Verify built-in policy violation for success=False."""
+def test_q_insert_validation_evidence_allows_failed_evidence():
+    """Verify failed evidence is allowed (Phase 16.5)."""
     ev = {
         "success": False,
         "claim_id": "c1",
         "template_qid": "t@1.0.0",
         "scope_lock_id": "sl1"
     }
-    with pytest.raises(ValueError, match="Policy violation: validation-evidence is success-only"):
-        q_insert_validation_evidence("sess1", ev)
+    query = q_insert_validation_evidence("sess1", ev)
+    assert "has success false" in query
 
 def test_q_insert_validation_evidence_derives_template_id():
     """Verify template_id is derived from qid if missing."""

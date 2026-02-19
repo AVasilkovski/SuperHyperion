@@ -79,8 +79,11 @@ class TypeDBConnection:
 
         if self._driver is None:
             creds = Credentials(config.typedb.username, config.typedb.password)
-            # Default options for core (TLS disabled)
-            opts = DriverOptions(is_tls_enabled=False, tls_root_ca_path=None)
+            # Ops 1.0: TLS driven by config (local Core = False, Cloud = True)
+            opts = DriverOptions(
+                is_tls_enabled=config.typedb.tls_enabled,
+                tls_root_ca_path=config.typedb.tls_root_ca_path,
+            )
             self._driver = TypeDB.driver(self.address, creds, opts)
         return self._driver
 
@@ -196,7 +199,8 @@ class TypeDBConnection:
             logger.debug(f"[MOCK] query_insert: {query[:100]}...")
             return
 
-        with self.transaction(TransactionType.WRITE) as tx:
+        tx_type = TransactionType.WRITE if TransactionType else "WRITE"
+        with self.transaction(tx_type) as tx:
             tx.query.insert(query)
 
     def query_delete(self, query: str, *, cap=None):
@@ -208,7 +212,8 @@ class TypeDBConnection:
             logger.debug(f"[MOCK] query_delete: {query[:100]}...")
             return
 
-        with self.transaction(TransactionType.WRITE) as tx:
+        tx_type = TransactionType.WRITE if TransactionType else "WRITE"
+        with self.transaction(tx_type) as tx:
             tx.query.delete(query)
 
     # ========================================================================

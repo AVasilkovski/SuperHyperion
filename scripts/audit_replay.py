@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
 from src.utils.logging_setup import setup_logging
 
@@ -232,7 +232,7 @@ async def main():
     print("  AUDIT REPLAY COMPLETE")
     print("="*60)
     print(f"  Finished: {datetime.now().isoformat()}")
-    print(f"  Exit: SUCCESS")
+    print("  Exit: SUCCESS")
     print()
 
 

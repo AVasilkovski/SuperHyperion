@@ -220,7 +220,7 @@ def compute_code_hash(obj: Any, strict: bool = False) -> str:
         return hashlib.sha256(normalized.encode()).hexdigest()
     except (OSError, TypeError) as e:
         if strict:
-            raise RuntimeError(f"Failed to compute code hash for {cls}: {e}")
+            raise RuntimeError(f"Failed to compute code hash for {target}: {e}")
         # If we can't inspect source (e.g. REPL), return placeholder
         # In PROD this should probably fail, but for now we maintain robustness
         return f"hash-error-{str(e)}"

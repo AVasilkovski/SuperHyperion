@@ -2,10 +2,12 @@
 SuperHyperion Configuration
 
 Environment configuration for TypeDB, Ollama, and service connections.
+Ops 1.0: TypeDB TLS support for cloud/staging environments.
 """
 
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -16,6 +18,10 @@ class TypeDBConfig:
     database: str = os.getenv("TYPEDB_DATABASE", "superhyperion")
     username: str = os.getenv("TYPEDB_USERNAME", "admin")
     password: str = os.getenv("TYPEDB_PASSWORD", "password")
+
+    # Ops 1.0: TLS support for TypeDB Cloud
+    tls_enabled: bool = os.getenv("TYPEDB_TLS", "false").lower() == "true"
+    tls_root_ca_path: Optional[str] = os.getenv("TYPEDB_ROOT_CA_PATH") or None
 
     @property
     def address(self) -> str:

@@ -16,7 +16,11 @@ from src.epistemology.evidence_roles import (
 )
 
 # Phase 16.1: Import from governance module
-from src.governance.fingerprinting import make_evidence_id, make_mutation_id, make_negative_evidence_id
+from src.governance.fingerprinting import (
+    make_evidence_id,
+    make_mutation_id,
+    make_negative_evidence_id,
+)
 from src.montecarlo.template_metadata import sha256_json_strict
 from src.montecarlo.types import QID_RE
 from src.montecarlo.versioned_registry import (  # Access explicit registry

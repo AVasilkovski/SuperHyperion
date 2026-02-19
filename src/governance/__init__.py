@@ -2,8 +2,8 @@
 # Constitutional primitives: seal, fingerprint, lifecycle, reproducibility.
 
 from src.governance.fingerprinting import (
-    make_mutation_id,
     make_evidence_id,
+    make_mutation_id,
     make_negative_evidence_id,
 )
 

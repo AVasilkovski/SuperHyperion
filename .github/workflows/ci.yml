@@ -10,12 +10,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # Ephemeral TypeDB — pinned to match requirements + init script
+    # Ops 1.0: Ephemeral TypeDB Core service container
     services:
       typedb:
         image: typedb/typedb:3.7.3
         ports:
           - 1729:1729
+
+    env:
+      PYTHONPATH: .
+      TYPEDB_HOST: localhost
+      TYPEDB_PORT: "1729"
+      TYPEDB_DATABASE: scientific_knowledge
+      TYPEDB_USERNAME: admin
+      TYPEDB_PASSWORD: password
+      TYPEDB_TLS: "false"
 
     steps:
       - name: Checkout code
@@ -30,8 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Force clean state: remove collisions and reinstall exact driver version
-          pip uninstall -y typedb typedb-driver || true
+          pip uninstall -y typedb || true
           pip install --no-cache-dir --force-reinstall "typedb-driver==3.7.0"
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
@@ -39,27 +47,6 @@ jobs:
       - name: Debug TypeDB driver surface
         run: |
           python -c "import typedb.driver as d; print('driver file:', d.__file__); print('attrs:', [a for a in dir(d) if a in ('TypeDB','TransactionType','Credentials','DriverOptions','SessionType')])"
-
-      # Initialize DB + Schema (session-less 3.x API)
-      - name: Initialize TypeDB schema (CI)
-        env:
-          PYTHONPATH: .
-          TYPEDB_HOST: localhost
-          TYPEDB_PORT: 1729
-          TYPEDB_DATABASE: scientific_knowledge
-          TYPEDB_USERNAME: admin
-          TYPEDB_PASSWORD: password
-        run: python scripts/init_ci_db.py
-
-      - name: Run tests
-        env:
-          PYTHONPATH: .
-          TYPEDB_HOST: localhost
-          TYPEDB_PORT: 1729
-          TYPEDB_DATABASE: scientific_knowledge
-          TYPEDB_USERNAME: admin
-          TYPEDB_PASSWORD: password
-        run: pytest tests/ -v --tb=short
 
       # Phase 16.3: WriteCap grep-ban — no agent except OntologySteward may write
       - name: Grep-ban unauthorized writes
@@ -76,6 +63,39 @@ jobs:
             exit 1
           fi
           echo "✓ No unauthorized write calls found"
+
+      - name: Wait for TypeDB gRPC readiness
+        run: |
+          python - << 'PY'
+          import os, time
+          from typedb.driver import TypeDB, Credentials, DriverOptions
+
+          addr = f"{os.environ['TYPEDB_HOST']}:{os.environ['TYPEDB_PORT']}"
+          creds = Credentials("admin", "password")
+          opts = DriverOptions(is_tls_enabled=False, tls_root_ca_path=None)
+
+          last = None
+          for i in range(1, 31):
+              try:
+                  driver = TypeDB.driver(addr, creds, opts)
+                  _ = [d.name for d in driver.databases().all()]
+                  driver.close()
+                  print(f"TypeDB ready: {addr}")
+                  raise SystemExit(0)
+              except Exception as e:
+                  last = e
+                  print(f"waiting for TypeDB ({i}/30): {e}")
+                  time.sleep(2)
+          raise SystemExit(f"TypeDB not ready: {last}")
+          PY
+
+      - name: Apply schema (CI TypeDB Core)
+        run: |
+          python scripts/apply_schema.py --schema src/schema/scientific_knowledge.tql --database "$TYPEDB_DATABASE"
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --tb=short
 
       - name: Upload test artifacts on failure
         if: failure()

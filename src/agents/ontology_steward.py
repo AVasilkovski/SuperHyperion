@@ -1109,9 +1109,10 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     else:
         success = bool(raw_success)
 
-    # 5. Policy Check: We now allow failed evidence for auditability (Phase 16.5).
-    # The success value is correctly captured in the TypeQL 'has success' attribute.
-    pass
+    # 5. Enforce Success-Only Policy (RELAXED for falsification/audit)
+    if not success:
+        logger.warning(f"Persisting FAILED validation-evidence (exec_id={exec_id}).")
+        # raise ValueError(f"Policy violation: validation-evidence is success-only (exec_id={exec_id})")
 
     # 6. Derive template_id from QID if missing
     if not template_id and template_qid and "@" in template_qid:

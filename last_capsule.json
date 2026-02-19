@@ -1,0 +1,13 @@
+{
+  "capsule_id": "run-7fd0f89038052e80727fb44ef7b58792",
+  "capsule_hash": "0abcbef46310abfd081ec5932ce033ea03645dacbf9edc8de69ff657111c7231",
+  "session_id": "showcase-5b77afd6",
+  "query_hash": "583f157d7c1ec51b1848ab090699564f",
+  "scope_lock_id": "",
+  "intent_id": "intent-showcase-auto",
+  "proposal_id": "prop-showcase-auto",
+  "evidence_ids": [
+    "ev-68bcf9a3030110949032490622c5fcd1"
+  ],
+  "created_at": "2026-02-18T23:25:51.538022"
+}

@@ -250,6 +250,12 @@ Execution is organized by **tracks + milestones**, not calendar estimates.
 
 To align engineering output with enterprise review workflows, branch + commit naming follows a strict conventional format.
 
+**Repository naming safety checklist (required before push):**
+- Branch name must follow `<type>/<short-kebab-topic>` and avoid generic names (`tmp`, `misc`, `work`).
+- Commit titles must follow `<type>(<scope>): <subject>` and avoid ambiguous verbs (`update`, `fixes`) without scope.
+- PR title should mirror the primary conventional commit subject and explicitly mention the impacted track (`EPI`, `OPS`, `TRUST`) when applicable.
+- Merge commit message should preserve milestone traceability (for example: `merge(trust): ... [TRUST-1.0.x/OPS-1.3]`).
+
 - **Commit format**: `<type>(<scope>): <subject>`
   - Examples: `fix(governance): ...`, `docs(trust): ...`, `feat(ops): ...`
 - **Allowed primary types**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `infra`.

@@ -92,7 +92,7 @@ class ExplainabilitySummaryV1(BaseModel):
     lineage: LineageBlock
 
 
-class ExplainabilitySummaryV1_1(ExplainabilitySummaryV1):
+class ExplainabilitySummaryV11(ExplainabilitySummaryV1):
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["v1.1"] = "v1.1"
@@ -101,7 +101,9 @@ class ExplainabilitySummaryV1_1(ExplainabilitySummaryV1):
     blocking_checks: list[str] = Field(default_factory=list)
 
 
-ExplainabilitySummaryAny = Union[ExplainabilitySummaryV1, ExplainabilitySummaryV1_1]
+ExplainabilitySummaryV1_1 = ExplainabilitySummaryV11
+
+ExplainabilitySummaryAny = Union[ExplainabilitySummaryV1, ExplainabilitySummaryV11]
 
 
 def _load_if_path(value: Dict[str, Any] | str | None) -> Optional[Dict[str, Any]]:
@@ -140,7 +142,7 @@ def _blocking_checks(
 def parse_explainability_summary(payload: Dict[str, Any]) -> ExplainabilitySummaryAny:
     contract = payload.get("contract_version")
     if contract == "v1.1":
-        return ExplainabilitySummaryV1_1(**payload)
+        return ExplainabilitySummaryV11(**payload)
     return ExplainabilitySummaryV1(**payload)
 
 
@@ -148,7 +150,7 @@ def build_explainability_summary(
     governance_summary: Dict[str, Any] | str,
     replay_verdict: Dict[str, Any] | str | None = None,
     capsule_manifest: Dict[str, Any] | str | None = None,
-) -> ExplainabilitySummaryV1_1:
+) -> ExplainabilitySummaryV11:
     governance = _load_if_path(governance_summary) or {}
     replay = _load_if_path(replay_verdict) or None
     manifest = _load_if_path(capsule_manifest) or None
@@ -210,7 +212,7 @@ def build_explainability_summary(
         why_commit = "Commit blocked: one or more governance checks failed or run is not staged."
         why_hold = f"Hold enforced by code {code}: {reason}."
 
-    return ExplainabilitySummaryV1_1(
+    return ExplainabilitySummaryV11(
         capsule_id=capsule_id,
         tenant_id=tenant_id,
         status=status,

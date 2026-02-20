@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from src.sdk.bundles import load_bundles
 from src.sdk.compliance import build_compliance_report
@@ -73,3 +74,20 @@ def test_tenant_default_filter_includes_legacy_missing_tenant(tmp_path):
 
     acme_loaded = load_bundles(str(bundles), tenant_id="acme")
     assert [b.prefix for b in acme_loaded] == ["run-acme"]
+
+
+def test_nested_duplicate_prefixes_preserve_directory_context(tmp_path):
+    bundles = tmp_path / "bundles"
+    out = tmp_path / "policy"
+    (bundles / "tenant-a").mkdir(parents=True)
+    (bundles / "tenant-b").mkdir(parents=True)
+
+    _bundle(bundles / "tenant-a", "run-1", "tenant-a")
+    _bundle(bundles / "tenant-b", "run-1", "tenant-b")
+
+    loaded = load_bundles(str(bundles))
+    assert [b.bundle_key for b in loaded] == ["tenant-a/run-1", "tenant-b/run-1"]
+
+    written = simulate_policies(str(bundles), "src.policies.builtin", str(out))
+    basenames = sorted(Path(p).name for p in written)
+    assert basenames == ["tenant-a__run-1_policy_simulation.json", "tenant-b__run-1_policy_simulation.json"]

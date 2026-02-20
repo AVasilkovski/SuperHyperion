@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from src.sdk.explainability import ExplainabilitySummaryV1, build_explainability_summary, parse_explainability_summary
+from src.sdk.explainability import (
+    ExplainabilitySummaryV1,
+    build_explainability_summary,
+    parse_explainability_summary,
+)
 
 
 def test_explainability_v1_1_narrative_is_deterministic():

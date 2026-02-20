@@ -35,6 +35,7 @@ def _derived_semantic_fingerprint(fn: Callable[[BundleView], Decision]) -> str:
 def _sample_bundle() -> BundleView:
     return BundleView(
         prefix="sample",
+        bundle_key="sample",
         governance=GovernanceSummaryV1(
             contract_version="v1",
             status="HOLD",
@@ -59,9 +60,8 @@ def _policy_metadata(fn: Callable[[BundleView], Decision]) -> dict[str, str]:
     try:
         sample = fn(_sample_bundle())
         resolved_id = str(sample.get("policy_id") or fallback_id)
-        code = str(sample.get("code") or "")
         decision = str(sample.get("decision") or "UNKNOWN").upper()
-        code = _normalize_blocking_code(decision, code)
+        code = _normalize_blocking_code(decision, str(sample.get("code") or ""))
     except Exception:
         pass
     return {
@@ -133,8 +133,9 @@ def detect_static_conflicts(policies: list[Callable[[BundleView], Decision]]) ->
 
 def detect_dynamic_conflicts(simulation_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     conflicts: list[dict[str, Any]] = []
-    for item in sorted(simulation_results, key=lambda x: str(x.get("prefix", ""))):
+    for item in sorted(simulation_results, key=lambda x: str(x.get("bundle_key") or x.get("prefix", ""))):
         prefix = str(item.get("prefix", ""))
+        bundle_key = str(item.get("bundle_key") or prefix)
         decisions = item.get("decisions") or []
         decisions_set = {str(d.get("decision")).upper() for d in decisions}
 
@@ -144,6 +145,7 @@ def detect_dynamic_conflicts(simulation_results: list[dict[str, Any]]) -> list[d
                     "type": "contradictory_decisions",
                     "severity": "error",
                     "prefix": prefix,
+                    "bundle_key": bundle_key,
                     "decisions": sorted(decisions_set),
                 }
             )
@@ -155,11 +157,12 @@ def detect_dynamic_conflicts(simulation_results: list[dict[str, Any]]) -> list[d
                     "type": "hold_code_divergence",
                     "severity": "warning",
                     "prefix": prefix,
+                    "bundle_key": bundle_key,
                     "hold_codes": hold_codes,
                 }
             )
 
-    conflicts.sort(key=lambda c: (c["type"], c.get("prefix", "")))
+    conflicts.sort(key=lambda c: (c["type"], c.get("bundle_key", ""), c.get("prefix", "")))
     return conflicts
 
 
@@ -182,11 +185,13 @@ def run_policy_conflicts(
         decisions = []
         for fn in sorted(policies, key=lambda f: order.get(f.__name__, f.__name__)):
             res = fn(bundle)
+            decision = str(res["decision"]).upper()
+            code = _normalize_blocking_code(decision, str(res.get("code") or ""))
             decisions.append(
                 {
                     "policy_id": str(res["policy_id"]),
-                    "decision": str(res["decision"]),
-                    "code": str(res["code"]),
+                    "decision": decision,
+                    "code": code,
                     "reason": str(res["reason"]),
                 }
             )
@@ -194,6 +199,7 @@ def run_policy_conflicts(
         simulation_results.append(
             {
                 "prefix": bundle.prefix,
+                "bundle_key": bundle.bundle_key,
                 "tenant_id": bundle.tenant_id,
                 "effective_tenant_id": bundle.effective_tenant_id,
                 "decisions": decisions,
@@ -216,15 +222,17 @@ def run_policy_conflicts(
         json.dump(summary, fh, indent=2, sort_keys=True)
     written.append(os.path.abspath(summary_path))
 
-    dynamic_by_prefix: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    dynamic_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for c in dynamic_conflicts:
-        dynamic_by_prefix[str(c.get("prefix", ""))].append(c)
-    for prefix in sorted(dynamic_by_prefix):
-        path = os.path.join(out_dir, f"{prefix}_policy_conflicts.json")
+        key = str(c.get("bundle_key") or c.get("prefix", ""))
+        dynamic_by_key[key].append(c)
+    for bundle_key in sorted(dynamic_by_key):
+        safe_name = bundle_key.replace("\\", "/").replace("/", "__")
+        path = os.path.join(out_dir, f"{safe_name}_policy_conflicts.json")
         payload = {
             "contract_version": "v1",
-            "prefix": prefix,
-            "conflicts": sorted(dynamic_by_prefix[prefix], key=lambda c: (c["type"], c.get("severity", ""))),
+            "prefix": bundle_key,
+            "conflicts": sorted(dynamic_by_key[bundle_key], key=lambda c: (c["type"], c.get("severity", ""))),
         }
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2, sort_keys=True)

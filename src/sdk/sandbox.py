@@ -8,7 +8,7 @@ import json
 import os
 from typing import Callable, Dict, List, Optional
 
-from src.sdk.bundles import BundleView, load_bundles
+from src.sdk.bundles import BundleView, load_bundles, output_prefix
 
 Decision = Dict[str, str]
 
@@ -63,11 +63,13 @@ def simulate_policies(
         output = {
             "contract_version": "v1",
             "prefix": bundle.prefix,
+            "bundle_key": bundle.bundle_key,
             "tenant_id": bundle.tenant_id,
+            "effective_tenant_id": bundle.effective_tenant_id,
             "aggregate_decision": _aggregate(decisions),
             "decisions": decisions,
         }
-        out_path = os.path.join(out_dir, f"{bundle.prefix}_policy_simulation.json")
+        out_path = os.path.join(out_dir, f"{output_prefix(bundle)}_policy_simulation.json")
         with open(out_path, "w", encoding="utf-8") as fh:
             json.dump(output, fh, indent=2, sort_keys=True)
         written.append(os.path.abspath(out_path))

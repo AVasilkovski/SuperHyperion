@@ -155,14 +155,36 @@ async def governance_gate_node(state: AgentState) -> AgentState:
             status = "STAGED"
         
 
-    # Phase 16.7: Showcase Bypass (Demonstration Only)
+    # Unsafe governance bypass (local dev ONLY — triple condition required)
     import os
-    if os.environ.get("SUPERHYPERION_SHOWCASE") == "true" and status == "HOLD":
-        logger.warning(f"SUPERHYPERION_SHOWCASE: Auto-overriding {hold_code} for E2E demonstration")
-        status = "STAGED"
-        # Ensure we have a mock intent_id for downstream
-        intent_id = intent_id or "intent-showcase-auto"
-        proposal_id = proposal_id or "prop-showcase-auto"
+    _unsafe = os.environ.get("SUPERHYPERION_UNSAFE_BYPASS_GOVERNANCE") == "true"
+    _is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+    
+    if _unsafe and _is_ci:
+        logger.critical("SUPERHYPERION_UNSAFE_BYPASS_GOVERNANCE is strictly forbidden in CI environments. Denying bypass.")
+        _unsafe = False
+        
+    if _unsafe and status == "HOLD":
+        _local_host = os.environ.get("TYPEDB_HOST", "localhost") in (
+            "localhost", "typedb", "127.0.0.1",
+        )
+        _dev_env = os.environ.get("ENVIRONMENT", "dev") == "dev"
+        if _local_host and _dev_env:
+            logger.warning(
+                f"UNSAFE GOVERNANCE BYPASS: overriding {hold_code} — "
+                f"allowed only for local dev "
+                f"(host={os.environ.get('TYPEDB_HOST', 'localhost')}, "
+                f"env={os.environ.get('ENVIRONMENT', 'dev')})"
+            )
+            status = "STAGED"
+            intent_id = intent_id or "intent-showcase-auto"
+            proposal_id = proposal_id or "prop-showcase-auto"
+        else:
+            logger.error(
+                "SUPERHYPERION_UNSAFE_BYPASS_GOVERNANCE set but NOT in local dev "
+                f"environment (host={os.environ.get('TYPEDB_HOST')}, "
+                f"env={os.environ.get('ENVIRONMENT')}) — bypass DENIED"
+            )
 
     duration_ms = int((time.perf_counter() - started) * 1000)
     gate_code = hold_code or "GOVERNANCE_STAGED"

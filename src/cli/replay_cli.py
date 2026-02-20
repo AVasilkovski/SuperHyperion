@@ -88,16 +88,17 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
             "evidence_ids": json_lib.loads(row.get("esnap", "[]")),
             "mutation_ids": json_lib.loads(row.get("msnap", "[]")) if has_mutation_snapshot else [],
             "capsule_hash": row.get("chash"),
+            "_has_mutation_snapshot": has_mutation_snapshot,
         }
     except Exception as e:
         console.print(f"[red]TypeDB error:[/red] {e}")
         return None
 
 
-def _recompute_capsule_hash(capsule_id: str, manifest: dict) -> str:
+def _recompute_capsule_hash(capsule_id: str, manifest: dict, manifest_version: str = "v2") -> str:
     """Recompute capsule manifest hash for integrity check."""
     from src.governance.fingerprinting import make_capsule_manifest_hash
-    return make_capsule_manifest_hash(capsule_id, manifest)
+    return make_capsule_manifest_hash(capsule_id, manifest, manifest_version)
 
 
 def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str]) -> tuple[bool, dict]:
@@ -116,19 +117,26 @@ def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str]) -> tuple[
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
 
         seen = set()
-        for mutation_id in mutation_ids:
+        
+        # Batch using `or` condition for all mutation_ids, chunked up to 50
+        missing = set(mutation_ids)
+        chunk_size = 50
+        for i in range(0, len(mutation_ids), chunk_size):
+            chunk = mutation_ids[i:i + chunk_size]
+            or_conditions = " or ".join([f'{{ $mid == "{_esc(m)}"; }}' for m in chunk])
             query = f'''
             match
                 $cap isa run-capsule, has capsule-id "{_esc(capsule_id)}";
-                $mut isa mutation-event, has mutation-id "{_esc(mutation_id)}";
+                $mut isa mutation-event, has mutation-id $mid;
+                {or_conditions};
                 (mutation-event: $mut, capsule: $cap) isa asserted-by;
-            get $mut;
+            get $mid;
             '''
             rows = db.query_fetch(query)
-            if rows:
-                seen.add(mutation_id)
+            for row in rows:
+                seen.add(row.get("mid"))
 
-        missing = sorted(set(mutation_ids) - seen)
+        missing = sorted(missing - seen)
         return len(missing) == 0, {"verified_count": len(seen), "missing": missing}
     except Exception as e:
         return False, {"verified_count": 0, "missing": list(mutation_ids), "error": str(e)}
@@ -160,6 +168,9 @@ def verify_run(
     console.print(f"  [green]✓[/green] Capsule found (session: {capsule['session_id']})")
 
     # 2. Integrity check: recompute hash
+    # G1 backward compat: explicit manifest version checks
+    manifest_version = "v2" if capsule.get("_has_mutation_snapshot") else "v1"
+    
     manifest = {
         "session_id": capsule["session_id"],
         "query_hash": capsule["query_hash"],
@@ -167,9 +178,11 @@ def verify_run(
         "intent_id": capsule["intent_id"],
         "proposal_id": capsule["proposal_id"],
         "evidence_ids": sorted(capsule["evidence_ids"]),
-        "mutation_ids": sorted(capsule.get("mutation_ids") or []),
     }
-    recomputed_hash = _recompute_capsule_hash(run_id, manifest)
+    if manifest_version == "v2":
+        manifest["mutation_ids"] = sorted(capsule.get("mutation_ids") or [])
+    
+    recomputed_hash = _recompute_capsule_hash(run_id, manifest, manifest_version)
     hash_match = recomputed_hash == capsule["capsule_hash"]
 
     if hash_match:

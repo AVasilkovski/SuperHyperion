@@ -124,7 +124,7 @@ class OntologySteward(BaseAgent):
         # 3b. Persist Full Evidence Objects (Phase 13)
         evidence_list = context.graph_context.get("evidence", [])
         _intent_id = context.graph_context.get("intent_id")
-        print(f"DEBUG_STEWARD: Found {len(evidence_list)} evidence items. intent_id={_intent_id}")
+        logger.debug(f"Evidence processing: {len(evidence_list)} items, intent_id={_intent_id}")
         # Phase 16.4: Accumulators for governance outputs
         persisted_evidence_ids = []
         proposal_error = None
@@ -365,8 +365,10 @@ class OntologySteward(BaseAgent):
                 return True, None
 
             elif intent_type == "create_claim":
-                # Implementation for creating new claims
-                pass
+                raise NotImplementedError(
+                    f"create_claim intent execution not yet implemented "
+                    f"(intent_id={intent.get('intent_id')})"
+                )
 
             return True, None
         except Exception as e:
@@ -482,7 +484,7 @@ class OntologySteward(BaseAgent):
         qid = template_qid.strip()
 
         # QID format: must be fully qualified
-        print(f"DEBUG_SEAL: qid='{qid}' match={bool(QID_RE.match(qid))}")
+        logger.debug(f"Seal check: qid='{qid}' match={bool(QID_RE.match(qid))}")
         if (not qid) or ("@" not in qid) or (not QID_RE.match(qid)):
             raise ValueError("Invalid template_qid format for seal")
 

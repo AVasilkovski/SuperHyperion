@@ -1,7 +1,7 @@
 # SuperHyperion — Architecture v3 (Canonical)
 
 This document is the canonical phased architecture map for SuperHyperion.
-It preserves **code-canonical phase numbering**, especially Phase 16.3–16.7.
+It preserves **code-canonical phase numbering**, especially Phase 16.0–16.8.
 
 ------------------------------------------------------------
 ## DESIGN PHILOSOPHY
@@ -200,7 +200,7 @@ Summary:
 - eval run: smoke suite with HOLD breakdown + metrics output
 
 ### PHASE 16.8 — Reproducibility Auditor (Audit Spine)
-Status: 🟡 IN-PROGRESS
+Status: 🟡 HARDENING
 Summary:
 - verify_capsule: standalone verification of scientific record integrity
 - session_id standardization: deterministic propagation to ensure parity between run and replay

@@ -7,6 +7,7 @@ Tests mock the workflow and replay verification to avoid LLM / TypeDB deps.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from unittest.mock import AsyncMock, patch
 
@@ -185,12 +186,36 @@ async def test_sdk_threads_tenant_id_field():
         written = result.export_audit_bundle(tmpdir)
         assert len(written) > 0
 
+        expected_refs = {
+            "governance_summary_file": f"{result.capsule_id}_governance_summary.json",
+            "replay_verdict_file": f"{result.capsule_id}_replay_verify_verdict.json",
+            "capsule_manifest_file": f"{result.capsule_id}_run_capsule_manifest.json",
+        }
+
+        written_basenames = {os.path.basename(path) for path in written}
+        assert expected_refs["governance_summary_file"] in written_basenames
+        assert expected_refs["replay_verdict_file"] in written_basenames
+        assert expected_refs["capsule_manifest_file"] in written_basenames
+
         # Check capsule manifest includes tenant_id
         manifest_files = [f for f in written if "manifest" in f]
         assert len(manifest_files) == 1
         with open(manifest_files[0], "r") as fh:
             manifest_data = json.load(fh)
         assert manifest_data["tenant_id"] == "acme-corp"
+        assert manifest_data["source_refs"] == expected_refs
+
+        governance_files = [f for f in written if "governance_summary" in f]
+        assert len(governance_files) == 1
+        with open(governance_files[0], "r") as fh:
+            governance_data = json.load(fh)
+        assert governance_data["source_refs"] == expected_refs
+
+        replay_files = [f for f in written if "replay_verify_verdict" in f]
+        assert len(replay_files) == 1
+        with open(replay_files[0], "r") as fh:
+            replay_data = json.load(fh)
+        assert replay_data["source_refs"] == expected_refs
 
 
 @pytest.mark.asyncio

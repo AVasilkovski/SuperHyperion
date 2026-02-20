@@ -6,14 +6,14 @@ import importlib
 import inspect
 import json
 import os
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
-from src.sdk.bundles import BundleView, discover_bundle_paths, load_bundle_view
+from src.sdk.bundles import BundleView, load_bundles
 
 Decision = Dict[str, str]
 
 
-def _discover_policies(module_name: str) -> list[Callable[[BundleView], Decision]]:
+def discover_policies(module_name: str) -> list[Callable[[BundleView], Decision]]:
     module = importlib.import_module(module_name)
     policies: list[Callable[[BundleView], Decision]] = []
     for name in dir(module):
@@ -36,14 +36,18 @@ def _aggregate(decisions: List[Decision]) -> str:
     return "ALLOW"
 
 
-def simulate_policies(bundles_dir: str, policies_module: str, out_dir: str) -> list[str]:
+def simulate_policies(
+    bundles_dir: str,
+    policies_module: str,
+    out_dir: str,
+    tenant_id: Optional[str] = None,
+) -> list[str]:
     os.makedirs(out_dir, exist_ok=True)
-    policy_fns = _discover_policies(policies_module)
-    bundle_paths = discover_bundle_paths(bundles_dir)
+    policy_fns = discover_policies(policies_module)
+    bundles = load_bundles(bundles_dir, tenant_id=tenant_id)
     written: list[str] = []
 
-    for prefix in sorted(bundle_paths):
-        bundle = load_bundle_view(bundle_paths[prefix], prefix)
+    for bundle in bundles:
         decisions = []
         for fn in policy_fns:
             res = fn(bundle)
@@ -58,11 +62,12 @@ def simulate_policies(bundles_dir: str, policies_module: str, out_dir: str) -> l
         decisions.sort(key=lambda d: d["policy_id"])
         output = {
             "contract_version": "v1",
-            "prefix": prefix,
+            "prefix": bundle.prefix,
+            "tenant_id": bundle.tenant_id,
             "aggregate_decision": _aggregate(decisions),
             "decisions": decisions,
         }
-        out_path = os.path.join(out_dir, f"{prefix}_policy_simulation.json")
+        out_path = os.path.join(out_dir, f"{bundle.prefix}_policy_simulation.json")
         with open(out_path, "w", encoding="utf-8") as fh:
             json.dump(output, fh, indent=2, sort_keys=True)
         written.append(os.path.abspath(out_path))

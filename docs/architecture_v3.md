@@ -278,31 +278,32 @@ Milestone A completion evidence:
 - Steward emits deterministic write-result trail (`steward_write_results`).
 - Governance output is validated under `contract_version: v1` and includes gate telemetry (`gate_code`, `failure_reason`, `duration_ms`).
 
-#### Milestone B — `EPI-17.0` / `OPS-2.0` / `TRUST-1.0` (HARDENING)
+#### Milestone B — `EPI-17.0` / `TRUST-1.0` (HARDENING)
 1. **TRUST-1.0 Enterprise SDK (v1)**
    - `GovernedRun` SDK orchestrator implementing strict fail-closed state derivation.
    - `AuditBundleExporter` for deterministic artifact formatting.
    - Tenant ID primitive threaded through SDK interfaces and result contracts.
    - Programmatic `verify_capsule` extraction with backward compatibility for legacy envelopes.
-2. **OPS-2.0 Additive Migration Framework**
-   - Ordered migration files + migration runner + schema-version tracking.
-   - Additive schema changes only.
+2. **TRUST-1.0 Adoption Pack (Next)**
+   - Integration adapters (`GovernedAgent.from_langchain()`, `from_llamaindex()`).
+   - Developer experience baseline (auto-generated API reference, exact quickstart guide).
 3. **EPI-17.0 Coverage Logging**
-   - Sample event logs with policy label, seed, and bucket tags.
-   - Capsule-level coverage summary metrics.
-4. **OPS-2.0 Objective Holdout CI Suite**
-   - Frozen holdout scenarios with regression thresholds in CI.
+   - Sample event logs with policy label, seed, and bucket tags (`sample_event()`).
+   - Capsule-level coverage summary metrics (telemetry only, no budget enforcement).
 
-#### Milestone C — `EPI-17.1` / `TRUST-1.1` (PLANNED)
-1. **TRUST-1.1 Policy Core (Toggles & Thresholds)**
-   - Explicit policy toggles and threshold checks for governance.
-   - Deterministic policy evaluation; no DSL in this milestone.
-2. **EPI-17.1 Sampling Budget Enforcement**
+#### Milestone C — `OPS-2.0` / `TRUST-1.1` / `TRUST-1.2` / `EPI-17.1` (PLANNED)
+1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**
+   - Database isolation schema (`tenant` entity + `tenant-owns-capsule` relation).
+   - Strict query isolation across tenants in Ontology Steward.
+   - RBAC primitives (viewer, operator, admin) and tenant-scoped SDK APIs (`list_capsules`).
+2. **TRUST-1.2 Enterprise Control Plane**
+   - Fast REST API layer (FastAPI: `/v1/run`, `/v1/capsules`, `/v1/audit/export`).
+   - Minimal Web UI (Streamlit/React) for capsule browsing, audit dashboards, and policy editing.
+3. **OPS-2.0 Additive Migration Framework**
+   - Ordered migration files + migration runner + schema-version tracking.
+   - Objective holdout CI suite (frozen regression thresholds).
+4. **EPI-17.1 Sampling Budget Enforcement**
    - Budgeted policy mixes only after baseline metrics stabilize.
-3. **TRUST-1.1 Control Plane + RBAC**
-   - `list_capsules`, `list_intents`, `diff_runs`, `AuditBundleExporter` (remote/API), `list_policy_violations`.
-4. **TRUST-1.1 Reliability Program**
-   - Confidence composition and operational SLOs.
 
 ### Deliberate Non-Goals (anti-vanity constraints)
 

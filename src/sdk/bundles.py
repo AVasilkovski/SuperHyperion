@@ -20,6 +20,7 @@ class BundleView:
     manifest: Optional[Dict[str, Any]]
     explainability: Optional[ExplainabilitySummaryAny]
     tenant_id: Optional[str]
+    effective_tenant_id: str
     capsule_id: Optional[str]
 
 
@@ -51,16 +52,19 @@ def _bundle_tenant_id(governance: Dict[str, Any], manifest: Optional[Dict[str, A
     return str(tenant) if tenant is not None else None
 
 
+def _effective_tenant_id(raw_tenant_id: Optional[str]) -> str:
+    return raw_tenant_id if raw_tenant_id is not None else "default"
+
+
 def discover_bundle_paths(bundles_dir: str, tenant_id: Optional[str] = None) -> Dict[str, BundlePaths]:
     grouped: Dict[str, Dict[str, str]] = {}
     files: list[str] = []
-    roots: list[str] = []
     for root, dirs, filenames in os.walk(bundles_dir):
         dirs.sort()
-        roots.append(root)
         for name in sorted(filenames):
             if name.endswith(".json"):
                 files.append(os.path.join(root, name))
+
     suffixes = {
         "_governance_summary.json": "governance",
         "_replay_verify_verdict.json": "replay",
@@ -84,7 +88,7 @@ def discover_bundle_paths(bundles_dir: str, tenant_id: Optional[str] = None) -> 
             governance = _strip_source_refs(_read_json(item["governance"]))
             manifest = _read_json(item["manifest"]) if "manifest" in item else None
             bundle_tenant = _bundle_tenant_id(governance, manifest)
-            if bundle_tenant != tenant_id:
+            if _effective_tenant_id(bundle_tenant) != tenant_id:
                 continue
         result[prefix] = BundlePaths(
             governance=item["governance"],
@@ -101,13 +105,15 @@ def load_bundle_view(paths: BundlePaths, prefix: str) -> BundleView:
     replay = ReplayVerdictV1(**_strip_source_refs(_read_json(paths.replay))) if paths.replay else None
     manifest = _read_json(paths.manifest) if paths.manifest else None
     explainability = parse_explainability_summary(_read_json(paths.explainability)) if paths.explainability else None
+    raw_tenant_id = _bundle_tenant_id(gov_payload, manifest)
     return BundleView(
         prefix=prefix,
         governance=gov,
         replay=replay,
         manifest=manifest,
         explainability=explainability,
-        tenant_id=_bundle_tenant_id(gov_payload, manifest),
+        tenant_id=raw_tenant_id,
+        effective_tenant_id=_effective_tenant_id(raw_tenant_id),
         capsule_id=str((manifest or {}).get("capsule_id")) if (manifest or {}).get("capsule_id") is not None else None,
     )
 
@@ -115,5 +121,5 @@ def load_bundle_view(paths: BundlePaths, prefix: str) -> BundleView:
 def load_bundles(bundles_dir: str, tenant_id: Optional[str] = None) -> list[BundleView]:
     bundle_paths = discover_bundle_paths(bundles_dir, tenant_id=tenant_id)
     bundles = [load_bundle_view(bundle_paths[prefix], prefix) for prefix in sorted(bundle_paths)]
-    bundles.sort(key=lambda b: ((b.tenant_id or ""), (b.capsule_id or ""), b.prefix))
+    bundles.sort(key=lambda b: (b.effective_tenant_id, (b.capsule_id or ""), b.prefix))
     return bundles

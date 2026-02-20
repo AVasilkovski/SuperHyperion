@@ -13,6 +13,7 @@ from src.sdk.bundles import BundleView, load_bundles
 from src.sdk.sandbox import discover_policies
 
 Decision = Dict[str, str]
+_BLOCKING_DECISIONS = {"HOLD", "DENY", "FAIL"}
 
 
 def _policy_name(fn: Callable[[BundleView], Decision]) -> str:
@@ -38,6 +39,7 @@ def _sample_bundle() -> BundleView:
         manifest=None,
         explainability=None,
         tenant_id=None,
+        effective_tenant_id="default",
         capsule_id=None,
     )
 
@@ -46,11 +48,13 @@ def _policy_metadata(fn: Callable[[BundleView], Decision]) -> dict[str, str]:
     fallback_id = fn.__name__
     policy_name = _policy_name(fn)
     code = "UNKNOWN"
+    decision = "UNKNOWN"
     resolved_id = fallback_id
     try:
         sample = fn(_sample_bundle())
         resolved_id = str(sample.get("policy_id") or fallback_id)
         code = str(sample.get("code") or "UNKNOWN")
+        decision = str(sample.get("decision") or "UNKNOWN").upper()
     except Exception:
         pass
     return {
@@ -58,6 +62,7 @@ def _policy_metadata(fn: Callable[[BundleView], Decision]) -> dict[str, str]:
         "fallback_id": fallback_id,
         "policy_name": policy_name,
         "code": code,
+        "decision": decision,
         "semantic": _derived_semantic_fingerprint(fn),
     }
 
@@ -66,15 +71,19 @@ def detect_static_conflicts(policies: list[Callable[[BundleView], Decision]]) ->
     conflicts: list[dict[str, Any]] = []
     seen_ids: dict[str, list[str]] = defaultdict(list)
     seen_names: dict[str, list[str]] = defaultdict(list)
-    code_to_semantics: dict[str, set[str]] = defaultdict(set)
-    code_to_ids: dict[str, set[str]] = defaultdict(set)
+    code_to_semantics: dict[tuple[str, str], set[str]] = defaultdict(set)
+    code_to_ids: dict[tuple[str, str], set[str]] = defaultdict(set)
+    code_to_names: dict[tuple[str, str], set[str]] = defaultdict(set)
 
     meta = [_policy_metadata(fn) for fn in policies]
     for item in sorted(meta, key=lambda x: (x["policy_id"], x["fallback_id"])):
         seen_ids[item["policy_id"]].append(item["policy_name"])
         seen_names[item["policy_name"]].append(item["policy_id"])
-        code_to_semantics[item["code"]].add(item["semantic"])
-        code_to_ids[item["code"]].add(item["policy_id"])
+        if item["decision"] in _BLOCKING_DECISIONS:
+            key = (item["decision"], item["code"])
+            code_to_semantics[key].add(item["semantic"])
+            code_to_ids[key].add(item["policy_id"])
+            code_to_names[key].add(item["policy_name"])
 
     for pid in sorted(seen_ids):
         if len(seen_ids[pid]) > 1:
@@ -98,14 +107,16 @@ def detect_static_conflicts(policies: list[Callable[[BundleView], Decision]]) ->
                 }
             )
 
-    for code in sorted(code_to_semantics):
-        if len(code_to_semantics[code]) > 1:
+    for decision, code in sorted(code_to_semantics):
+        if len(code_to_semantics[(decision, code)]) > 1:
             conflicts.append(
                 {
                     "type": "duplicate_decision_code",
                     "severity": "error",
+                    "decision": decision,
                     "code": code,
-                    "policy_ids": sorted(code_to_ids[code]),
+                    "policy_ids": sorted(code_to_ids[(decision, code)]),
+                    "policy_names": sorted(code_to_names[(decision, code)]),
                 }
             )
 
@@ -118,9 +129,9 @@ def detect_dynamic_conflicts(simulation_results: list[dict[str, Any]]) -> list[d
     for item in sorted(simulation_results, key=lambda x: str(x.get("prefix", ""))):
         prefix = str(item.get("prefix", ""))
         decisions = item.get("decisions") or []
-        decisions_set = {str(d.get("decision")) for d in decisions}
+        decisions_set = {str(d.get("decision")).upper() for d in decisions}
 
-        if "ALLOW" in decisions_set and ("HOLD" in decisions_set or "DENY" in decisions_set):
+        if "ALLOW" in decisions_set and ({"HOLD", "DENY", "FAIL"} & decisions_set):
             conflicts.append(
                 {
                     "type": "contradictory_decisions",
@@ -130,7 +141,7 @@ def detect_dynamic_conflicts(simulation_results: list[dict[str, Any]]) -> list[d
                 }
             )
 
-        hold_codes = sorted({str(d.get("code")) for d in decisions if str(d.get("decision")) == "HOLD"})
+        hold_codes = sorted({str(d.get("code")) for d in decisions if str(d.get("decision")).upper() == "HOLD"})
         if len(hold_codes) > 1:
             conflicts.append(
                 {
@@ -157,10 +168,12 @@ def run_policy_conflicts(
 
     static_conflicts = detect_static_conflicts(policies)
     simulation_results: list[dict[str, Any]] = []
+    policy_meta = [_policy_metadata(fn) for fn in policies]
+    order = {m["fallback_id"]: m["policy_id"] for m in policy_meta}
 
     for bundle in bundles:
         decisions = []
-        for fn in sorted(policies, key=lambda f: _policy_metadata(f)["policy_id"]):
+        for fn in sorted(policies, key=lambda f: order.get(f.__name__, f.__name__)):
             res = fn(bundle)
             decisions.append(
                 {
@@ -171,7 +184,14 @@ def run_policy_conflicts(
                 }
             )
         decisions.sort(key=lambda d: d["policy_id"])
-        simulation_results.append({"prefix": bundle.prefix, "tenant_id": bundle.tenant_id, "decisions": decisions})
+        simulation_results.append(
+            {
+                "prefix": bundle.prefix,
+                "tenant_id": bundle.tenant_id,
+                "effective_tenant_id": bundle.effective_tenant_id,
+                "decisions": decisions,
+            }
+        )
 
     dynamic_conflicts = detect_dynamic_conflicts(simulation_results)
 

@@ -119,6 +119,20 @@ jobs:
         run: |
           python scripts/ops13_trust_gate_summary.py --in-dir ci_artifacts --out ci_artifacts/trust_gate_summary.json
 
+      - name: TRUST-1.0.4 policy conflict guardrail
+        run: |
+          python -m src.cli.main policy conflicts --bundles ci_artifacts --policies src.policies.builtin --out ci_artifacts/conflicts --json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          summary = json.loads(Path("ci_artifacts/conflicts/policy_conflicts_summary.json").read_text(encoding="utf-8"))
+          errors = [c for c in summary.get("static_conflicts", []) + summary.get("dynamic_conflicts", []) if c.get("severity") == "error"]
+          if errors:
+              raise SystemExit(f"Policy conflict guardrail failed: {len(errors)} error conflict(s)")
+          print("No error-severity policy conflicts detected")
+          PY
+
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4

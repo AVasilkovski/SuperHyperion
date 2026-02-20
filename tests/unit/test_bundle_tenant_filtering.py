@@ -12,7 +12,7 @@ def _write(path, payload):
         json.dump(payload, fh, indent=2, sort_keys=True)
 
 
-def _bundle(bundles, prefix: str, tenant: str, status: str = "STAGED"):
+def _bundle(bundles, prefix: str, tenant: str | None, status: str = "STAGED"):
     _write(
         bundles / f"{prefix}_governance_summary.json",
         {
@@ -32,7 +32,10 @@ def _bundle(bundles, prefix: str, tenant: str, status: str = "STAGED"):
             "source_refs": {},
         },
     )
-    _write(bundles / f"{prefix}_run_capsule_manifest.json", {"capsule_id": prefix, "tenant_id": tenant})
+    manifest = {"capsule_id": prefix}
+    if tenant is not None:
+        manifest["tenant_id"] = tenant
+    _write(bundles / f"{prefix}_run_capsule_manifest.json", manifest)
 
 
 def test_load_bundles_and_tooling_filter_by_tenant(tmp_path):
@@ -53,3 +56,20 @@ def test_load_bundles_and_tooling_filter_by_tenant(tmp_path):
     report = build_compliance_report(str(bundles), tenant_id="tenant-a")
     assert report["total_runs"] == 1
     assert report["runs"][0]["prefix"] == "run-a"
+
+
+def test_tenant_default_filter_includes_legacy_missing_tenant(tmp_path):
+    bundles = tmp_path / "bundles"
+    bundles.mkdir()
+
+    _bundle(bundles, "run-acme", "acme")
+    _bundle(bundles, "run-default", "default")
+    _bundle(bundles, "run-legacy", None)
+
+    default_loaded = load_bundles(str(bundles), tenant_id="default")
+    assert [b.prefix for b in default_loaded] == ["run-default", "run-legacy"]
+    assert [b.tenant_id for b in default_loaded] == ["default", None]
+    assert [b.effective_tenant_id for b in default_loaded] == ["default", "default"]
+
+    acme_loaded = load_bundles(str(bundles), tenant_id="acme")
+    assert [b.prefix for b in acme_loaded] == ["run-acme"]

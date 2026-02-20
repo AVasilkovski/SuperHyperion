@@ -50,6 +50,8 @@ def build_summary(in_dir: str) -> dict[str, Any]:
 
     summary = {
         "contract_version": "v1",
+        "bundle_root": str(root),
+        "run_prefixes": ["commit", "hold"],
         "timestamp_utc": os.environ.get("GITHUB_RUN_CREATED_AT"),
         "git_sha": os.environ.get("GITHUB_SHA"),
         "commit_gate": {
@@ -71,6 +73,26 @@ def build_summary(in_dir: str) -> dict[str, Any]:
     return summary
 
 
+def build_step_summary_lines(summary: dict[str, Any]) -> list[str]:
+    commit = summary["commit_gate"]
+    hold = summary["hold_gate"]
+    return [
+        "## OPS-1.3 Trust Gate Summary",
+        (
+            f"- COMMIT gate: {'PASS' if commit['pass'] else 'FAIL'}"
+            f" | capsule_id={commit['capsule_id']}"
+            f" | replay={commit['replay_status']}"
+            f" | ms={commit['duration_ms']}"
+        ),
+        (
+            f"- HOLD gate: {'PASS' if hold['pass'] else 'FAIL'}"
+            f" | hold_code={hold['hold_code']}"
+            f" | capsule_id={hold['capsule_id']}"
+            f" | ms={hold['duration_ms']}"
+        ),
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="OPS-1.3 trust gate summary")
     parser.add_argument("--in-dir", required=True)
@@ -87,11 +109,9 @@ def main() -> int:
 
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
+        lines = build_step_summary_lines(summary)
         with open(step_summary, "a", encoding="utf-8") as fh:
-            fh.write("## OPS-1.3 Trust Gate Summary\n")
-            fh.write(f"- COMMIT gate: {'PASS' if summary['commit_gate']['pass'] else 'FAIL'}\n")
-            fh.write(f"- HOLD gate: {'PASS' if summary['hold_gate']['pass'] else 'FAIL'}\n")
-            fh.write(f"- HOLD code: {summary['hold_gate']['hold_code']}\n")
+            fh.write("\n".join(lines) + "\n")
 
     return 0
 

@@ -27,8 +27,8 @@ def _file_prefix(result: "GovernedResultV1") -> str:
     return f"tenant-{result.tenant_id}"
 
 
-def _source_refs(prefix: str) -> dict[str, str]:
-    """Build canonical cross-file references for audit bundle artifacts."""
+def _bundle_filenames(prefix: str) -> dict[str, str]:
+    """Build canonical filenames for audit bundle artifacts."""
     return {
         "governance_summary_file": f"{prefix}_governance_summary.json",
         "replay_verdict_file": f"{prefix}_replay_verify_verdict.json",
@@ -54,12 +54,12 @@ class AuditBundleExporter:
         """
         os.makedirs(out_dir, exist_ok=True)
         prefix = _file_prefix(result)
-        source_refs = _source_refs(prefix)
+        source_refs = _bundle_filenames(prefix)
         written: List[str] = []
 
         # 1. Governance summary
         if result.governance is not None:
-            p = os.path.join(out_dir, f"{prefix}_governance_summary.json")
+            p = os.path.join(out_dir, source_refs["governance_summary_file"])
             governance_envelope = {
                 **result.governance.model_dump(),
                 "source_refs": source_refs,
@@ -69,7 +69,7 @@ class AuditBundleExporter:
 
         # 2. Replay verdict
         if result.replay_verdict is not None:
-            p = os.path.join(out_dir, f"{prefix}_replay_verify_verdict.json")
+            p = os.path.join(out_dir, source_refs["replay_verdict_file"])
             replay_envelope = {
                 **result.replay_verdict.model_dump(),
                 "source_refs": source_refs,
@@ -89,7 +89,7 @@ class AuditBundleExporter:
                 "status": result.status,
                 "source_refs": source_refs,
             }
-            p = os.path.join(out_dir, f"{prefix}_run_capsule_manifest.json")
+            p = os.path.join(out_dir, source_refs["capsule_manifest_file"])
             _json_dump(manifest, p)
             written.append(os.path.abspath(p))
 

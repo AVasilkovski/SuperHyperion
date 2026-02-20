@@ -27,6 +27,15 @@ def _file_prefix(result: "GovernedResultV1") -> str:
     return f"tenant-{result.tenant_id}"
 
 
+def _source_refs(prefix: str) -> dict[str, str]:
+    """Build canonical cross-file references for audit bundle artifacts."""
+    return {
+        "governance_summary_file": f"{prefix}_governance_summary.json",
+        "replay_verdict_file": f"{prefix}_replay_verify_verdict.json",
+        "capsule_manifest_file": f"{prefix}_run_capsule_manifest.json",
+    }
+
+
 class AuditBundleExporter:
     """Enterprise-grade exporter for audit bundles."""
 
@@ -45,18 +54,27 @@ class AuditBundleExporter:
         """
         os.makedirs(out_dir, exist_ok=True)
         prefix = _file_prefix(result)
+        source_refs = _source_refs(prefix)
         written: List[str] = []
 
         # 1. Governance summary
         if result.governance is not None:
             p = os.path.join(out_dir, f"{prefix}_governance_summary.json")
-            _json_dump(result.governance.model_dump(), p)
+            governance_envelope = {
+                **result.governance.model_dump(),
+                "source_refs": source_refs,
+            }
+            _json_dump(governance_envelope, p)
             written.append(os.path.abspath(p))
 
         # 2. Replay verdict
         if result.replay_verdict is not None:
             p = os.path.join(out_dir, f"{prefix}_replay_verify_verdict.json")
-            _json_dump(result.replay_verdict.model_dump(), p)
+            replay_envelope = {
+                **result.replay_verdict.model_dump(),
+                "source_refs": source_refs,
+            }
+            _json_dump(replay_envelope, p)
             written.append(os.path.abspath(p))
 
         # 3. Capsule manifest
@@ -69,6 +87,7 @@ class AuditBundleExporter:
                 "intent_id": result.intent_id,
                 "proposal_id": result.proposal_id,
                 "status": result.status,
+                "source_refs": source_refs,
             }
             p = os.path.join(out_dir, f"{prefix}_run_capsule_manifest.json")
             _json_dump(manifest, p)

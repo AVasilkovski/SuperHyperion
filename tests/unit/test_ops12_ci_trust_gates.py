@@ -16,6 +16,7 @@ async def test_commit_gate_success_with_mocked_steward_and_verify(tmp_path):
         return ctx
 
     with (
+        patch("scripts.ops12_ci_trust_gates.OntologySteward.insert_to_graph", return_value=None),
         patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)),
         patch(
             "scripts.ops12_ci_trust_gates.verify_capsule",
@@ -36,7 +37,10 @@ async def test_hold_gate_success(tmp_path):
         ctx.graph_context["mutation_ids"] = []
         return ctx
 
-    with patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)):
+    with (
+        patch("scripts.ops12_ci_trust_gates.OntologySteward.insert_to_graph", return_value=None),
+        patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)),
+    ):
         ok, payload = await _run_gate("hold", str(tmp_path))
 
     assert ok is True

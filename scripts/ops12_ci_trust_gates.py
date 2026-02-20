@@ -11,12 +11,9 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
-
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from src.agents.base_agent import AgentContext
-from src.agents.integrator_agent import integrator_agent
 from src.agents.ontology_steward import OntologySteward
 from src.graph.nodes.governance_gate import governance_gate_node
 from src.graph.state import create_initial_state
@@ -105,6 +102,18 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
     state["graph_context"]["atomic_claims"] = [{"claim_id": "ci-claim-1", "content": "CI claim"}]
 
     steward = OntologySteward()
+
+    if gate == "commit":
+        # Ensure claim exists so steward evidence inserts can link proposition deterministically.
+        try:
+            steward.insert_to_graph(
+                "insert $p isa proposition, has entity-id \"ci-claim-1\";",
+                cap=steward._write_cap,
+            )
+        except Exception:
+            # Idempotent behavior for reruns in same database.
+            pass
+
     ctx = AgentContext()
     ctx.graph_context = {
         "session_id": state["graph_context"]["session_id"],
@@ -112,21 +121,7 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
         "evidence": _deterministic_evidence() if gate == "commit" else [],
     }
 
-    with (
-        patch.object(steward, "insert_to_graph", lambda *args, **kwargs: None),
-        patch.object(steward, "_seal_operator_before_mint", lambda *args, **kwargs: None),
-        patch.object(steward, "_read_query", lambda *args, **kwargs: []),
-        patch.object(
-            steward,
-            "query_graph",
-            lambda *args, **kwargs: [
-                {"id": eid, "claim": "ci-claim-1", "scope": "scope-ci-1"}
-                for eid in state["graph_context"].get("persisted_all_evidence_ids", [])
-            ],
-        ),
-    ):
-        ctx = await steward.run(ctx)
-
+    ctx = await steward.run(ctx)
     state["graph_context"].update(ctx.graph_context)
 
     if gate == "commit":
@@ -143,16 +138,8 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
         state["graph_context"]["latest_staged_proposal_id"] = "prop-ci-1"
         state["graph_context"]["scope_lock_id"] = "scope-ci-1"
 
-    with patch.object(
-        integrator_agent,
-        "query_graph",
-        lambda *args, **kwargs: [
-            {"id": eid, "claim": "ci-claim-1", "scope": "scope-ci-1"}
-            for eid in state["graph_context"].get("persisted_all_evidence_ids", [])
-        ],
-    ):
-        state = await governance_gate_node(state)
-        state = await integrate_node(state)
+    state = await governance_gate_node(state)
+    state = await integrate_node(state)
 
     result = _build_result(state, tenant_id=state["tenant_id"])
     files = result.export_audit_bundle(out_dir)

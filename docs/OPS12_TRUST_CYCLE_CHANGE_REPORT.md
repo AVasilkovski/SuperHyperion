@@ -20,9 +20,9 @@ This report documents corrective follow-up work applied after review feedback on
 2. **Deterministic service reset**
    - Added reset routine that installs a fresh `InMemoryIntentStore` into the global service for each run to avoid cross-run contamination.
 
-3. **Scoped monkeypatching**
-   - Reworked method overrides to use `unittest.mock.patch.object(...)` context managers for steward and integrator read paths.
-   - This avoids persistent process-global mutation and makes execution easier to reason about.
+3. **Removed trust-spine bypass patches**
+   - Gate runner no longer patches steward/integrator verification paths to fabricate primacy success.
+   - Governance coherence and ledger primacy now execute through real code paths in the gate flow.
 
 4. **Behavior preserved**
    - HOLD gate still validates `NO_EVIDENCE_PERSISTED` and absence of capsule.

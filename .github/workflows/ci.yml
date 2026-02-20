@@ -107,6 +107,14 @@ jobs:
         run: |
           pytest tests/ -v --tb=short
 
+      - name: OPS-1.2 commit trust gate
+        run: |
+          python scripts/ops12_ci_trust_gates.py --gate commit --out-dir ci_artifacts/commit --json
+
+      - name: OPS-1.2 hold trust gate
+        run: |
+          python scripts/ops12_ci_trust_gates.py --gate hold --out-dir ci_artifacts/hold --json
+
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -115,6 +123,7 @@ jobs:
           path: |
             .pytest_cache/
             *.log
+            ci_artifacts/**
           retention-days: 7
 
   lint:

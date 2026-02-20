@@ -190,12 +190,14 @@ async def test_sdk_threads_tenant_id_field():
             "governance_summary_file": f"{result.capsule_id}_governance_summary.json",
             "replay_verdict_file": f"{result.capsule_id}_replay_verify_verdict.json",
             "capsule_manifest_file": f"{result.capsule_id}_run_capsule_manifest.json",
+            "explainability_summary_file": f"{result.capsule_id}_explainability_summary.json",
         }
 
         written_basenames = {os.path.basename(path) for path in written}
         assert expected_refs["governance_summary_file"] in written_basenames
         assert expected_refs["replay_verdict_file"] in written_basenames
         assert expected_refs["capsule_manifest_file"] in written_basenames
+        assert expected_refs["explainability_summary_file"] in written_basenames
 
         # Check capsule manifest includes tenant_id
         manifest_files = [f for f in written if "manifest" in f]

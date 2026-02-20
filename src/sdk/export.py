@@ -24,6 +24,9 @@ def _file_prefix(result: "GovernedResultV1") -> str:
     """Derive a filesystem-safe prefix for bundle files."""
     if result.capsule_id:
         return result.capsule_id
+    session_id = result.governance.session_id if result.governance is not None else None
+    if session_id:
+        return f"no-capsule-{session_id}"
     return f"tenant-{result.tenant_id}"
 
 
@@ -33,6 +36,7 @@ def _bundle_filenames(prefix: str) -> dict[str, str]:
         "governance_summary_file": f"{prefix}_governance_summary.json",
         "replay_verdict_file": f"{prefix}_replay_verify_verdict.json",
         "capsule_manifest_file": f"{prefix}_run_capsule_manifest.json",
+        "explainability_summary_file": f"{prefix}_explainability_summary.json",
     }
 
 
@@ -48,6 +52,7 @@ class AuditBundleExporter:
             <prefix>_governance_summary.json
             <prefix>_replay_verify_verdict.json   (if replay_verdict present)
             <prefix>_run_capsule_manifest.json     (if capsule_id present)
+            <prefix>_explainability_summary.json    (if governance present)
 
         Returns:
             List of absolute paths to the written files.
@@ -91,6 +96,34 @@ class AuditBundleExporter:
             }
             p = os.path.join(out_dir, source_refs["capsule_manifest_file"])
             _json_dump(manifest, p)
+            written.append(os.path.abspath(p))
+
+        # 4. Explainability summary (non-hashed overlay)
+        if result.governance is not None:
+            from src.sdk.explainability import build_explainability_summary
+
+            replay_payload = result.replay_verdict.model_dump() if result.replay_verdict is not None else None
+            manifest_payload = None
+            if result.capsule_id is not None:
+                manifest_payload = {
+                    "capsule_id": result.capsule_id,
+                    "tenant_id": result.tenant_id,
+                    "evidence_ids": result.evidence_ids,
+                    "mutation_ids": result.mutation_ids,
+                    "intent_id": result.intent_id,
+                    "proposal_id": result.proposal_id,
+                    "status": result.status,
+                    "query_hash": None,
+                    "source_refs": source_refs,
+                }
+
+            summary = build_explainability_summary(
+                governance_summary=governance_envelope,
+                replay_verdict=replay_payload,
+                capsule_manifest=manifest_payload,
+            ).model_dump()
+            p = os.path.join(out_dir, source_refs["explainability_summary_file"])
+            _json_dump(summary, p)
             written.append(os.path.abspath(p))
 
         return written

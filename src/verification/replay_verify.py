@@ -13,7 +13,10 @@ No DB writes — strictly read-only verification.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+
+if TYPE_CHECKING:
+    from src.sdk.types import ReplayVerdictV1
 
 logger = logging.getLogger(__name__)
 

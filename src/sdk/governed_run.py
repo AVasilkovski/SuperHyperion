@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+if TYPE_CHECKING:
+    from src.sdk.types import GovernedResultV1
 
 logger = logging.getLogger(__name__)
 

@@ -281,7 +281,7 @@ Milestone A completion evidence:
 #### Milestone B — `EPI-17.0` / `OPS-2.0` / `TRUST-1.0` (HARDENING)
 1. **TRUST-1.0 Enterprise SDK (v1)**
    - `GovernedRun` SDK orchestrator implementing strict fail-closed state derivation.
-   - Auditable Audit Bundle export (`export_audit_bundle`) with deterministic artifact formatting.
+   - `AuditBundleExporter` for deterministic artifact formatting.
    - Tenant ID primitive threaded through SDK interfaces and result contracts.
    - Programmatic `verify_capsule` extraction with backward compatibility for legacy envelopes.
 2. **OPS-2.0 Additive Migration Framework**
@@ -300,7 +300,7 @@ Milestone A completion evidence:
 2. **EPI-17.1 Sampling Budget Enforcement**
    - Budgeted policy mixes only after baseline metrics stabilize.
 3. **TRUST-1.1 Control Plane + RBAC**
-   - `list_capsules`, `list_intents`, `diff_runs`, `export_audit_bundle` (remote/API), `list_policy_violations`.
+   - `list_capsules`, `list_intents`, `diff_runs`, `AuditBundleExporter` (remote/API), `list_policy_violations`.
 4. **TRUST-1.1 Reliability Program**
    - Confidence composition and operational SLOs.
 

@@ -27,47 +27,51 @@ def _file_prefix(result: "GovernedResultV1") -> str:
     return f"tenant-{result.tenant_id}"
 
 
-def export_audit_bundle(result: "GovernedResultV1", out_dir: str) -> List[str]:
-    """
-    Export audit-friendly JSON files for *result* into *out_dir*.
+class AuditBundleExporter:
+    """Enterprise-grade exporter for audit bundles."""
 
-    Files written:
-        <prefix>_governance_summary.json
-        <prefix>_replay_verify_verdict.json   (if replay_verdict present)
-        <prefix>_run_capsule_manifest.json     (if capsule_id present)
+    @staticmethod
+    def export(result: "GovernedResultV1", out_dir: str) -> List[str]:
+        """
+        Export audit-friendly JSON files for *result* into *out_dir*.
 
-    Returns:
-        List of absolute paths to the written files.
-    """
-    os.makedirs(out_dir, exist_ok=True)
-    prefix = _file_prefix(result)
-    written: List[str] = []
+        Files written:
+            <prefix>_governance_summary.json
+            <prefix>_replay_verify_verdict.json   (if replay_verdict present)
+            <prefix>_run_capsule_manifest.json     (if capsule_id present)
 
-    # 1. Governance summary
-    if result.governance is not None:
-        p = os.path.join(out_dir, f"{prefix}_governance_summary.json")
-        _json_dump(result.governance.model_dump(), p)
-        written.append(os.path.abspath(p))
+        Returns:
+            List of absolute paths to the written files.
+        """
+        os.makedirs(out_dir, exist_ok=True)
+        prefix = _file_prefix(result)
+        written: List[str] = []
 
-    # 2. Replay verdict
-    if result.replay_verdict is not None:
-        p = os.path.join(out_dir, f"{prefix}_replay_verify_verdict.json")
-        _json_dump(result.replay_verdict.model_dump(), p)
-        written.append(os.path.abspath(p))
+        # 1. Governance summary
+        if result.governance is not None:
+            p = os.path.join(out_dir, f"{prefix}_governance_summary.json")
+            _json_dump(result.governance.model_dump(), p)
+            written.append(os.path.abspath(p))
 
-    # 3. Capsule manifest
-    if result.capsule_id is not None:
-        manifest = {
-            "capsule_id": result.capsule_id,
-            "tenant_id": result.tenant_id,
-            "evidence_ids": result.evidence_ids,
-            "mutation_ids": result.mutation_ids,
-            "intent_id": result.intent_id,
-            "proposal_id": result.proposal_id,
-            "status": result.status,
-        }
-        p = os.path.join(out_dir, f"{prefix}_run_capsule_manifest.json")
-        _json_dump(manifest, p)
-        written.append(os.path.abspath(p))
+        # 2. Replay verdict
+        if result.replay_verdict is not None:
+            p = os.path.join(out_dir, f"{prefix}_replay_verify_verdict.json")
+            _json_dump(result.replay_verdict.model_dump(), p)
+            written.append(os.path.abspath(p))
 
-    return written
+        # 3. Capsule manifest
+        if result.capsule_id is not None:
+            manifest = {
+                "capsule_id": result.capsule_id,
+                "tenant_id": result.tenant_id,
+                "evidence_ids": result.evidence_ids,
+                "mutation_ids": result.mutation_ids,
+                "intent_id": result.intent_id,
+                "proposal_id": result.proposal_id,
+                "status": result.status,
+            }
+            p = os.path.join(out_dir, f"{prefix}_run_capsule_manifest.json")
+            _json_dump(manifest, p)
+            written.append(os.path.abspath(p))
+
+        return written

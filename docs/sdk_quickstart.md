@@ -24,7 +24,7 @@ async def main():
         print(f"Hold Reason: [{result.hold_code}] {result.hold_reason}")
 
     # 3. Export auditable artifacts for reviewers
-    artifacts = result.export_audit_bundle("./audit_logs")
+    artifacts = AuditBundleExporter.export(result, "./audit_logs")
     print(f"Exported artifacts: {artifacts}")
 
 if __name__ == "__main__":

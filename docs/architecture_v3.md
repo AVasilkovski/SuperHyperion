@@ -282,7 +282,7 @@ Milestone A completion evidence:
 1. **TRUST-1.0 Enterprise SDK (v1)**
    - `GovernedRun` SDK orchestrator implementing strict fail-closed state derivation.
    - `AuditBundleExporter` for deterministic artifact formatting.
-   - Audit JSON envelopes include top-level `source_refs` filename pointers for governance summary, replay verdict, and capsule manifest artifacts.
+   - Audit JSON envelopes include top-level `source_refs` filename pointers for governance summary, replay verdict, and capsule manifest artifacts (referential strings only).
    - Tenant ID primitive threaded through SDK interfaces and result contracts.
    - Programmatic `verify_capsule` extraction with backward compatibility for legacy envelopes.
 2. **TRUST-1.0 Adoption Pack (Next)**

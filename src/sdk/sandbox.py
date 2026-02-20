@@ -10,7 +10,6 @@ from typing import Callable, Dict, List
 
 from src.sdk.bundles import BundleView, discover_bundle_paths, load_bundle_view
 
-
 Decision = Dict[str, str]
 
 

@@ -11,8 +11,10 @@ Usage:
 import typer
 from rich.console import Console
 
+from src.cli.compliance_report_cli import compliance_app
 from src.cli.eval_cli import eval_app
 from src.cli.intent_cli import intent_app
+from src.cli.policy_sandbox_cli import policy_app
 from src.cli.replay_cli import replay_app
 
 # Create main app
@@ -26,6 +28,8 @@ app = typer.Typer(
 app.add_typer(intent_app, name="intent", help="Manage write-intents")
 app.add_typer(replay_app, name="replay", help="Verify past run capsules")
 app.add_typer(eval_app, name="eval", help="Evaluate pipeline performance")
+app.add_typer(policy_app, name="policy", help="Run local policy sandbox simulations")
+app.add_typer(compliance_app, name="compliance", help="Generate compliance reports from bundles")
 
 # Console for output
 console = Console()

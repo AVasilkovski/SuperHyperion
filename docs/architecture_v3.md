@@ -56,7 +56,7 @@ Triggered on pull_request.
 Enforces:
 - boot TypeDB Core service container
 - apply schema cleanly to empty DB
-- run full pytest suite (currently 365 tests)
+- run full pytest suite (currently 395 tests)
 - block merge on failure
 
 ### CD (Staging Schema Deploy)
@@ -71,6 +71,15 @@ Enforces:
 - production rollout automation
 - automatic backward-compatible migrations
 - load/perf scaling
+
+
+### OPS-1.2 — Deterministic CI Trust Gates
+Status: ✅ COMPLETE
+Summary:
+- Added deterministic CI gates for `commit` and `hold` outcomes using the trust spine
+  (`OntologySteward.run -> governance_gate_node -> integrate_node -> verify_capsule`).
+- CI now runs both trust gates after pytest and uploads `ci_artifacts/**` on failure for auditability.
+- Gate outputs are deterministic JSON bundles and explicit pass/fail exit codes.
 
 ------------------------------------------------------------
 ## PHASE 1 — CLAIM INGESTION
@@ -220,7 +229,7 @@ Summary:
 ## TESTING STATUS
 ------------------------------------------------------------
 
-Total tests: 388 (current)
+Total tests: 395 (current)
 All green: ✅
 
 Core guarantees covered:
@@ -236,6 +245,20 @@ Core guarantees covered:
 
 This section replaces week-based roadmap labels with an industry-standard release train.
 Execution is organized by **tracks + milestones**, not calendar estimates.
+
+### Repository Naming Strategy (Git)
+
+To align engineering output with enterprise review workflows, branch + commit naming follows a strict conventional format.
+
+- **Commit format**: `<type>(<scope>): <subject>`
+  - Examples: `fix(governance): ...`, `docs(trust): ...`, `feat(ops): ...`
+- **Allowed primary types**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `infra`.
+- **Scope vocabulary**: reuse canonical tracks/components (`governance`, `trust`, `ops`, `sdk`, `cli`, `docs`, `p16`, `epi`).
+- **Branch format**: `<type>/<short-kebab-topic>`
+  - Examples: `fix/governance-trust-gates`, `docs/trust-roadmap-sync`.
+- **Avoid**: generic branch names (`work`, `tmp`, `misc`) and non-conventional commit titles.
+
+This keeps PR lists machine-filterable and consistent with milestone tracking (`EPI`, `OPS`, `TRUST`).
 
 ### Naming Unification Standard
 
@@ -255,6 +278,29 @@ Execution is organized by **tracks + milestones**, not calendar estimates.
 | Audit & Coverage | Objective trust guarantees and replay fidelity | EPI 17.x |
 | Operational Spine | CI/CD + migration and deployment safety | OPS 2.x |
 | Enterprise Trust Layer | Policy control plane + operator APIs + RBAC | TRUST 1.x |
+
+
+
+### TRUST-1.0.1 — ExplainabilitySummaryV1 Overlay
+Status: ✅ COMPLETE
+Summary:
+- Added non-hashed `ExplainabilitySummaryV1` overlay artifact derived from existing bundle artifacts.
+- Exporter now writes a deterministic 4th artifact: `<prefix>_explainability_summary.json`.
+- Capsule hash behavior remains unchanged (overlay is outside hash invariants).
+
+### TRUST-1.0.2 — Local Policy Sandbox + Simulation
+Status: ✅ COMPLETE
+Summary:
+- Added bundle-only, read-only policy simulation (`superhyperion policy simulate`).
+- Policies are Python callables returning `{decision, code, reason}` (no DSL introduced).
+- Includes built-in policy pack and deterministic per-run simulation outputs.
+
+### TRUST-1.0.3 — Compliance Reporting (Bundle Aggregation)
+Status: ✅ COMPLETE
+Summary:
+- Added bundle-only compliance reporting (`superhyperion compliance report`) with JSON and optional CSV output.
+- Aggregates run counts/rates, hold-code distribution, replay pass metrics, and latency percentiles.
+- No TypeDB dependency in reporting path.
 
 ### Release Train (Ordered)
 

@@ -246,6 +246,20 @@ Core guarantees covered:
 This section replaces week-based roadmap labels with an industry-standard release train.
 Execution is organized by **tracks + milestones**, not calendar estimates.
 
+### Repository Naming Strategy (Git)
+
+To align engineering output with enterprise review workflows, branch + commit naming follows a strict conventional format.
+
+- **Commit format**: `<type>(<scope>): <subject>`
+  - Examples: `fix(governance): ...`, `docs(trust): ...`, `feat(ops): ...`
+- **Allowed primary types**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `infra`.
+- **Scope vocabulary**: reuse canonical tracks/components (`governance`, `trust`, `ops`, `sdk`, `cli`, `docs`, `p16`, `epi`).
+- **Branch format**: `<type>/<short-kebab-topic>`
+  - Examples: `fix/governance-trust-gates`, `docs/trust-roadmap-sync`.
+- **Avoid**: generic branch names (`work`, `tmp`, `misc`) and non-conventional commit titles.
+
+This keeps PR lists machine-filterable and consistent with milestone tracking (`EPI`, `OPS`, `TRUST`).
+
 ### Naming Unification Standard
 
 - **Tracks**

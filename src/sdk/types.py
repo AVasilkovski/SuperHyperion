@@ -71,9 +71,9 @@ class GovernedResultV1(BaseModel):
     def export_audit_bundle(self, out_dir: str) -> list[str]:
         """Write audit-friendly JSON files to *out_dir*.
 
-        Delegates to :func:`src.sdk.export.export_audit_bundle`.
+        Delegates to :func:`src.sdk.export.AuditBundleExporter.export`.
         Returns list of written file paths.
         """
-        from src.sdk.export import export_audit_bundle
+        from src.sdk.export import AuditBundleExporter
 
-        return export_audit_bundle(self, out_dir)
+        return AuditBundleExporter.export(self, out_dir)

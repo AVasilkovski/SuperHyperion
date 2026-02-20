@@ -200,7 +200,7 @@ Summary:
 - eval run: smoke suite with HOLD breakdown + metrics output
 
 ### PHASE 16.8 — Reproducibility Auditor (Audit Spine)
-Status: 🟡 HARDENING
+Status: ✅ LOCKED
 Summary:
 - verify_capsule: standalone verification of scientific record integrity
 - session_id standardization: deterministic propagation to ensure parity between run and replay
@@ -278,10 +278,12 @@ Milestone A completion evidence:
 - Steward emits deterministic write-result trail (`steward_write_results`).
 - Governance output is validated under `contract_version: v1` and includes gate telemetry (`gate_code`, `failure_reason`, `duration_ms`).
 
-#### Milestone B — `EPI-17.0` / `OPS-2.0` / `TRUST-1.0` (PLANNED)
-1. **TRUST-1.0 Policy Core (minimal)**
-   - Explicit policy toggles and threshold checks.
-   - Deterministic policy evaluation; no DSL in this milestone.
+#### Milestone B — `EPI-17.0` / `OPS-2.0` / `TRUST-1.0` (HARDENING)
+1. **TRUST-1.0 Enterprise SDK (v1)**
+   - `GovernedRun` SDK orchestrator implementing strict fail-closed state derivation.
+   - Auditable Audit Bundle export (`export_audit_bundle`) with deterministic artifact formatting.
+   - Tenant ID primitive threaded through SDK interfaces and result contracts.
+   - Programmatic `verify_capsule` extraction with backward compatibility for legacy envelopes.
 2. **OPS-2.0 Additive Migration Framework**
    - Ordered migration files + migration runner + schema-version tracking.
    - Additive schema changes only.
@@ -292,11 +294,14 @@ Milestone A completion evidence:
    - Frozen holdout scenarios with regression thresholds in CI.
 
 #### Milestone C — `EPI-17.1` / `TRUST-1.1` (PLANNED)
-1. **EPI-17.1 Sampling Budget Enforcement**
+1. **TRUST-1.1 Policy Core (Toggles & Thresholds)**
+   - Explicit policy toggles and threshold checks for governance.
+   - Deterministic policy evaluation; no DSL in this milestone.
+2. **EPI-17.1 Sampling Budget Enforcement**
    - Budgeted policy mixes only after baseline metrics stabilize.
-2. **TRUST-1.1 Control Plane + RBAC**
-   - `list_capsules`, `list_intents`, `diff_runs`, `export_audit_bundle`, `list_policy_violations`.
-3. **TRUST-1.1 Reliability Program**
+3. **TRUST-1.1 Control Plane + RBAC**
+   - `list_capsules`, `list_intents`, `diff_runs`, `export_audit_bundle` (remote/API), `list_policy_violations`.
+4. **TRUST-1.1 Reliability Program**
    - Confidence composition and operational SLOs.
 
 ### Deliberate Non-Goals (anti-vanity constraints)

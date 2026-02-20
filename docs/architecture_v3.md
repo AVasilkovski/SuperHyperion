@@ -291,6 +291,24 @@ Milestone A completion evidence:
    - Sample event logs with policy label, seed, and bucket tags (`sample_event()`).
    - Capsule-level coverage summary metrics (telemetry only, no budget enforcement).
 
+#### Milestone B.1 — `TRUST-1.0.x` / `OPS-1.2` (PLANNED)
+1. **OPS-1.2 Continuous Trust Gates**
+   - Deterministic replay harness in CI as a merge gate.
+   - Failure artifact upload containing governance summary, capsule manifest, and replay verdict.
+2. **TRUST-1.0.1 Explainability Overlay Artifacts**
+   - Add `ExplainabilitySummaryV1` as a non-hashed, deterministic export artifact.
+   - Keep capsule-hash semantics unchanged by treating explainability as overlay data.
+3. **TRUST-1.0.2 Policy Sandbox + Simulation (read-only)**
+   - Local CLI to run policy simulation against exported bundles.
+   - Shadow mode only, no durable write path.
+4. **TRUST-1.0.3 Compliance Reporting**
+   - Aggregate bundle-level evidence into auditor-ready JSON/CSV reports.
+
+Delivery order for B.1 (impact-first):
+- P0: CI replay harness + explainability overlay
+- P1: sandbox + simulation
+- P2: compliance reporting
+
 #### Milestone C — `OPS-2.0` / `TRUST-1.1` / `TRUST-1.2` / `EPI-17.1` (PLANNED)
 1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**
    - Database isolation schema (`tenant` entity + `tenant-owns-capsule` relation).
@@ -312,6 +330,7 @@ Milestone A completion evidence:
 - No multi-cloud orchestration complexity.
 - No heavy confidence math before baseline observability.
 - No premature vector retrieval expansion.
+- No optional-hashed manifest keys (new integrity fields require a manifest version bump).
 
 ### Execution Principle
 

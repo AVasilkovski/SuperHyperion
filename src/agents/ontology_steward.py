@@ -16,7 +16,12 @@ from src.epistemology.evidence_roles import (
 )
 
 # Phase 16.1: Import from governance module
-from src.governance.fingerprinting import make_evidence_id, make_negative_evidence_id
+from src.governance.fingerprinting import (
+    make_evidence_id,
+    make_mutation_id,
+    make_negative_evidence_id,
+)
+from src.graph.contracts import StewardWriteResultV1
 from src.montecarlo.template_metadata import sha256_json_strict
 from src.montecarlo.types import QID_RE
 from src.montecarlo.versioned_registry import (  # Access explicit registry
@@ -200,9 +205,13 @@ class OntologySteward(BaseAgent):
         approved_intents = context.graph_context.get("approved_write_intents", [])
         committed = []
         failed = []
+        mutation_events = []
+        write_results = []
 
         for intent in approved_intents:
+            started = time.perf_counter()
             success, err_msg = self._execute_intent(intent)
+            duration_ms = int((time.perf_counter() - started) * 1000)
 
             # Log status event
             final_status = "executed" if success else "failed"
@@ -218,8 +227,45 @@ class OntologySteward(BaseAgent):
 
             if success:
                 committed.append(intent)
+
+                payload = intent.get("payload", {}) or {}
+                claim_id = payload.get("claim_id")
+                proposed_status = payload.get("status") or payload.get("proposed_status") or payload.get("action")
+
+                if claim_id and proposed_status:
+                    mutation_events.append({
+                        "mutation_id": make_mutation_id(
+                            session_id=session_id,
+                            intent_id=intent.get("intent_id", ""),
+                            claim_id=claim_id,
+                            proposed_status=str(proposed_status),
+                        ),
+                        "session_id": session_id,
+                        "intent_id": intent.get("intent_id", ""),
+                        "proposal_id": payload.get("proposal_id") or intent.get("proposal_id") or "",
+                        "claim_id": claim_id,
+                        "mutation_type": intent.get("intent_type", "unknown"),
+                        "to_status": str(proposed_status),
+                    })
             else:
                 failed.append(intent)
+
+            idempotency_seed = {
+                "session_id": session_id,
+                "intent_id": intent.get("intent_id", ""),
+                "intent_type": intent.get("intent_type", ""),
+                "payload": intent.get("payload", {}) or {},
+            }
+            idempotency_key = f"iw-{sha256_json(idempotency_seed)[:20]}"
+            write_result = StewardWriteResultV1(
+                intent_id=intent.get("intent_id", ""),
+                intent_type=intent.get("intent_type", "unknown"),
+                status=final_status,
+                idempotency_key=idempotency_key,
+                duration_ms=duration_ms,
+                error=err_msg,
+            )
+            write_results.append(write_result.model_dump())
 
         # 7. Finalize Session (ended-at + run-status transition)
         final_status = "failed" if failed else "complete"
@@ -253,6 +299,9 @@ class OntologySteward(BaseAgent):
         # Update context for final output
         context.graph_context["committed_intents"] = committed
         context.graph_context["failed_intents"] = failed
+        context.graph_context["steward_write_results"] = write_results
+        context.graph_context["mutation_events"] = mutation_events
+        context.graph_context["mutation_ids"] = [m["mutation_id"] for m in mutation_events]
 
         # Phase 16.4 B3: Expose stable governance outputs
         context.graph_context["persisted_all_evidence_ids"] = persisted_evidence_ids
@@ -1332,4 +1381,3 @@ def q_insert_negative_evidence(
 
 # Global instance
 ontology_steward = OntologySteward()
-

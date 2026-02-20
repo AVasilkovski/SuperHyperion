@@ -161,7 +161,7 @@ async def test_sdk_threads_tenant_id_field():
             "src.graph.workflow_v21.run_v21_query",
             new_callable=AsyncMock,
             return_value=mock_state,
-        ),
+        ) as mock_run_v21_query,
         patch(
             "src.verification.replay_verify.verify_capsule",
             return_value=mock_verdict,
@@ -172,6 +172,10 @@ async def test_sdk_threads_tenant_id_field():
         result = await GovernedRun.run(
             "Tenant test query", tenant_id="acme-corp"
         )
+
+    # Tenant must be threaded into workflow entrypoint
+    assert mock_run_v21_query.await_count == 1
+    assert mock_run_v21_query.await_args.kwargs["tenant_id"] == "acme-corp"
 
     # Tenant must appear in result
     assert result.tenant_id == "acme-corp"

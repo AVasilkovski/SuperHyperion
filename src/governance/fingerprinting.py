@@ -205,6 +205,7 @@ def make_capsule_manifest_hash(capsule_id: str, manifest: dict, manifest_version
     `manifest_version` protects backward-compatibility against accidental dict key additions.
     - "v1": Legacy capsules (pre-16.8) without mutation_ids
     - "v2": Post-16.8 capsules with mutation_ids support
+    - "v3": Tenant-attributed capsules (mutation_ids + tenant_id)
 
     Returns 64-char SHA-256 hex digest of the canonical JSON representation.
     """
@@ -212,6 +213,17 @@ def make_capsule_manifest_hash(capsule_id: str, manifest: dict, manifest_version
         allowed_keys = {"session_id", "query_hash", "scope_lock_id", "intent_id", "proposal_id", "evidence_ids"}
     elif manifest_version == "v2":
         allowed_keys = {"session_id", "query_hash", "scope_lock_id", "intent_id", "proposal_id", "evidence_ids", "mutation_ids"}
+    elif manifest_version == "v3":
+        allowed_keys = {
+            "session_id",
+            "query_hash",
+            "scope_lock_id",
+            "intent_id",
+            "proposal_id",
+            "evidence_ids",
+            "mutation_ids",
+            "tenant_id",
+        }
     else:
         raise ValueError(f"Unknown manifest_version: {manifest_version}")
 

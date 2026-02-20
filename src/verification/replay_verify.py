@@ -29,19 +29,27 @@ def _verify_hash_integrity(
     from src.governance.fingerprinting import make_capsule_manifest_hash
 
     has_mutation_snapshot = capsule_data.get("_has_mutation_snapshot", True)
-    manifest_version = "v2" if has_mutation_snapshot else "v1"
+    has_tenant_attribution = "tenant_id" in capsule_data
+
+    if not has_mutation_snapshot:
+        manifest_version = "v1"
+    elif has_tenant_attribution:
+        manifest_version = "v3"
+    else:
+        manifest_version = "v2"
 
     manifest: Dict[str, Any] = {
         "session_id": capsule_data.get("session_id", ""),
         "query_hash": capsule_data.get("query_hash", ""),
-        "tenant_id": capsule_data.get("tenant_id", ""),
         "scope_lock_id": capsule_data.get("scope_lock_id", ""),
         "intent_id": capsule_data.get("intent_id", ""),
         "proposal_id": capsule_data.get("proposal_id", ""),
         "evidence_ids": sorted(capsule_data.get("evidence_ids", [])),
     }
-    if manifest_version == "v2":
+    if manifest_version in ("v2", "v3"):
         manifest["mutation_ids"] = sorted(capsule_data.get("mutation_ids") or [])
+    if manifest_version == "v3":
+        manifest["tenant_id"] = capsule_data.get("tenant_id", "")
 
     recomputed = make_capsule_manifest_hash(capsule_id, manifest, manifest_version)
     stored = capsule_data.get("capsule_hash", "")

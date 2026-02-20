@@ -348,7 +348,7 @@ async def integrate_node(state: AgentState) -> AgentState:
             "evidence_ids": sorted(evidence_ids),
             "mutation_ids": sorted(gov.get("mutation_ids") or []),
         }
-        capsule_hash = make_capsule_manifest_hash(capsule_id, manifest)
+        capsule_hash = make_capsule_manifest_hash(capsule_id, manifest, manifest_version="v3")
 
         run_capsule = {
             "capsule_id": capsule_id,

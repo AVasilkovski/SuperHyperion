@@ -34,6 +34,7 @@ def _verify_hash_integrity(
     manifest: Dict[str, Any] = {
         "session_id": capsule_data.get("session_id", ""),
         "query_hash": capsule_data.get("query_hash", ""),
+        "tenant_id": capsule_data.get("tenant_id", ""),
         "scope_lock_id": capsule_data.get("scope_lock_id", ""),
         "intent_id": capsule_data.get("intent_id", ""),
         "proposal_id": capsule_data.get("proposal_id", ""),

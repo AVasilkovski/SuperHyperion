@@ -274,7 +274,7 @@ def test_verify_agent_design_uses_hints_for_template_selection():
 
     claim = {"claim_id": "claim-1", "content": "Test claim"}
 
-    spec = asyncio.get_event_loop().run_until_complete(
+    spec = asyncio.run(
         agent._design_experiment_spec(claim, context)
     )
 
@@ -297,7 +297,7 @@ def test_verify_agent_design_falls_back_without_hints():
 
     claim = {"claim_id": "claim-2", "content": "Test claim without hints"}
 
-    spec = asyncio.get_event_loop().run_until_complete(
+    spec = asyncio.run(
         agent._design_experiment_spec(claim, context)
     )
 

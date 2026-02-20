@@ -283,6 +283,7 @@ async def integrate_node(state: AgentState) -> AgentState:
         or "session-untracked"
     )
     evidence_ids = gov.get("persisted_evidence_ids", [])
+    tenant_id = state.get("tenant_id") or gc.get("tenant_id") or "default"
     expected_scope = gov.get("scope_lock_id")
 
     # Derive expected claim IDs from the claims being synthesized
@@ -339,6 +340,7 @@ async def integrate_node(state: AgentState) -> AgentState:
 
         manifest = {
             "session_id": session_id,
+            "tenant_id": tenant_id,
             "query_hash": query_hash,
             "scope_lock_id": expected_scope or "",
             "intent_id": gov.get("intent_id") or "",
@@ -346,7 +348,7 @@ async def integrate_node(state: AgentState) -> AgentState:
             "evidence_ids": sorted(evidence_ids),
             "mutation_ids": sorted(gov.get("mutation_ids") or []),
         }
-        capsule_hash = make_capsule_manifest_hash(capsule_id, manifest)
+        capsule_hash = make_capsule_manifest_hash(capsule_id, manifest, manifest_version="v3")
 
         run_capsule = {
             "capsule_id": capsule_id,
@@ -591,7 +593,12 @@ workflow_v21 = build_v21_workflow()
 app_v21 = workflow_v21.compile(checkpointer=memory_v21)
 
 
-async def run_v21_query(query: str, thread_id: str = "default", session_id: Optional[str] = None) -> AgentState:
+async def run_v21_query(
+    query: str,
+    thread_id: str = "default",
+    session_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+) -> AgentState:
     """
     Run a query through the v2.1 workflow.
     
@@ -599,11 +606,16 @@ async def run_v21_query(query: str, thread_id: str = "default", session_id: Opti
         query: User's hypothesis to investigate
         thread_id: Thread ID for checkpointing
         session_id: Optional session ID override
+        tenant_id: Optional tenant ID for deterministic attribution
         
     Returns:
         Final agent state with dual outputs
     """
-    initial_state = create_initial_state(query, session_id=session_id)
+    initial_state = create_initial_state(
+        query,
+        session_id=session_id,
+        tenant_id=tenant_id,
+    )
     cfg = {"configurable": {"thread_id": thread_id}}
 
     final_state = await app_v21.ainvoke(initial_state, cfg)

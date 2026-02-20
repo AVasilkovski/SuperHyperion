@@ -226,6 +226,7 @@ class AgentState(TypedDict):
     # Phase 16.6: Run Capsule (reproducibility artifact)
     run_capsule: Optional[Dict[str, Any]]
     session_id: Optional[str]
+    tenant_id: Optional[str]
 
     # =========================================================================
     # Original v1 Fields (kept for compatibility)
@@ -276,10 +277,15 @@ class AgentState(TypedDict):
 
 
 
-def create_initial_state(query: str, session_id: Optional[str] = None) -> AgentState:
+def create_initial_state(
+    query: str,
+    session_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+) -> AgentState:
     """Create initial state for a new query."""
     import uuid
     sid = session_id or f"sess-{uuid.uuid4().hex[:8]}"
+    tid = tenant_id or "default"
     return AgentState(
         # v2.1 Epistemic Fields
         epistemic_mode="speculative",  # Start in speculative lane
@@ -315,10 +321,11 @@ def create_initial_state(query: str, session_id: Optional[str] = None) -> AgentS
         governance=None,  # Phase 16.4: set by governance_gate_node
         run_capsule=None,
         session_id=sid,
+        tenant_id=tid,
         # Original v1 Fields
         messages=[{"role": "user", "content": query}],
         query=query,
-        graph_context={"session_id": sid},
+        graph_context={"session_id": sid, "tenant_id": tid},
         entities=[],
         hypotheses=[],
         code_executions=[],

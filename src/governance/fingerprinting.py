@@ -198,15 +198,28 @@ def make_run_capsule_id(
     return f"run-{h}"
 
 
-def make_capsule_manifest_hash(capsule_id: str, manifest: dict) -> str:
+def make_capsule_manifest_hash(capsule_id: str, manifest: dict, manifest_version: str = "v2") -> str:
     """
     Compute the integrity hash for a capsule manifest (Phase 16.6).
+    
+    `manifest_version` protects backward-compatibility against accidental dict key additions.
+    - "v1": Legacy capsules (pre-16.8) without mutation_ids
+    - "v2": Post-16.8 capsules with mutation_ids support
 
     Returns 64-char SHA-256 hex digest of the canonical JSON representation.
     """
+    if manifest_version == "v1":
+        allowed_keys = {"session_id", "query_hash", "scope_lock_id", "intent_id", "proposal_id", "evidence_ids"}
+    elif manifest_version == "v2":
+        allowed_keys = {"session_id", "query_hash", "scope_lock_id", "intent_id", "proposal_id", "evidence_ids", "mutation_ids"}
+    else:
+        raise ValueError(f"Unknown manifest_version: {manifest_version}")
+
+    filtered_manifest = {k: v for k, v in manifest.items() if k in allowed_keys}
+
     canonical = {
         "capsule_id": capsule_id,
-        **{k: v for k, v in sorted(manifest.items())},
+        **{k: v for k, v in sorted(filtered_manifest.items())},
     }
     s = json.dumps(canonical, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(s.encode("utf-8")).hexdigest()

@@ -16,6 +16,12 @@ Decision = Dict[str, str]
 _BLOCKING_DECISIONS = {"HOLD", "DENY", "FAIL"}
 
 
+def _normalize_blocking_code(decision: str, code: str) -> str:
+    if decision in _BLOCKING_DECISIONS and not code.strip():
+        return "UNSPECIFIED_CODE"
+    return code
+
+
 def _policy_name(fn: Callable[[BundleView], Decision]) -> str:
     return str(getattr(fn, "policy_name", None) or fn.__name__)
 
@@ -53,8 +59,9 @@ def _policy_metadata(fn: Callable[[BundleView], Decision]) -> dict[str, str]:
     try:
         sample = fn(_sample_bundle())
         resolved_id = str(sample.get("policy_id") or fallback_id)
-        code = str(sample.get("code") or "UNKNOWN")
+        code = str(sample.get("code") or "")
         decision = str(sample.get("decision") or "UNKNOWN").upper()
+        code = _normalize_blocking_code(decision, code)
     except Exception:
         pass
     return {

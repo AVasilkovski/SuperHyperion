@@ -301,7 +301,7 @@ Milestone A completion evidence:
 - Steward emits deterministic write-result trail (`steward_write_results`).
 - Governance output is validated under `contract_version: v1` and includes gate telemetry (`gate_code`, `failure_reason`, `duration_ms`).
 
-#### Milestone B — `EPI-17.0` / `TRUST-1.0.x` / `OPS-1.2` / `OPS-1.3` (HARDENING)
+#### Milestone B — `EPI-17.0` / `TRUST-1.0.x` / `OPS-1.2` / `OPS-1.3` (ACTIVE)
 1. **TRUST-1.0 Enterprise SDK (v1)**
    - `GovernedRun` SDK orchestrator implementing strict fail-closed state derivation.
    - `AuditBundleExporter` for deterministic artifact formatting.
@@ -322,9 +322,9 @@ Milestone A completion evidence:
    - Commit + hold deterministic gate runs in CI with exported artifacts.
 7. **OPS-1.3 Trust-Gate Trend Summary**
    - Per-run `trust_gate_summary.json` plus concise CI step-summary visibility.
-8. **EPI-17.0 Coverage Logging**
-   - Sample event logs with policy label, seed, and bucket tags (`sample_event()`).
-   - Capsule-level coverage summary metrics (telemetry only, no budget enforcement).
+8. **EPI-17.0 Coverage Logging (PLANNED, telemetry-only)**
+   - Planned sample event logs with policy label, seed, and bucket tags (`sample_event()`).
+   - Planned capsule-level coverage summary metrics (telemetry only, no budget enforcement).
 
 #### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (PLANNED)
 1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**

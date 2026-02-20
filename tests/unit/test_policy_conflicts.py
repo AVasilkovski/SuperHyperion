@@ -123,3 +123,33 @@ def policy_hold_b(bundle):
     assert duplicate_code[0]["decision"] == "HOLD"
     assert duplicate_code[0]["policy_ids"] == ["hold-a", "hold-b"]
     assert duplicate_code[0]["policy_names"] == ["policy_hold_a", "policy_hold_b"]
+
+
+def test_blocking_decision_without_code_normalizes_to_unspecified(tmp_path, monkeypatch):
+    bundles = tmp_path / "bundles"
+    out = tmp_path / "out"
+    moddir = tmp_path / "mods"
+    bundles.mkdir()
+    moddir.mkdir()
+
+    _bundle(bundles, "run-a", "tenant-a")
+
+    module_file = moddir / "policy_pack_missing_code.py"
+    module_file.write_text(
+        """
+def policy_hold_a(bundle):
+    return {"policy_id":"hold-a","decision":"HOLD","code":"","reason":"hold"}
+
+def policy_hold_b(bundle):
+    return {"policy_id":"hold-b","decision":"HOLD","code":None,"reason":"hold"}
+"""
+    )
+    monkeypatch.syspath_prepend(str(moddir))
+
+    run_policy_conflicts(str(bundles), "policy_pack_missing_code", str(out))
+    summary = json.loads((out / "policy_conflicts_summary.json").read_text())
+
+    duplicate_code = [c for c in summary["static_conflicts"] if c["type"] == "duplicate_decision_code"]
+    assert len(duplicate_code) == 1
+    assert duplicate_code[0]["code"] == "UNSPECIFIED_CODE"
+    assert duplicate_code[0]["decision"] == "HOLD"

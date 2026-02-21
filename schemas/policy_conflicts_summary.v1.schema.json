@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superhyperion.dev/schemas/policy_conflicts_summary.v1.schema.json",
+  "title": "TRUST-1.0.4 Policy Conflicts Summary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "tenant_id",
+    "static_conflicts",
+    "dynamic_conflicts",
+    "run_count",
+    "conflict_counts"
+  ],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "tenant_id": {"type": ["string", "null"]},
+    "run_count": {"type": "integer", "minimum": 0},
+    "conflict_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error", "warning", "total"],
+      "properties": {
+        "error": {"type": "integer", "minimum": 0},
+        "warning": {"type": "integer", "minimum": 0},
+        "total": {"type": "integer", "minimum": 0}
+      }
+    },
+    "static_conflicts": {"type": "array", "items": {"type": "object"}},
+    "dynamic_conflicts": {"type": "array", "items": {"type": "object"}}
+  }
+}

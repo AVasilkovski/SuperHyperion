@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superhyperion.dev/schemas/trust_gate_summary.v1.schema.json",
+  "title": "OPS-1.3 Trust Gate Summary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "bundle_root",
+    "run_prefixes",
+    "timestamp_utc",
+    "git_sha",
+    "commit_gate",
+    "hold_gate"
+  ],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "bundle_root": {"type": "string"},
+    "run_prefixes": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "timestamp_utc": {"type": ["string", "null"]},
+    "git_sha": {"type": ["string", "null"]},
+    "commit_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "governance_status", "capsule_id", "replay_status", "duration_ms"],
+      "properties": {
+        "pass": {"type": "boolean"},
+        "governance_status": {"type": ["string", "null"]},
+        "capsule_id": {"type": ["string", "null"]},
+        "replay_status": {"type": ["string", "null"]},
+        "duration_ms": {"type": ["integer", "null"]}
+      }
+    },
+    "hold_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "governance_status", "hold_code", "capsule_id", "duration_ms", "hold_code_distribution"],
+      "properties": {
+        "pass": {"type": "boolean"},
+        "governance_status": {"type": ["string", "null"]},
+        "hold_code": {"type": ["string", "null"]},
+        "capsule_id": {"type": ["string", "null"]},
+        "duration_ms": {"type": ["integer", "null"]},
+        "hold_code_distribution": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["hold_code", "count"],
+            "properties": {
+              "hold_code": {"type": "string"},
+              "count": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -92,6 +92,20 @@ class ExplainabilitySummaryV1(BaseModel):
     lineage: LineageBlock
 
 
+class ExplainabilitySummaryV11(ExplainabilitySummaryV1):
+    model_config = ConfigDict(extra="forbid")
+
+    contract_version: Literal["v1.1"] = "v1.1"
+    why_commit: str
+    why_hold: str
+    blocking_checks: list[str] = Field(default_factory=list)
+
+
+ExplainabilitySummaryV1_1 = ExplainabilitySummaryV11
+
+ExplainabilitySummaryAny = Union[ExplainabilitySummaryV1, ExplainabilitySummaryV11]
+
+
 def _load_if_path(value: Dict[str, Any] | str | None) -> Optional[Dict[str, Any]]:
     if value is None:
         return None
@@ -103,11 +117,40 @@ def _load_if_path(value: Dict[str, Any] | str | None) -> Optional[Dict[str, Any]
     return value
 
 
+def _blocking_checks(
+    *,
+    hash_ok: bool,
+    primacy_ok: bool,
+    mutation_ok: bool,
+    governance_status: str,
+    hold_code: Optional[str],
+) -> list[str]:
+    blocks: list[str] = []
+    if governance_status != "STAGED":
+        blocks.append(f"governance_status:{governance_status}")
+    if hold_code:
+        blocks.append(f"hold_code:{hold_code}")
+    if not hash_ok:
+        blocks.append("hash_integrity")
+    if not primacy_ok:
+        blocks.append("primacy")
+    if not mutation_ok:
+        blocks.append("mutation_linkage")
+    return blocks
+
+
+def parse_explainability_summary(payload: Dict[str, Any]) -> ExplainabilitySummaryAny:
+    contract = payload.get("contract_version")
+    if contract == "v1.1":
+        return ExplainabilitySummaryV11(**payload)
+    return ExplainabilitySummaryV1(**payload)
+
+
 def build_explainability_summary(
     governance_summary: Dict[str, Any] | str,
     replay_verdict: Dict[str, Any] | str | None = None,
     capsule_manifest: Dict[str, Any] | str | None = None,
-) -> ExplainabilitySummaryV1:
+) -> ExplainabilitySummaryV11:
     governance = _load_if_path(governance_summary) or {}
     replay = _load_if_path(replay_verdict) or None
     manifest = _load_if_path(capsule_manifest) or None
@@ -150,12 +193,31 @@ def build_explainability_summary(
     else:
         status = "ERROR"
 
-    return ExplainabilitySummaryV1(
+    hold_code = governance.get("hold_code")
+    failure_reason = governance.get("failure_reason")
+    blocks = _blocking_checks(
+        hash_ok=hash_ok,
+        primacy_ok=primacy_ok,
+        mutation_ok=mutation_ok,
+        governance_status=str(governance.get("status", "HOLD")),
+        hold_code=hold_code,
+    )
+
+    if status == "COMMIT":
+        why_commit = "Commit allowed: governance STAGED, replay PASS, and required checks passed."
+        why_hold = "Not applicable: run committed."
+    else:
+        reason = str(failure_reason or governance.get("hold_reason") or "No reason provided")
+        code = str(hold_code or governance.get("gate_code") or "UNKNOWN")
+        why_commit = "Commit blocked: one or more governance checks failed or run is not staged."
+        why_hold = f"Hold enforced by code {code}: {reason}."
+
+    return ExplainabilitySummaryV11(
         capsule_id=capsule_id,
         tenant_id=tenant_id,
         status=status,
         hold=HoldBlock(
-            hold_code=governance.get("hold_code"),
+            hold_code=hold_code,
             hold_reason=governance.get("hold_reason"),
         ),
         source_refs=SourceRefs(
@@ -167,7 +229,7 @@ def build_explainability_summary(
             status=governance.get("status", "HOLD"),
             gate_code=str(governance.get("gate_code") or "UNKNOWN"),
             duration_ms=int(governance.get("duration_ms") or 0),
-            failure_reason=governance.get("failure_reason"),
+            failure_reason=failure_reason,
         ),
         governance_checks=GovernanceChecks(
             hash_integrity=CheckOk(ok=hash_ok),
@@ -185,4 +247,7 @@ def build_explainability_summary(
             scope_lock_id=governance.get("scope_lock_id"),
             query_hash=(manifest or {}).get("query_hash"),
         ),
+        why_commit=why_commit,
+        why_hold=why_hold,
+        blocking_checks=blocks,
     )

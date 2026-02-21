@@ -1,0 +1,9 @@
+define
+
+# Ops 1.0: Attach tenancy ownership roles to domain types.
+# Note: These types must exist (via 002 or canonical schema) before this migration runs.
+
+run-capsule plays tenant-ownership:owned;
+write-intent plays tenant-ownership:owned;
+run-session plays tenant-ownership:owned;
+evidence plays tenant-ownership:owned;

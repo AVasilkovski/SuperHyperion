@@ -1,0 +1,9 @@
+define
+
+# Ops 1.0: Minimal domain type definitions to enable tenancy role attachment.
+# These will be superseded/extended by the canonical schema apply, but must exist for the migration.
+
+entity evidence sub entity;
+entity write-intent sub entity;
+entity run-session sub entity;
+entity run-capsule sub entity;

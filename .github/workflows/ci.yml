@@ -127,9 +127,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-artifacts
+          name: ci-artifacts-${{ github.run_id }}
           path: |
             ci_artifacts/**
+            schemas/**
           retention-days: 7
 
       - name: Upload test logs on failure

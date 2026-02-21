@@ -39,10 +39,8 @@ def _load_typedb():
         from typedb.driver import DriverOptions as _DriverOptions
         from typedb.driver import TransactionType as _TransactionType
         from typedb.driver import TypeDB as _TypeDB
-        from typedb.driver import TypeDBDriver as _TypeDBDriver
-
         TypeDB = _TypeDB
-        TypeDBDriver = _TypeDBDriver
+        TypeDBDriver = getattr(__import__("typedb.driver", fromlist=["TypeDBDriver"]), "TypeDBDriver", None)
         TransactionType = _TransactionType
         Credentials = _Credentials
         DriverOptions = _DriverOptions
@@ -53,10 +51,8 @@ def _load_typedb():
     except ImportError as e:
         logger.warning(f"TypeDB driver not available: {e}")
         logger.warning(
-            "To fix on Python 3.13:\n"
-            "  1. Install Visual C++ Redistributable: https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
-            "  2. Or use Python 3.12: pyenv install 3.12\n"
-            "  3. Or run TypeDB in Docker only"
+            "TypeDB import failed; ensure typedb-driver is installed and compatible "
+            "with this runtime."
         )
         return False
 
@@ -69,6 +65,11 @@ class TypeDBConnection:
         self.database = database or config.typedb.database
         self._driver = None
         self._mock_mode = False
+
+    @property
+    def driver(self):
+        """Backward-compatible raw driver accessor for legacy call sites."""
+        return self._driver
 
     def connect(self):
         """Establish connection to TypeDB."""
@@ -157,6 +158,79 @@ class TypeDBConnection:
         logger.warning("TypeDBConnection.session() is deprecated in TypeDB 3.x. Use .transaction() directly.")
         yield MockSession()
 
+    @staticmethod
+    def _tx_execute(tx, query: str):
+        """Execute TypeQL against TypeDB 3.x callable API and legacy query objects."""
+        query_api = tx.query
+        if callable(query_api):
+            result = query_api(query)
+            return result.resolve() if hasattr(result, "resolve") else result
+
+        if hasattr(query_api, "insert"):
+            q = " ".join(query.strip().lower().split())
+            is_delete = " delete " in f" {q} " and " insert " not in f" {q} "
+            if is_delete and hasattr(query_api, "delete"):
+                query_api.delete(query)
+            else:
+                query_api.insert(query)
+            return None
+
+        raise TypeError("Unsupported TypeDB query API")
+
+    @staticmethod
+    def _to_rows(answer) -> List[Dict]:
+        """Normalize driver answers into list-of-dicts with stable keys."""
+        if answer is None:
+            return []
+
+        if hasattr(answer, "is_concept_rows") and answer.is_concept_rows():
+            rows: List[Dict] = []
+            for concept_row in answer.as_concept_rows():
+                row: Dict[str, object] = {}
+                for col in concept_row.column_names():
+                    key = col[1:] if isinstance(col, str) and col.startswith("$") else col
+                    concept = concept_row.get(col)
+                    if concept is None:
+                        continue
+                    if hasattr(concept, "is_attribute") and concept.is_attribute():
+                        row[key] = concept.as_attribute().get_value()
+                    elif hasattr(concept, "is_value") and concept.is_value():
+                        row[key] = concept.as_value().get()
+                    elif hasattr(concept, "get_iid"):
+                        row[key] = concept.get_iid()
+                    else:
+                        row[key] = str(concept)
+                rows.append(row)
+            return rows
+
+        if hasattr(answer, "is_concept_documents") and answer.is_concept_documents():
+            return list(answer.as_concept_documents())
+
+        if hasattr(answer, "as_concept_documents"):
+            return list(answer.as_concept_documents())
+
+        if hasattr(answer, "as_concept_rows"):
+            rows: List[Dict] = []
+            for concept_row in answer.as_concept_rows():
+                row: Dict[str, object] = {}
+                for col in concept_row.column_names():
+                    key = col[1:] if isinstance(col, str) and col.startswith("$") else col
+                    concept = concept_row.get(col)
+                    if concept is None:
+                        continue
+                    if hasattr(concept, "is_attribute") and concept.is_attribute():
+                        row[key] = concept.as_attribute().get_value()
+                    elif hasattr(concept, "is_value") and concept.is_value():
+                        row[key] = concept.as_value().get()
+                    elif hasattr(concept, "get_iid"):
+                        row[key] = concept.get_iid()
+                    else:
+                        row[key] = str(concept)
+                rows.append(row)
+            return rows
+
+        return list(answer)
+
     @contextmanager
     def transaction(self, tx_type=None, options=None):
         """Context manager for transactions."""
@@ -173,22 +247,20 @@ class TypeDBConnection:
             return
 
         with driver.transaction(self.database, tx_type, options) as tx:
-            try:
-                yield tx
-                if tx_type == TransactionType.WRITE:
-                    tx.commit()
-            finally:
-                tx.close()
+            yield tx
+            if tx_type == TransactionType.WRITE:
+                tx.commit()
 
     def query_fetch(self, query: str) -> List[Dict]:
-        """Execute a fetch query and return results."""
+        """Execute a read query and return normalized results."""
         if self._mock_mode:
             logger.debug(f"[MOCK] query_fetch: {query[:100]}...")
             return []
 
-        with self.transaction(TransactionType.READ) as tx:
-            result = tx.query.fetch(query)
-            return list(result)
+        tx_type = TransactionType.READ if TransactionType else "READ"
+        with self.transaction(tx_type) as tx:
+            answer = self._tx_execute(tx, query)
+            return self._to_rows(answer)
 
     def query_insert(self, query: str, *, cap=None):
         """Execute an insert query. Requires WriteCap."""
@@ -201,7 +273,7 @@ class TypeDBConnection:
 
         tx_type = TransactionType.WRITE if TransactionType else "WRITE"
         with self.transaction(tx_type) as tx:
-            tx.query.insert(query)
+            self._tx_execute(tx, query)
 
     def query_delete(self, query: str, *, cap=None):
         """Execute a delete query. Requires WriteCap."""
@@ -214,7 +286,7 @@ class TypeDBConnection:
 
         tx_type = TransactionType.WRITE if TransactionType else "WRITE"
         with self.transaction(tx_type) as tx:
-            tx.query.delete(query)
+            self._tx_execute(tx, query)
 
     # ========================================================================
     # v2.1 Typed Operations

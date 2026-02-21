@@ -45,6 +45,12 @@ class OntologySteward(BaseAgent):
         """Persist all v2.2 artifacts and execute approved writes."""
         session_id = context.graph_context.get("session_id", f"sess-{time.time_ns()}")
         user_query = context.graph_context.get("user_query", "unknown")
+        tenant_id = context.graph_context.get("tenant_id") or "default"
+
+        try:
+            self.insert_to_graph(q_insert_tenant(tenant_id), cap=self._write_cap)
+        except Exception as e:
+            logger.debug("Tenant insert skipped (tenant_id=%s): %s", tenant_id, e)
 
         # 1. Persist Session
         try:
@@ -199,7 +205,10 @@ class OntologySteward(BaseAgent):
              if is_approved:
                  status = "approved"
 
-             self.insert_to_graph(q_insert_write_intent(session_id, intent, status), cap=self._write_cap)
+             self.insert_to_graph(
+                 q_insert_write_intent(session_id, intent, status, tenant_id=tenant_id),
+                 cap=self._write_cap,
+             )
 
         # 6. Execute Approved Intents & Log Status Events
         approved_intents = context.graph_context.get("approved_write_intents", [])
@@ -344,7 +353,7 @@ class OntologySteward(BaseAgent):
                 # Separate queries for valid TypeQL
                 delete_q = f'''
                 match $c isa proposition, has entity-id "{escape(claim_id)}", has epistemic-status $old;
-                delete $c has epistemic-status $old;
+                delete has $old of $c;
                 '''
 
                 insert_q = f'''
@@ -662,7 +671,7 @@ class OntologySteward(BaseAgent):
             (evidence: $e, proposition: $p) isa evidence-for-proposition,
                 has evidence-role $role;
             $p isa proposition, has entity-id $pid;
-        get $eid, $cid, $slid, $conf, $role, $pid;
+        select $eid, $cid, $slid, $conf, $role, $pid;
         '''
 
         try:
@@ -681,7 +690,7 @@ class OntologySteward(BaseAgent):
                 has entity-id $eid,
                 has failure-mode $fm,
                 has refutation-strength $rs;
-        get $eid, $fm, $rs;
+        select $eid, $fm, $rs;
         '''
 
         neg_map = {}
@@ -876,7 +885,8 @@ def escape(s: str) -> str:
 
 def iso_now() -> str:
     from datetime import datetime, timezone
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z")
+    # TypeDB `datetime` attributes must be timezone-naive literals (no Z/offset).
+    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
 
 def sha256_json(data: Any) -> str:
     """Compute stable hash of JSON-serializable data."""
@@ -908,13 +918,13 @@ def q_set_session_ended_at(session_id: str) -> str:
 def q_delete_session_ended_at(session_id: str) -> str:
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}", has ended-at $t;
-    delete $s has ended-at $t;
+    delete has $t of $s;
     '''
 
 def q_delete_session_run_status(session_id: str) -> str:
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}", has run-status $old;
-    delete $s has run-status $old;
+    delete has $old of $s;
     '''
 
 def q_insert_session_run_status(session_id: str, status: str) -> str:
@@ -1005,9 +1015,25 @@ def q_insert_proposal(session_id: str, p: dict) -> str:
       (proposal: $p, proposition: $prop) isa proposal-targets-proposition;
     '''
 
-def q_insert_write_intent(session_id: str, intent: dict, status: str = "staged") -> str:
+def q_insert_tenant(tenant_id: str) -> str:
     return f'''
-    match $s isa run-session, has session-id "{escape(session_id)}";
+    insert
+      $t isa tenant,
+        has tenant-id "{escape(tenant_id)}",
+        has created-at {iso_now()};
+    '''
+
+
+def q_insert_write_intent(
+    session_id: str,
+    intent: dict,
+    status: str = "staged",
+    tenant_id: str = "default",
+) -> str:
+    return f'''
+    match
+      $s isa run-session, has session-id "{escape(session_id)}";
+      $t isa tenant, has tenant-id "{escape(tenant_id)}";
     insert
       $i isa write-intent,
         has intent-id "{escape(intent.get("intent_id"))}",
@@ -1017,6 +1043,7 @@ def q_insert_write_intent(session_id: str, intent: dict, status: str = "staged")
         has json "{escape(json.dumps(intent, sort_keys=True))}",
         has created-at {iso_now()};
       (session: $s, write-intent: $i) isa session-has-write-intent;
+      (tenant: $t, intent: $i) isa tenant-owns-intent;
     '''
 
 def q_insert_intent_status_event(intent_id: str, status: str, payload: Optional[Dict] = None) -> str:

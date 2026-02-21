@@ -13,9 +13,10 @@ jobs:
     # Ops 1.0: Ephemeral TypeDB Core service container
     services:
       typedb:
-        image: typedb/typedb:3.7.3
+        image: typedb/typedb:3.8.0
         ports:
           - 1729:1729
+          - 8000:8000
 
     env:
       PYTHONPATH: .
@@ -40,7 +41,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip uninstall -y typedb || true
-          pip install --no-cache-dir --force-reinstall "typedb-driver==3.7.0"
+          pip install --no-cache-dir --force-reinstall "typedb-driver==3.8.0"
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
 
@@ -67,37 +68,33 @@ jobs:
       - name: Wait for TypeDB gRPC readiness
         run: |
           python - << 'PY'
-          import os, time, logging
-          from typedb.driver import TypeDB, Credentials, DriverOptions
+          import os
+          import socket
+          import sys
+          import time
 
-          # Silence driver logging noise
-          logging.basicConfig(level=logging.INFO)
-          
-          host = os.environ.get('TYPEDB_HOST')
-          port = os.environ.get('TYPEDB_PORT')
-          
-          if not host or not port:
-              print("SKIP: TYPEDB_HOST/PORT missing. Skipping readiness probe in CI (likely PR/secret-less context).")
-              raise SystemExit(0)
+          host = os.environ.get('TYPEDB_HOST', 'localhost')
+          port = int(os.environ.get('TYPEDB_PORT', '1729'))
 
-          addr = f"{host}:{port}"
-          creds = Credentials("admin", "password")
-          opts = DriverOptions(is_tls_enabled=False, tls_root_ca_path=None)
-
-          last = None
-          for i in range(1, 31):
+          deadline = time.time() + 90
+          while time.time() < deadline:
               try:
-                  driver = TypeDB.driver(addr, creds, opts)
-                  _ = [d.name for d in driver.databases.all()]
-                  driver.close()
-                  print(f"TypeDB ready: {addr}")
-                  raise SystemExit(0)
-              except Exception as e:
-                  last = e
-                  print(f"waiting for TypeDB ({i}/30): {e}")
-                  time.sleep(2)
-          raise SystemExit(f"TypeDB not ready: {last}")
+                  with socket.create_connection((host, port), timeout=2):
+                      print(f"TypeDB is up on {host}:{port}")
+                      raise SystemExit(0)
+              except OSError:
+                  time.sleep(1)
+
+          print(f"TypeDB did not start in time on {host}:{port}", file=sys.stderr)
+          raise SystemExit(1)
           PY
+
+      - name: Debug TypeDB networking (on failure)
+        if: failure()
+        run: |
+          ss -lntp | grep 1729 || true
+          docker ps -a
+          docker logs "${{ job.services.typedb.id }}" | tail -200 || true
 
       - name: Apply schema (CI TypeDB Core)
         run: |
@@ -123,6 +120,14 @@ jobs:
         run: |
           python -m src.cli.main policy conflicts --bundles ci_artifacts --policies src.policies.builtin --out ci_artifacts/conflicts --json --fail-on-severity error
 
+      - name: TRUST-1.0.3 compliance report artifact
+        run: |
+          python -m src.cli.main compliance report --bundles ci_artifacts --out ci_artifacts/compliance/compliance_report.json --format json
+
+      - name: OPS artifact schema validation gate
+        run: |
+          python scripts/validate_ci_artifacts.py --root ci_artifacts --schemas schemas
+
       - name: Upload CI trust artifacts (always)
         if: always()
         uses: actions/upload-artifact@v4
@@ -141,6 +146,7 @@ jobs:
           path: |
             .pytest_cache/
             *.log
+          if-no-files-found: ignore
           retention-days: 7
 
   lint:

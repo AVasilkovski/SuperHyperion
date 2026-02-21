@@ -3,7 +3,7 @@
 import pytest
 
 from src.agents.base_agent import AgentContext
-from src.agents.ontology_steward import OntologySteward
+from src.agents.ontology_steward import OntologySteward, iso_now
 
 
 class MockTypeDB:
@@ -144,7 +144,7 @@ async def test_execute_intent(steward, mock_db):
     # Check DB operations
     assert len(mock_db.deletes) >= 1
     # Find the specific delete for epistemic status
-    delete_q = next((q for q in mock_db.deletes if 'delete $c has epistemic-status' in q), None)
+    delete_q = next((q for q in mock_db.deletes if 'delete has $old of $c' in q), None)
     assert delete_q is not None
 
     # Check insert (should be in inserts list)
@@ -234,3 +234,10 @@ def test_v22_p11_missing_claim_id_does_not_fallback_to_entity_id():
 
     with pytest.raises(ValueError, match="CRITICAL: Validation evidence missing claim_id"):
         q_insert_validation_evidence("sess-4", ev)
+
+
+def test_iso_now_emits_timezone_naive_datetime_literal():
+    literal = iso_now()
+    assert "T" in literal
+    assert "Z" not in literal
+    assert "+" not in literal

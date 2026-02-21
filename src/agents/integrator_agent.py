@@ -236,7 +236,7 @@ class IntegratorAgent(BaseAgent):
                 has claim-id $claim,
                 has scope-lock-id $scope;
             {or_clauses};
-        get $id, $claim, $scope;
+        select $id, $claim, $scope;
         '''
 
         try:

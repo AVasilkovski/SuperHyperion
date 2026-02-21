@@ -163,7 +163,7 @@ def _build_result(
             "capsule_hash": capsule.get("capsule_hash", ""),
             "_has_mutation_snapshot": True,  # New capsules always have mutation support
         }
-        replay_verdict = verify_capsule(capsule_id, capsule_data)
+        replay_verdict = verify_capsule(capsule_id, capsule_data, tenant_id=tenant_id)
     except Exception as exc:
         logger.warning("GovernedRun: replay verification failed: %s", exc)
 

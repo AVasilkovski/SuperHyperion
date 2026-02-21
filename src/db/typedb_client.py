@@ -66,6 +66,11 @@ class TypeDBConnection:
         self._driver = None
         self._mock_mode = False
 
+    @property
+    def driver(self):
+        """Backward-compatible raw driver accessor for legacy call sites."""
+        return self._driver
+
     def connect(self):
         """Establish connection to TypeDB."""
         if not _load_typedb():

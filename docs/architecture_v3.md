@@ -251,10 +251,12 @@ Execution is organized by **tracks + milestones**, not calendar estimates.
 To align engineering output with enterprise review workflows, branch + commit naming follows a strict conventional format.
 
 **Repository naming safety checklist (required before push):**
-- Branch name must follow `<type>/<short-kebab-topic>` and avoid generic names (`tmp`, `misc`, `work`).
-- Commit titles must follow `<type>(<scope>): <subject>` and avoid ambiguous verbs (`update`, `fixes`) without scope.
-- PR title should mirror the primary conventional commit subject and explicitly mention the impacted track (`EPI`, `OPS`, `TRUST`) when applicable.
-- Merge commit message should preserve milestone traceability (for example: `merge(trust): ... [TRUST-1.0.x/OPS-1.3]`).
+- **Branch Naming**: Follow `<type>/<short-kebab-topic>` (e.g., `fix/typedb-deployment`). Avoid generic names like `tmp`, `misc`, or `work`.
+- **Commit Titles**: Use `<type>(<scope>): <subject>` (e.g., `fix(ops): resolve SVL42 collisions`). Direct unambiguous verbs only.
+- **PR Alignment**: PR title should mirror the primary conventional commit and explicitly tag the impacted track (`[EPI]`, `[OPS]`, `[TRUST]`).
+- **Traceability**: Ensure merge commits or final commits link to the relevant architectural milestone (e.g., `Closes OPS-1.3`).
+- **Secrets & Blobs Check**: Run a pre-push scan for `.env` files, `.gemini` paths, or unintended binary blobs in the diff.
+- **Environment Parity**: For `OPS` changes, verify that scripts use `env_bool` or standard env-var resolution for cloud/local switching.
 
 - **Commit format**: `<type>(<scope>): <subject>`
   - Examples: `fix(governance): ...`, `docs(trust): ...`, `feat(ops): ...`

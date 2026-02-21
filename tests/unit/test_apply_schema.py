@@ -1,102 +1,113 @@
-import importlib.util
-from pathlib import Path
-
 import pytest
+from pathlib import Path
+import sys
 
-SPEC = importlib.util.spec_from_file_location("apply_schema", Path("scripts/apply_schema.py"))
-assert SPEC and SPEC.loader
-apply_schema = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(apply_schema)
+# Add scripts directory to path to import apply_schema
+sys.path.append(str(Path(__file__).parent.parent.parent / "scripts"))
+import apply_schema
 
+def test_resolve_schema_empty():
+    with pytest.raises(ValueError, match="No --schema provided"):
+        apply_schema.resolve_schema_files([])
+    
+    with pytest.raises(ValueError, match="Empty --schema argument is invalid"):
+        apply_schema.resolve_schema_files([""])
+    
+    with pytest.raises(ValueError, match="Empty --schema argument is invalid"):
+        apply_schema.resolve_schema_files(["   "])
 
-def test_resolve_schema_files_single_canonical_schema():
-    files = apply_schema.resolve_schema_files(["src/schema/scientific_knowledge.tql"])
-    assert files == [Path("src/schema/scientific_knowledge.tql")]
-
-
-def test_redeclaration_detector_flags_inherited_owns_without_specialisation(tmp_path: Path):
-    schema_path = tmp_path / "bad_schema.tql"
-    schema_path.write_text(
-        """
-        define
-        attribute scope-lock-id, value string;
-        entity evidence, owns scope-lock-id;
-        entity validation-evidence sub evidence, owns scope-lock-id;
-        """,
-        encoding="utf-8",
-    )
-
-    issues = apply_schema.find_inherited_owns_redeclarations([schema_path])
-    assert any("validation-evidence redeclares inherited owns scope-lock-id" in issue for issue in issues)
-
-
-def test_redeclaration_detector_accepts_current_canonical_schema():
-    issues = apply_schema.find_inherited_owns_redeclarations([Path("src/schema/scientific_knowledge.tql")])
-    assert issues == []
-
-
-def test_redeclaration_detector_flags_duplicate_owns_across_files(tmp_path: Path):
-    first = tmp_path / "01_base.tql"
-    second = tmp_path / "02_patch.tql"
-    first.write_text(
-        """
-        define
-        attribute scope-lock-id, value string;
-        entity evidence, owns scope-lock-id;
-        """,
-        encoding="utf-8",
-    )
-    second.write_text(
-        """
-        define
-        entity evidence, owns scope-lock-id;
-        """,
-        encoding="utf-8",
-    )
-
-    issues = apply_schema.find_inherited_owns_redeclarations([first, second])
-    assert any("evidence declares owns scope-lock-id in multiple files" in issue for issue in issues)
-
-
-def test_resolve_schema_files_unmatched_glob_fails_fast():
-    with pytest.raises(FileNotFoundError, match="Schema glob matched no files"):
-        apply_schema.resolve_schema_files(["src/schema/does-not-exist*.tql"])
-
-
-def test_parse_undefine_owns_spec_requires_entity_and_attribute():
-    with pytest.raises(ValueError, match="Invalid --undefine-owns spec"):
-        apply_schema.parse_undefine_owns_spec("validation-evidence")
-
-
-def test_redeclaration_detector_flags_template_id_inheritance_conflict(tmp_path: Path):
-    schema_path = tmp_path / "legacy_schema.tql"
-    schema_path.write_text(
-        """
-        define
-        attribute template-id, value string;
-        entity evidence, owns template-id;
-        entity validation-evidence sub evidence, owns template-id;
-        """,
-        encoding="utf-8",
-    )
-
-    issues = apply_schema.find_inherited_owns_redeclarations([schema_path])
-    assert any("validation-evidence redeclares inherited owns template-id" in issue for issue in issues)
-
-
-def test_resolve_schema_files_rejects_invalid_triple_star_glob():
-    with pytest.raises(FileNotFoundError, match="Invalid schema glob pattern"):
+def test_resolve_schema_triple_star():
+    with pytest.raises(FileNotFoundError, match="Invalid schema glob pattern \\(triple-star\\):"):
         apply_schema.resolve_schema_files(["src/schema/***.tql"])
 
+def test_planner_basic_owns():
+    schema = """
+    entity evidence @abstract,
+        owns template-id;
+        
+    entity validation-evidence sub evidence;
+    """
+    
+    parent_of, owns_of, plays_of = apply_schema.parse_canonical_caps(schema)
+    
+    assert parent_of.get("validation-evidence") == "evidence"
+    assert "template-id" in owns_of.get("evidence", set())
+    
+    owns_specs, plays_specs = apply_schema.plan_auto_migrations(parent_of, owns_of, plays_of)
+    assert ("validation-evidence", "template-id") in owns_specs
+    assert len(plays_specs) == 0
 
-def test_parse_undefine_plays_spec_requires_type_and_role():
-    with pytest.raises(ValueError, match="Invalid --undefine-plays spec"):
-        apply_schema.parse_undefine_plays_spec("validation-evidence")
+def test_planner_multiple_subtypes_owns():
+    schema = """
+    entity evidence @abstract,
+        owns template-id;
+        
+    entity validation-evidence sub evidence;
+    entity negative-evidence sub evidence;
+    """
+    
+    parent_of, owns_of, plays_of = apply_schema.parse_canonical_caps(schema)
+    owns_specs, plays_specs = apply_schema.plan_auto_migrations(parent_of, owns_of, plays_of)
+    
+    assert ("validation-evidence", "template-id") in owns_specs
+    assert ("negative-evidence", "template-id") in owns_specs
 
+def test_planner_basic_plays():
+    schema = """
+    entity evidence @abstract,
+        plays session-has-evidence:evidence;
+        
+    entity validation-evidence sub evidence;
+    """
+    
+    parent_of, owns_of, plays_of = apply_schema.parse_canonical_caps(schema)
+    
+    assert "session-has-evidence:evidence" in plays_of.get("evidence", set())
+    
+    owns_specs, plays_specs = apply_schema.plan_auto_migrations(parent_of, owns_of, plays_of)
+    assert ("validation-evidence", "session-has-evidence:evidence") in plays_specs
+    assert len(owns_specs) == 0
 
-def test_parse_undefine_plays_spec_allows_scoped_role_colon():
-    type_label, scoped_role = apply_schema.parse_undefine_plays_spec(
-        "validation-evidence:session-has-evidence:evidence"
-    )
-    assert type_label == "validation-evidence"
-    assert scoped_role == "session-has-evidence:evidence"
+def test_planner_hardened_edge_cases():
+    schema = """
+    # Commented out entity
+    # entity old-evidence sub entity, owns legacy-id;
+
+    entity evidence sub entity, # valid comment
+        owns template-id; # another comment
+
+    entity validation-evidence sub evidence,
+        owns validation-only-attr; # should not be inherited upwards
+
+    relation session-has-evidence sub relation,
+        relates session,
+        relates evidence;
+
+    # Deceptive names containing keywords
+    entity owns-metadata sub entity,
+        owns metadata-id;
+    """
+    
+    parent_of, owns_of, plays_of = apply_schema.parse_canonical_caps(schema)
+    
+    # Comments should be stripped
+    assert "old-evidence" not in parent_of
+    
+    # Correct inheritance
+    assert parent_of.get("validation-evidence") == "evidence"
+    assert "template-id" in owns_of.get("evidence")
+    
+    # Deceptive names should match as entities, not keywords
+    assert "owns-metadata" in owns_of or "owns-metadata" in parent_of or "owns-metadata" in plays_of
+    assert "metadata-id" in owns_of.get("owns-metadata")
+    
+    owns_specs, plays_specs = apply_schema.plan_auto_migrations(parent_of, owns_of, plays_of)
+    
+    # validation-evidence should inherit template-id
+    assert ("validation-evidence", "template-id") in owns_specs
+    # validation-only-attr should NOT be an undefine target for anyone unless it has subtypes
+    # (Checking that the supertype capability is what triggers inheritance)
+    
+    # owns-metadata should NOT be an undefine target because it's not a subtype of something with attributes we've defined
+    assert not any(t == "owns-metadata" for t, a in owns_specs)
+

@@ -353,7 +353,7 @@ class OntologySteward(BaseAgent):
                 # Separate queries for valid TypeQL
                 delete_q = f'''
                 match $c isa proposition, has entity-id "{escape(claim_id)}", has epistemic-status $old;
-                delete $c has epistemic-status $old;
+                delete has $old of $c;
                 '''
 
                 insert_q = f'''
@@ -671,7 +671,7 @@ class OntologySteward(BaseAgent):
             (evidence: $e, proposition: $p) isa evidence-for-proposition,
                 has evidence-role $role;
             $p isa proposition, has entity-id $pid;
-        get $eid, $cid, $slid, $conf, $role, $pid;
+        select $eid, $cid, $slid, $conf, $role, $pid;
         '''
 
         try:
@@ -690,7 +690,7 @@ class OntologySteward(BaseAgent):
                 has entity-id $eid,
                 has failure-mode $fm,
                 has refutation-strength $rs;
-        get $eid, $fm, $rs;
+        select $eid, $fm, $rs;
         '''
 
         neg_map = {}
@@ -917,13 +917,13 @@ def q_set_session_ended_at(session_id: str) -> str:
 def q_delete_session_ended_at(session_id: str) -> str:
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}", has ended-at $t;
-    delete $s has ended-at $t;
+    delete has $t of $s;
     '''
 
 def q_delete_session_run_status(session_id: str) -> str:
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}", has run-status $old;
-    delete $s has run-status $old;
+    delete has $old of $s;
     '''
 
 def q_insert_session_run_status(session_id: str, status: str) -> str:

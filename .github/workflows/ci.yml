@@ -109,10 +109,6 @@ jobs:
         run: |
           python scripts/migrate.py --database "$TYPEDB_DATABASE" --dry-run
 
-      - name: Verify Migration Safety (Dry-Run)
-        run: |
-          python scripts/migrate.py --database "$TYPEDB_DATABASE" --dry-run
-
       - name: Run tests
         run: |
           pytest tests/ -v --tb=short

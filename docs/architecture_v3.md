@@ -373,15 +373,20 @@ Milestone C implementation shortlist (high-ROI first):
    - Introduce `tenant` ownership relations and hard query scoping in Ontology Steward reads/writes.
    - Enforce tenant scope at API boundaries before adding broader RBAC roles.
 2. **OPS-2.0 migration safety backbone**
-   - Deploy `scripts/migrate.py` runner to execute linear `.tql` files and update `schema-version`.
-   - Implement "Additive-Only" linter for CI to prevent breaking N-1 compatibility.
-   - Integrate performance holdout suite into PR gates.
+   - **Reuse**: Build the **"Additive-Only" linter** by extending the `parse_canonical_caps` engine (from OPS 1.3).
+   - **Foundation**: Deploy `scripts/migrate.py` to execute linear `.tql` versions, protected by the existing **OPS 1.3 Drift Guard**.
+   - **Integrate**: Add performance regression gates (seeded mockery) to the PR pipeline.
 3. **TRUST-1.2 minimal control-plane API**
    - Ship `POST /v1/run`, `GET /v1/capsules`, `GET /v1/audit/export` with read-mostly flows and policy hooks.
    - Keep UI out-of-band until API contracts stabilize.
 4. **EPI-17.1 coverage telemetry before enforcement**
    - Emit capsule-level coverage metrics and policy-mix traces without budget blocking.
    - Add trend reporting to CI artifacts first; enforce budgets only after variance stabilizes.
+
+**Prerequisites Met (OPS 1.3 Foundation)**:
+- [x] Hardened schema parser with word-boundary awareness.
+- [x] Self-healing "Auto-Migrate" logic for inherited capability drift.
+- [x] Conventional Commit discipline for milestone traceability.
 
 ### Deliberate Non-Goals (anti-vanity constraints)
 

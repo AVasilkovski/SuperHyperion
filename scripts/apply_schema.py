@@ -18,17 +18,25 @@ def resolve_schema_files(schema_args: list[str]) -> list[Path]:
     """Resolve schema file arguments (paths and/or globs) deterministically."""
     resolved: list[Path] = []
     for item in schema_args:
+        has_glob_chars = any(char in item for char in "*?[")
         matches = sorted(Path(p) for p in glob.glob(item, recursive=True))
-        if matches:
-            resolved.extend(m for m in matches if m.is_file())
+        file_matches = [m for m in matches if m.is_file()]
+        if file_matches:
+            resolved.extend(file_matches)
             continue
+
+        if has_glob_chars:
+            raise FileNotFoundError(
+                f"Schema glob matched no files: {item}. "
+                "Pass explicit canonical schema path(s), e.g. src/schema/scientific_knowledge.tql"
+            )
 
         path = Path(item)
         if path.is_file():
             resolved.append(path)
             continue
 
-        raise FileNotFoundError(f"Schema file/pattern did not match any files: {item}")
+        raise FileNotFoundError(f"Schema file not found: {item}")
 
     deduped: list[Path] = []
     seen: set[Path] = set()
@@ -43,41 +51,43 @@ def resolve_schema_files(schema_args: list[str]) -> list[Path]:
     return deduped
 
 
-def find_inherited_owns_redeclarations(schema_paths: list[Path], attribute: str = "scope-lock-id") -> list[str]:
+def find_inherited_owns_redeclarations(schema_paths: list[Path]) -> list[str]:
     """Detect duplicate/inherited `owns` declarations that will fail on TypeDB 3."""
     block_re = re.compile(r"entity\s+([a-zA-Z0-9_-]+)(?:\s+sub\s+([a-zA-Z0-9_-]+))?\s*,(.*?);", re.S)
-    owners: dict[str, list[dict[str, object]]] = {}
+    owns_re = re.compile(r"owns\s+([a-zA-Z0-9_-]+)(?:\s+([^,;\n]+))?")
+
+    declarations: dict[tuple[str, str], list[dict[str, object]]] = {}
 
     for path in schema_paths:
         content = path.read_text(encoding="utf-8")
         for entity, supertype, body in block_re.findall(content):
-            owns_match = re.search(rf"owns\s+{re.escape(attribute)}(?:\s+([^,;\n]+))?", body)
-            if not owns_match:
-                continue
-            suffix = (owns_match.group(1) or "").strip()
-            owners.setdefault(entity, []).append(
-                {
-                    "supertype": supertype,
-                    "specialised": "@card" in suffix,
-                    "path": str(path),
-                }
-            )
+            for attribute, suffix in owns_re.findall(body):
+                declarations.setdefault((entity, attribute), []).append(
+                    {
+                        "supertype": supertype,
+                        "specialised": "@card" in (suffix or ""),
+                        "path": str(path),
+                    }
+                )
 
     issues: list[str] = []
-    for entity, declarations in owners.items():
-        if len(declarations) > 1:
-            paths = ", ".join(sorted({str(item["path"]) for item in declarations}))
+    declaration_keys = set(declarations.keys())
+    for (entity, attribute), items in declarations.items():
+        if len(items) > 1:
+            paths = ", ".join(sorted({str(item["path"]) for item in items}))
             issues.append(f"{entity} declares owns {attribute} in multiple files: {paths}")
 
-        for data in declarations:
-            supertype = data["supertype"]
-            if not supertype or supertype not in owners:
+        for item in items:
+            supertype = item["supertype"]
+            if not supertype:
                 continue
-            if data["specialised"]:
+            if (supertype, attribute) not in declaration_keys:
+                continue
+            if item["specialised"]:
                 continue
             issues.append(
                 f"{entity} redeclares inherited owns {attribute} from {supertype} without specialisation "
-                f"(file: {data['path']})"
+                f"(file: {item['path']})"
             )
 
     return issues
@@ -126,18 +136,30 @@ def apply_schema(driver, db: str, schema_paths: list[Path]):
         print(f"[apply_schema] schema applied: {schema_path}")
 
 
-def migrate_drop_validation_evidence_scope_lock(driver, db: str):
-    query = "undefine validation-evidence owns scope-lock-id;"
-    try:
-        with driver.transaction(db, TransactionType.SCHEMA) as tx:
-            tx.query(query).resolve()
-            tx.commit()
-        print("[apply_schema] migration applied: dropped validation-evidence owns scope-lock-id")
-    except Exception as exc:
-        print(
-            "[apply_schema] migration skipped/failed (likely already aligned schema): "
-            f"{exc}"
+def parse_undefine_owns_spec(spec: str) -> tuple[str, str]:
+    parts = spec.split(":", maxsplit=1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError(
+            "Invalid --undefine-owns spec. Expected format '<entity>:<attribute>', "
+            f"got: {spec}"
         )
+    return parts[0].strip(), parts[1].strip()
+
+
+def migrate_undefine_owns(driver, db: str, specs: list[str]):
+    for spec in specs:
+        entity, attribute = parse_undefine_owns_spec(spec)
+        query = f"undefine owns {attribute} from {entity};"
+        try:
+            with driver.transaction(db, TransactionType.SCHEMA) as tx:
+                tx.query(query).resolve()
+                tx.commit()
+            print(f"[apply_schema] migration applied: {query}")
+        except Exception as exc:
+            print(
+                "[apply_schema] migration skipped/failed (likely already aligned schema): "
+                f"{query} error={exc}"
+            )
 
 
 def main():
@@ -156,9 +178,13 @@ def main():
     p.add_argument("--password", default=os.getenv("TYPEDB_PASSWORD", "password"))
     p.add_argument("--recreate", action="store_true", help="Delete and recreate the database before applying.")
     p.add_argument(
-        "--drop-validation-evidence-scope-lock",
-        action="store_true",
-        help="Run guarded migration: undefine validation-evidence owns scope-lock-id before applying schema.",
+        "--undefine-owns",
+        action="append",
+        default=[],
+        help=(
+            "Run guarded migration before schema apply. Repeatable format: "
+            "<entity>:<attribute> (for example: validation-evidence:template-id)"
+        ),
     )
     args = p.parse_args()
 
@@ -196,8 +222,8 @@ def main():
 
         ensure_database(driver, args.database)
 
-        if args.drop_validation_evidence_scope_lock:
-            migrate_drop_validation_evidence_scope_lock(driver, args.database)
+        if args.undefine_owns:
+            migrate_undefine_owns(driver, args.database, args.undefine_owns)
 
         apply_schema(driver, args.database, schema_paths)
     finally:

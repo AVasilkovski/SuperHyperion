@@ -307,7 +307,7 @@ Milestone A completion evidence:
 - Steward emits deterministic write-result trail (`steward_write_results`).
 - Governance output is validated under `contract_version: v1` and includes gate telemetry (`gate_code`, `failure_reason`, `duration_ms`).
 
-#### Milestone B — `EPI-17.0` / `TRUST-1.0.x` / `OPS-1.2` / `OPS-1.3` (ACTIVE)
+#### Milestone B — `EPI-17.0` / `TRUST-1.0.x` / `OPS-1.2` / `OPS-1.3` (LOCKED)
 1. **TRUST-1.0 Enterprise SDK (v1)**
    - `GovernedRun` SDK orchestrator implementing strict fail-closed state derivation.
    - `AuditBundleExporter` for deterministic artifact formatting.
@@ -316,7 +316,7 @@ Milestone A completion evidence:
    - Programmatic `verify_capsule` extraction with backward compatibility for legacy envelopes.
 2. **TRUST-1.0.1 Explainability Overlay Artifacts**
    - Introduced explainability overlay artifacts as non-hashed exports.
-   - Upgraded to `ExplainabilitySummaryV1_1` with deterministic narratives (`why_commit`, `why_hold`, `blocking_checks`).
+   - Upgraded to `ExplainabilitySummaryV11` (compat alias: `ExplainabilitySummaryV1_1`) with deterministic narratives (`why_commit`, `why_hold`, `blocking_checks`).
 3. **TRUST-1.0.2 Policy Sandbox + Simulation (read-only)**
    - Local CLI simulation over exported bundles.
    - Tenant-aware filtering for bundle-only policy evaluation.
@@ -332,6 +332,12 @@ Milestone A completion evidence:
    - Planned sample event logs with policy label, seed, and bucket tags (`sample_event()`).
    - Planned capsule-level coverage summary metrics (telemetry only, no budget enforcement).
 
+Milestone B closure evidence:
+- Deterministic tenant-aware bundle tooling with legacy-safe normalization (`effective_tenant_id`) and nested artifact isolation (`bundle_key`).
+- TRUST-1.0.4 conflict detector includes blocking-only code collisions, normalized missing blocking code (`UNSPECIFIED_CODE`), and CI guardrail failure on error severity.
+- OPS-1.3 emits deterministic `trust_gate_summary.json`, CI step-summary lines, and offline summary diff utility (`scripts/ops13_trust_gate_diff.py`).
+- Versioned artifact schemas are published under `schemas/` for trust summary, policy conflicts, and compliance report contracts.
+
 #### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (PLANNED)
 1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**
    - Database isolation schema (`tenant` entity + `tenant-owns-capsule` relation).
@@ -345,6 +351,20 @@ Milestone A completion evidence:
    - Objective holdout CI suite (frozen regression thresholds).
 4. **EPI-17.1 Sampling Budget Enforcement**
    - Budgeted policy mixes only after baseline metrics stabilize.
+
+Milestone C implementation shortlist (high-ROI first):
+1. **TRUST-1.1 DB tenant isolation baseline**
+   - Introduce `tenant` ownership relations and hard query scoping in Ontology Steward reads/writes.
+   - Enforce tenant scope at API boundaries before adding broader RBAC roles.
+2. **OPS-2.0 migration safety backbone**
+   - Add ordered additive migration runner with schema-version checkpoints and deterministic rollback markers.
+   - Gate PRs with migration replay against empty + seeded fixture databases.
+3. **TRUST-1.2 minimal control-plane API**
+   - Ship `POST /v1/run`, `GET /v1/capsules`, `GET /v1/audit/export` with read-mostly flows and policy hooks.
+   - Keep UI out-of-band until API contracts stabilize.
+4. **EPI-17.1 coverage telemetry before enforcement**
+   - Emit capsule-level coverage metrics and policy-mix traces without budget blocking.
+   - Add trend reporting to CI artifacts first; enforce budgets only after variance stabilizes.
 
 ### Deliberate Non-Goals (anti-vanity constraints)
 

@@ -215,6 +215,7 @@ def run_policy_conflicts(
         "dynamic_conflicts": dynamic_conflicts,
         "run_count": len(simulation_results),
     }
+    summary["conflict_counts"] = summarize_conflict_severity(summary)
 
     written: list[str] = []
     summary_path = os.path.join(out_dir, "policy_conflicts_summary.json")
@@ -239,3 +240,26 @@ def run_policy_conflicts(
         written.append(os.path.abspath(path))
 
     return written
+
+
+def summarize_conflict_severity(summary: dict[str, Any]) -> dict[str, int]:
+    static_conflicts = summary.get("static_conflicts") or []
+    dynamic_conflicts = summary.get("dynamic_conflicts") or []
+    all_conflicts = [*static_conflicts, *dynamic_conflicts]
+    counts = {"error": 0, "warning": 0}
+    for item in all_conflicts:
+        severity = str(item.get("severity", "")).lower()
+        if severity in counts:
+            counts[severity] += 1
+    counts["total"] = len(all_conflicts)
+    return counts
+
+
+def should_fail_on_severity(summary: dict[str, Any], fail_on_severity: str) -> bool:
+    threshold = str(fail_on_severity).lower()
+    counts = summarize_conflict_severity(summary)
+    if threshold == "error":
+        return counts["error"] > 0
+    if threshold == "warning":
+        return counts["warning"] > 0 or counts["error"] > 0
+    return False

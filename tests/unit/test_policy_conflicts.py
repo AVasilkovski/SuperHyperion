@@ -59,6 +59,7 @@ def policy_beta(bundle):
     assert any(p.endswith("run-a_policy_conflicts.json") for p in written)
 
     summary = json.loads((out / "policy_conflicts_summary.json").read_text())
+    assert summary["conflict_counts"]["total"] >= 1
     static_types = [c["type"] for c in summary["static_conflicts"]]
     assert "duplicate_policy_id" in static_types
 

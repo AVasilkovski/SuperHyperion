@@ -7,6 +7,7 @@ import json
 import os
 from collections import defaultdict
 from typing import Any, Callable, Dict, Optional
+from urllib.parse import quote
 
 from src.graph.contracts import GovernanceSummaryV1
 from src.sdk.bundles import BundleView, load_bundles
@@ -228,7 +229,7 @@ def run_policy_conflicts(
         key = str(c.get("bundle_key") or c.get("prefix", ""))
         dynamic_by_key[key].append(c)
     for bundle_key in sorted(dynamic_by_key):
-        safe_name = bundle_key.replace("\\", "/").replace("/", "__")
+        safe_name = quote(bundle_key.replace("\\", "/"), safe="")
         path = os.path.join(out_dir, f"{safe_name}_policy_conflicts.json")
         payload = {
             "contract_version": "v1",

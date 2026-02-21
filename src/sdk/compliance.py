@@ -79,6 +79,7 @@ def build_compliance_report(
         runs.append(
             {
                 "prefix": bundle.prefix,
+                "bundle_key": bundle.bundle_key,
                 "tenant_id": bundle.tenant_id,
                 "status": status,
                 "governance_status": bundle.governance.status,
@@ -130,7 +131,7 @@ def build_compliance_report(
             "replay_verification": _latency_stats(replay_durations, "linear_interpolation", p95_min_sample_size),
             "steward_write": _latency_stats(steward_write_durations, "linear_interpolation", p95_min_sample_size),
         },
-        "runs": sorted(runs, key=lambda r: r["prefix"]),
+        "runs": sorted(runs, key=lambda r: (str(r["bundle_key"]), str(r["prefix"]))),
     }
     return report
 
@@ -160,6 +161,7 @@ def write_compliance_outputs(
                 fh,
                 fieldnames=[
                     "prefix",
+                    "bundle_key",
                     "tenant_id",
                     "status",
                     "governance_status",

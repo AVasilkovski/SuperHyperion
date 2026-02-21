@@ -6,6 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 from src.graph.contracts import GovernanceSummaryV1
 from src.sdk.explainability import ExplainabilitySummaryAny, parse_explainability_summary
@@ -60,7 +61,7 @@ def _effective_tenant_id(raw_tenant_id: Optional[str]) -> str:
 
 def output_prefix(bundle: BundleView) -> str:
     normalized = bundle.bundle_key.replace("\\", "/")
-    return normalized.replace("/", "__")
+    return quote(normalized, safe="")
 
 
 def discover_bundle_paths(bundles_dir: str, tenant_id: Optional[str] = None) -> Dict[str, BundlePaths]:

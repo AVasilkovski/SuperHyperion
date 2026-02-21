@@ -90,4 +90,18 @@ def test_nested_duplicate_prefixes_preserve_directory_context(tmp_path):
 
     written = simulate_policies(str(bundles), "src.policies.builtin", str(out))
     basenames = sorted(Path(p).name for p in written)
-    assert basenames == ["tenant-a__run-1_policy_simulation.json", "tenant-b__run-1_policy_simulation.json"]
+    assert basenames == ["tenant-a%2Frun-1_policy_simulation.json", "tenant-b%2Frun-1_policy_simulation.json"]
+
+
+def test_output_prefix_encoding_is_non_lossy_for_nested_and_flattened_names(tmp_path):
+    bundles = tmp_path / "bundles"
+    out = tmp_path / "policy"
+    bundles.mkdir(parents=True)
+    (bundles / "tenant-a").mkdir(parents=True)
+
+    _bundle(bundles, "tenant-a__run-1", "tenant-flat")
+    _bundle(bundles / "tenant-a", "run-1", "tenant-nested")
+
+    written = simulate_policies(str(bundles), "src.policies.builtin", str(out))
+    basenames = sorted(Path(p).name for p in written)
+    assert basenames == ["tenant-a%2Frun-1_policy_simulation.json", "tenant-a__run-1_policy_simulation.json"]

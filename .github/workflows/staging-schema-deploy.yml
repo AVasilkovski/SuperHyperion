@@ -65,6 +65,11 @@ jobs:
           SCHEMA_FILE="src/schema/scientific_knowledge.tql"
           echo "Using authoritative schema file: $SCHEMA_FILE"
 
+          if [[ "$SCHEMA_FILE" == *"***"* || "$SCHEMA_FILE" == *"*"* ]]; then
+            echo "ERROR: glob schema path is forbidden: $SCHEMA_FILE"
+            exit 1
+          fi
+
           if [ ! -f "$SCHEMA_FILE" ]; then
             echo "ERROR: schema file missing: $SCHEMA_FILE"
             ls -la src/schema || true

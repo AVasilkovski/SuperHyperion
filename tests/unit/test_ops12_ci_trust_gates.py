@@ -62,6 +62,9 @@ def test_typedb_ready_reports_mock_mode_unavailable():
     class FakeDB:
         _mock_mode = True
 
+        def connect(self):
+            return None
+
     with patch("src.db.typedb_client.TypeDBConnection", return_value=FakeDB()):
         ready, reason = _typedb_ready()
 

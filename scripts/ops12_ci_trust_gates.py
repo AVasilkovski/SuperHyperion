@@ -102,10 +102,11 @@ def _typedb_ready() -> tuple[bool, str]:
         from src.db.typedb_client import TypeDBConnection
 
         db = TypeDBConnection()
-        if db._mock_mode:
+        driver = db.connect()
+        if db._mock_mode or driver is None:
             return False, "typedb_unavailable_or_mock_mode"
 
-        db.query_fetch("match $x sub entity; limit 1; get;")
+        _ = [d.name for d in driver.databases.all()]
         return True, "ok"
     except Exception as exc:
         return False, f"typedb_probe_failed:{exc}"

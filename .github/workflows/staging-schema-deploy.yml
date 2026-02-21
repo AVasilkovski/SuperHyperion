@@ -56,33 +56,38 @@ jobs:
           TYPEDB_USERNAME: "${{ secrets.TYPEDB_USERNAME }}"
           TYPEDB_PASSWORD: "${{ secrets.TYPEDB_PASSWORD }}"
           TYPEDB_TLS: 'true'
-          # Optional guarded legacy migration for inherited plays/owns conflicts.
-          # Comma-separated list of specs.
-          TYPEDB_UNDEFINE_PLAYS: "validation-evidence:session-has-evidence:evidence"
-          TYPEDB_UNDEFINE_OWNS: "validation-evidence:entity-id,validation-evidence:template-qid,validation-evidence:template-id,validation-evidence:scope-lock-id,validation-evidence:confidence-score,validation-evidence:success,validation-evidence:json,validation-evidence:created-at,validation-evidence:claim-id,validation-evidence:execution-id"
+          # Optional manual overrides (keep for emergency; auto-migrate preferred)
+          TYPEDB_UNDEFINE_OWNS: "${{ secrets.TYPEDB_UNDEFINE_OWNS || '' }}"
+          TYPEDB_UNDEFINE_PLAYS: "${{ secrets.TYPEDB_UNDEFINE_PLAYS || '' }}"
         run: |
+          set -euo pipefail
+
+          # Hardcoded canonical schema path (no globs)
+          if [ ! -f "src/schema/scientific_knowledge.tql" ]; then
+            echo "ERROR: schema file missing: src/schema/scientific_knowledge.tql"
+            ls -la src/schema || true
+            exit 1
+          fi
+
           UNDEFINE_ARGS=()
 
-          IFS=',' read -ra UNDEFINE_PLAYS <<< "$TYPEDB_UNDEFINE_PLAYS"
+          IFS=',' read -ra UNDEFINE_PLAYS <<< "${TYPEDB_UNDEFINE_PLAYS:-}"
           for spec in "${UNDEFINE_PLAYS[@]}"; do
-            if [ -n "$spec" ]; then
-              UNDEFINE_ARGS+=(--undefine-plays "$spec")
-            fi
+            [ -n "$spec" ] && UNDEFINE_ARGS+=(--undefine-plays "$spec")
           done
 
-          IFS=',' read -ra UNDEFINES <<< "$TYPEDB_UNDEFINE_OWNS"
+          IFS=',' read -ra UNDEFINES <<< "${TYPEDB_UNDEFINE_OWNS:-}"
           for spec in "${UNDEFINES[@]}"; do
-            if [ -n "$spec" ]; then
-              UNDEFINE_ARGS+=(--undefine-owns "$spec")
-            fi
+            [ -n "$spec" ] && UNDEFINE_ARGS+=(--undefine-owns "$spec")
           done
 
           python scripts/apply_schema.py \
-            --schema "$SCHEMA_FILE" \
+            --schema src/schema/scientific_knowledge.tql \
             --address "$TYPEDB_ADDRESS" \
             --database "$TYPEDB_DATABASE" \
             --username "$TYPEDB_USERNAME" \
             --password "$TYPEDB_PASSWORD" \
+            --auto-migrate-redeclarations \
             "${UNDEFINE_ARGS[@]}"
 
       - name: 'Connectivity smoke check'

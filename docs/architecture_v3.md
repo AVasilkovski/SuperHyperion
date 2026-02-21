@@ -248,21 +248,24 @@ Execution is organized by **tracks + milestones**, not calendar estimates.
 
 ### Repository Naming Strategy (Git)
 
-To align engineering output with enterprise review workflows, branch + commit naming follows a strict conventional format.
+SuperHyperion follows **Conventional Commits** to ensure the codebase history is machine-readable and milestone-traceable.
+
+**Mandatory Format**: `<type>(<scope>): <subject> [<TRACK>-<ID>]`
+
+| Element | Rule | Examples |
+|---------|------|----------|
+| **Symmetry** | PR Title must reach **identical parity** with the Final Merge/Squash commit. | `fix(ops): stabilize CD pipeline [OPS-1.3]` |
+| **Commit Type** | Use only allowed types. No `merge:` or `update:` prefixes. | `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `infra` |
+| **Commit Scope**| Components/Tracks. | `governance`, `trust`, `ops`, `sdk`, `p16`, `epi` |
+| **Separators** | Use `:` followed by exactly one space after the scope. | `: ` (Do not use `/` or `-` as primary title separators) |
+| **Milestone** | Mandatory suffix tracking the release series. | `[OPS-1.3]`, `[EPI-17.0]`, `[TRUST-1.0.x]` |
 
 **Repository naming safety checklist (required before push):**
-- Branch name must follow `<type>/<short-kebab-topic>` and avoid generic names (`tmp`, `misc`, `work`).
-- Commit titles must follow `<type>(<scope>): <subject>` and avoid ambiguous verbs (`update`, `fixes`) without scope.
-- PR title should mirror the primary conventional commit subject and explicitly mention the impacted track (`EPI`, `OPS`, `TRUST`) when applicable.
-- Merge commit message should preserve milestone traceability (for example: `merge(trust): ... [TRUST-1.0.x/OPS-1.3]`).
+- **Branch Naming**: Follow `<type>/<short-kebab-topic>`. Use `/` only to separate type from topic (e.g., `fix/typedb-deployment`).
+- **Semantic Integrity**: titles must remain semantic to support automated changelogs. Never start a PR or commit title with `merge:`.
+- **Pre-Push Scan**: Check for sensitive artifacts (`.env`, `.gemini`) before committing to a remote.
 
-- **Commit format**: `<type>(<scope>): <subject>`
-  - Examples: `fix(governance): ...`, `docs(trust): ...`, `feat(ops): ...`
-- **Allowed primary types**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `infra`.
-- **Scope vocabulary**: reuse canonical tracks/components (`governance`, `trust`, `ops`, `sdk`, `cli`, `docs`, `p16`, `epi`).
-- **Branch format**: `<type>/<short-kebab-topic>`
-  - Examples: `fix/governance-trust-gates`, `docs/trust-roadmap-sync`.
-- **Avoid**: generic branch names (`work`, `tmp`, `misc`) and non-conventional commit titles.
+**Avoid**: generic branch names (`work`, `tmp`, `misc`) and non-conventional commit titles.
 
 This keeps PR lists machine-filterable and consistent with milestone tracking (`EPI`, `OPS`, `TRUST`).
 

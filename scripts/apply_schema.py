@@ -218,10 +218,14 @@ def migrate_undefine_owns(driver, db: str, specs: list[str]):
                 tx.commit()
             print(f"[apply_schema] migration applied: {query}")
         except Exception as exc:
-            print(
-                "[apply_schema] migration skipped/failed (likely already aligned schema): "
-                f"{query} error={exc}"
-            )
+            msg = str(exc)
+            if "SVL36" in msg:
+                print(f"[apply_schema] migration skipped: {query} (inherited constraint)")
+            else:
+                print(
+                    "[apply_schema] migration skipped/failed (likely already aligned schema): "
+                    f"{query} error={exc}"
+                )
 
 
 def parse_undefine_plays_spec(spec: str) -> tuple[str, str]:
@@ -245,10 +249,14 @@ def migrate_undefine_plays(driver, db: str, specs: list[str]):
                 tx.commit()
             print(f"[apply_schema] migration applied: {query}")
         except Exception as exc:
-            print(
-                "[apply_schema] migration skipped/failed (likely already aligned schema): "
-                f"{query} error={exc}"
-            )
+            msg = str(exc)
+            if "SVL36" in msg:
+                print(f"[apply_schema] migration skipped: {query} (inherited constraint)")
+            else:
+                print(
+                    "[apply_schema] migration skipped/failed (likely already aligned schema): "
+                    f"{query} error={exc}"
+                )
 
 
 def main():

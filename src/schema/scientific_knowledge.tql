@@ -382,7 +382,7 @@ entity tenant,
     plays tenant-ownership:owner;
 
 # --- OPS-2.0 Migration Tracking ---
-entity schema-version,
+entity schema_version,
     owns ordinal,
     owns git-commit,
     owns applied-at;

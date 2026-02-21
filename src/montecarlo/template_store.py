@@ -409,10 +409,11 @@ class TypeDBTemplateStore(TemplateStore):
               $m isa template-metadata,
                  has template-id "{_escape(template_id)}",
                  has version "{_escape(version)}",
-                 has frozen false;
+                 has frozen $frozen;
+              $frozen == false;
 
             delete
-              $m has frozen false;
+              has $frozen of $m;
 
             insert
               $m has frozen true,
@@ -457,7 +458,7 @@ class TypeDBTemplateStore(TemplateStore):
                 has template-id "{_escape(template_id)}",
                 has version "{_escape(version)}",
                 has tainted $old;
-            delete $m has tainted $old;
+            delete has $old of $m;
         '''
 
         insert_attrs = [

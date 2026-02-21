@@ -81,3 +81,22 @@ def test_typedb_template_store_supports_v3_query_callable_api():
     assert rows == [{"spec": "spec-hash"}]
 
     store._write_query('insert $x isa template-lifecycle-event;')
+
+
+def test_typedb_template_store_freeze_uses_typeql3_delete_has_of_syntax():
+    driver = _Driver()
+    store = TypeDBTemplateStore(driver)
+
+    store.freeze(
+        template_id="codeact_v1",
+        version="1.0.0",
+        evidence_id="ev-1",
+        claim_id="claim-1",
+        scope_lock_id="scope-1",
+    )
+
+    freeze_query = driver.tx.calls[-1]
+    assert "has frozen $frozen;" in freeze_query
+    assert "$frozen == false;" in freeze_query
+    assert "delete" in freeze_query
+    assert "has $frozen of $m;" in freeze_query

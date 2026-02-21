@@ -27,7 +27,7 @@ def test_planner_basic_owns():
     entity evidence @abstract,
         owns template-id;
         
-    entity validation-evidence sub evidence;
+    entity validation-evidence sub evidence, owns template-id;
     """
     
     parent_of, owns_of, plays_of = apply_schema.parse_canonical_caps(schema)
@@ -36,7 +36,7 @@ def test_planner_basic_owns():
     assert "template-id" in owns_of.get("evidence", set())
     
     owns_specs, plays_specs = apply_schema.plan_auto_migrations(parent_of, owns_of, plays_of)
-    assert ("validation-evidence", "template-id") in owns_specs
+    assert ("validation-evidence", "template-id") in [pair for pair in owns_specs]
     assert len(plays_specs) == 0
 
 def test_planner_multiple_subtypes_owns():
@@ -44,8 +44,8 @@ def test_planner_multiple_subtypes_owns():
     entity evidence @abstract,
         owns template-id;
         
-    entity validation-evidence sub evidence;
-    entity negative-evidence sub evidence;
+    entity validation-evidence sub evidence, owns template-id;
+    entity negative-evidence sub evidence, owns template-id;
     """
     
     parent_of, owns_of, plays_of = apply_schema.parse_canonical_caps(schema)
@@ -59,7 +59,8 @@ def test_planner_basic_plays():
     entity evidence @abstract,
         plays session-has-evidence:evidence;
         
-    entity validation-evidence sub evidence;
+    entity validation-evidence sub evidence,
+        plays session-has-evidence:evidence;
     """
     
     parent_of, owns_of, plays_of = apply_schema.parse_canonical_caps(schema)
@@ -79,6 +80,7 @@ def test_planner_hardened_edge_cases():
         owns template-id; # another comment
 
     entity validation-evidence sub evidence,
+        owns template-id,
         owns validation-only-attr; # should not be inherited upwards
 
     relation session-has-evidence sub relation,

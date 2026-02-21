@@ -1,19 +1,20 @@
 define
-schema-version sub entity,
-    owns ordinal,
-    owns git-commit,
-    owns applied-at;
 
-ordinal sub attribute, value long;
-git-commit sub attribute, value string;
-applied-at sub attribute, value datetime;
+attribute ordinal, value integer;
+attribute git-commit, value string;
+attribute applied-at, value datetime;
 
-tenant sub entity,
-    owns tenant-id;
+entity schema_version,
+  owns ordinal,
+  owns git-commit,
+  owns applied-at;
 
-tenant-id sub attribute, value string;
+attribute tenant-id, value string;
+entity tenant,
+  owns tenant-id;
 
-tenant-ownership sub relation,
+relation tenant-ownership,
+    sub relation,
     relates owner,
     relates owned;
 

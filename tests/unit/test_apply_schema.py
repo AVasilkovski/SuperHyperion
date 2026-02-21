@@ -87,3 +87,16 @@ def test_redeclaration_detector_flags_template_id_inheritance_conflict(tmp_path:
 def test_resolve_schema_files_rejects_invalid_triple_star_glob():
     with pytest.raises(FileNotFoundError, match="Invalid schema glob pattern"):
         apply_schema.resolve_schema_files(["src/schema/***.tql"])
+
+
+def test_parse_undefine_plays_spec_requires_type_and_role():
+    with pytest.raises(ValueError, match="Invalid --undefine-plays spec"):
+        apply_schema.parse_undefine_plays_spec("validation-evidence")
+
+
+def test_parse_undefine_plays_spec_allows_scoped_role_colon():
+    type_label, scoped_role = apply_schema.parse_undefine_plays_spec(
+        "validation-evidence:session-has-evidence:evidence"
+    )
+    assert type_label == "validation-evidence"
+    assert scoped_role == "session-has-evidence:evidence"

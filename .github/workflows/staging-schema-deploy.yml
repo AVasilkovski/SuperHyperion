@@ -56,17 +56,20 @@ jobs:
           TYPEDB_USERNAME: "${{ secrets.TYPEDB_USERNAME }}"
           TYPEDB_PASSWORD: "${{ secrets.TYPEDB_PASSWORD }}"
           TYPEDB_TLS: 'true'
-          # Optional guarded legacy migration for inherited owns conflicts.
-          # Comma-separated list of <entity>:<attribute> specs.
+          # Optional guarded legacy migration for inherited plays/owns conflicts.
+          # Comma-separated list of specs.
+          TYPEDB_UNDEFINE_PLAYS: "validation-evidence:session-has-evidence:evidence"
           TYPEDB_UNDEFINE_OWNS: "validation-evidence:entity-id,validation-evidence:template-qid,validation-evidence:template-id,validation-evidence:scope-lock-id,validation-evidence:confidence-score,validation-evidence:success,validation-evidence:json,validation-evidence:created-at,validation-evidence:claim-id,validation-evidence:execution-id"
         run: |
-          SCHEMA_FILE="src/schema/scientific_knowledge.tql"
-          if [[ "$SCHEMA_FILE" == *"***"* ]]; then
-            echo "ERROR: invalid schema glob detected: $SCHEMA_FILE"
-            exit 1
-          fi
-
           UNDEFINE_ARGS=()
+
+          IFS=',' read -ra UNDEFINE_PLAYS <<< "$TYPEDB_UNDEFINE_PLAYS"
+          for spec in "${UNDEFINE_PLAYS[@]}"; do
+            if [ -n "$spec" ]; then
+              UNDEFINE_ARGS+=(--undefine-plays "$spec")
+            fi
+          done
+
           IFS=',' read -ra UNDEFINES <<< "$TYPEDB_UNDEFINE_OWNS"
           for spec in "${UNDEFINES[@]}"; do
             if [ -n "$spec" ]; then

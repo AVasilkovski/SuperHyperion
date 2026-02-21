@@ -72,3 +72,27 @@ def test_validate_ci_artifacts_reports_schema_errors(tmp_path: Path):
     errors = validate_ci_artifacts(root, schemas)
     assert errors
     assert "trust_gate_summary.json" in errors[0]
+
+
+def test_validate_ci_artifacts_reports_missing_required_artifacts(tmp_path: Path):
+    root = tmp_path / "ci_artifacts"
+    schemas = tmp_path / "schemas"
+
+    _write(
+        schemas / "trust_gate_summary.v1.schema.json",
+        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"},
+    )
+    _write(
+        schemas / "policy_conflicts_summary.v1.schema.json",
+        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"},
+    )
+    _write(
+        schemas / "compliance_report.v1.schema.json",
+        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"},
+    )
+
+    errors = validate_ci_artifacts(root, schemas)
+
+    assert any("missing required artifact" in e and "trust_gate_summary.json" in e for e in errors)
+    assert any("missing required artifact" in e and "policy_conflicts_summary.json" in e for e in errors)
+    assert any("missing required artifact" in e and "compliance_report.json" in e for e in errors)

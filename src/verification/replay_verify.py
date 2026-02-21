@@ -97,7 +97,7 @@ def _verify_mutation_linkage(
             }
 
         def _esc(s: str) -> str:
-            return (str(s) or "").replace("\\", "\\\\").replace('"', '\"')
+            return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
 
         seen: set[str] = set()
         chunk_size = 50
@@ -140,7 +140,7 @@ def _verify_tenant_scope(capsule_id: str, tenant_id: str) -> Tuple[bool, str, Di
             return False, "TENANT_SCOPE_MISSING", {"code": "TENANT_SCOPE_MISSING", "reason": "mock_mode"}
 
         def _esc(s: str) -> str:
-            return (str(s) or "").replace("\\", "\\\\").replace('"', '\"')
+            return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
 
         ownership_q = f"""
         match

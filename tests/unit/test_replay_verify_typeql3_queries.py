@@ -42,3 +42,18 @@ def test_verify_tenant_scope_uses_select(monkeypatch):
     assert any("select $c;" in q for q in queries)
     assert any("select $any_t;" in q for q in queries)
     assert all("get $c;" not in q and "get $any_t;" not in q for q in queries)
+
+
+def test_verify_tenant_scope_escapes_double_quotes(monkeypatch):
+    queries = []
+
+    def _factory():
+        return _FakeDB(queries)
+
+    monkeypatch.setattr("src.db.typedb_client.TypeDBConnection", _factory)
+
+    _verify_tenant_scope('cap-"1"', 'tenant-"1"')
+
+    joined = "\n".join(queries)
+    assert 'tenant-id "tenant-\\"1\\""' in joined
+    assert 'capsule-id "cap-\\"1\\""' in joined

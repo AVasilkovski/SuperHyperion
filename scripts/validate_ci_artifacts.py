@@ -37,8 +37,13 @@ def validate_ci_artifacts(root: Path, schemas: Path) -> list[str]:
 
     errors: list[str] = []
     for data_path, schema_path in checks:
-        if data_path.exists():
-            errors.extend(_validate_file(data_path, schema_path))
+        if not schema_path.exists():
+            errors.append(f"missing schema file: {schema_path}")
+            continue
+        if not data_path.exists():
+            errors.append(f"missing required artifact: {data_path}")
+            continue
+        errors.extend(_validate_file(data_path, schema_path))
 
     explainability_schema = schemas / "explainability_summary.v1.schema.json"
     if explainability_schema.exists():

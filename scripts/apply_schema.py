@@ -19,6 +19,11 @@ def resolve_schema_files(schema_args: list[str]) -> list[Path]:
     resolved: list[Path] = []
     for item in schema_args:
         has_glob_chars = any(char in item for char in "*?[")
+        if "***" in item:
+            raise FileNotFoundError(
+                f"Invalid schema glob pattern: {item}. "
+                "Use explicit canonical schema path(s) or valid glob syntax (for example: src/schema/**/*.tql)."
+            )
         matches = sorted(Path(p) for p in glob.glob(item, recursive=True))
         file_matches = [m for m in matches if m.is_file()]
         if file_matches:
@@ -47,6 +52,11 @@ def resolve_schema_files(schema_args: list[str]) -> list[Path]:
 
     if not deduped:
         raise FileNotFoundError("No schema files resolved from provided --schema values.")
+
+    for path in deduped:
+        path_str = str(path)
+        if any(ch in path_str for ch in "*?[]"):
+            raise RuntimeError(f"[apply_schema] BUG: unresolved glob in resolved schema files: {path_str}")
 
     return deduped
 

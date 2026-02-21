@@ -330,16 +330,22 @@ Milestone A completion evidence:
 6. **OPS-1.2 Deterministic CI Trust Gates**
    - Commit + hold deterministic gate runs in CI with exported artifacts.
    - Gate runner performs explicit TypeDB readiness probing: CI remains fail-closed; local runs may emit deterministic `SKIP` when DB is unavailable.
-7. **OPS-1.3 Trust-Gate Trend Summary**
+7. **OPS-1.3 TypeDB Cloud Schema Deploy Stabilization**
+   - **Self-Healing**: Automated SVL42 auto-migration engine (75 owns, 12 plays identified).
+   - **Fail-Fast**: Hardcoded canonical paths + pre-flight bash assertions.
+   - **Observability**: Dry-run auditing supported without functional TypeDB driver DLLs.
+   - **Naming Safety**: Implementation of Repository Naming Safety Checklist for PR/Merge parity.
+8. **OPS-1.4 Trust-Gate Trend Summary**
    - Per-run `trust_gate_summary.json` plus concise CI step-summary visibility.
-8. **EPI-17.0 Coverage Logging (PLANNED, telemetry-only)**
+9. **EPI-17.0 Coverage Logging (PLANNED, telemetry-only)**
    - Planned sample event logs with policy label, seed, and bucket tags (`sample_event()`).
    - Planned capsule-level coverage summary metrics (telemetry only, no budget enforcement).
 
 Milestone B closure evidence:
 - Deterministic tenant-aware bundle tooling with legacy-safe normalization (`effective_tenant_id`) and nested artifact isolation (`bundle_key`).
 - TRUST-1.0.4 conflict detector includes blocking-only code collisions, normalized missing blocking code (`UNSPECIFIED_CODE`), and CI guardrail failure on error severity.
-- OPS-1.3 emits deterministic `trust_gate_summary.json`, CI step-summary lines, and offline summary diff utility (`scripts/ops13_trust_gate_diff.py`).
+- OPS-1.3/OPS-1.4: Emits deterministic `trust_gate_summary.json` and supports **Self-Healing Schema CD** with 87 auto-identified migration targets.
+- Operational parity: CD runner is hardened against empty parameters; naming follows strict Conventional Commit hierarchy.
 - Versioned artifact schemas are published under `schemas/` for trust summary, policy conflicts, and compliance report contracts.
 
 Milestone B LOCKED rule:
@@ -353,9 +359,12 @@ Milestone B LOCKED rule:
 2. **TRUST-1.2 Enterprise Control Plane**
    - Fast REST API layer (FastAPI: `/v1/run`, `/v1/capsules`, `/v1/audit/export`).
    - Minimal Web UI (Streamlit/React) for capsule browsing, audit dashboards, and policy editing.
-3. **OPS-2.0 Additive Migration Framework**
-   - Ordered migration files + migration runner + schema-version tracking.
-   - Objective holdout CI suite (frozen regression thresholds).
+3. **OPS-2.0 Enterprise Migration Framework**
+   - **Linearity**: Ordered `migrations/NNN_topic.tql` path for explicit state progression.
+   - **Versioning**: Mandatory `schema-version` entity in TypeDB (attributes: `ordinal`, `git-commit`).
+   - **N-1 Strategy**: Enforcement of additive-only schema changes (no `undefine` of data-holding concepts across releases).
+   - **Drift Guard**: OPS 1.3 "Auto-Migrate" logic remains as a continuous background auditor for hierarchy drift.
+   - **Perf Safety**: Gate merging via p99 latency regression tests against seeded "Ghost Databases" (100k+ entities).
 4. **EPI-17.1 Sampling Budget Enforcement**
    - Budgeted policy mixes only after baseline metrics stabilize.
 
@@ -364,8 +373,9 @@ Milestone C implementation shortlist (high-ROI first):
    - Introduce `tenant` ownership relations and hard query scoping in Ontology Steward reads/writes.
    - Enforce tenant scope at API boundaries before adding broader RBAC roles.
 2. **OPS-2.0 migration safety backbone**
-   - Add ordered additive migration runner with schema-version checkpoints and deterministic rollback markers.
-   - Gate PRs with migration replay against empty + seeded fixture databases.
+   - Deploy `scripts/migrate.py` runner to execute linear `.tql` files and update `schema-version`.
+   - Implement "Additive-Only" linter for CI to prevent breaking N-1 compatibility.
+   - Integrate performance holdout suite into PR gates.
 3. **TRUST-1.2 minimal control-plane API**
    - Ship `POST /v1/run`, `GET /v1/capsules`, `GET /v1/audit/export` with read-mostly flows and policy hooks.
    - Keep UI out-of-band until API contracts stabilize.

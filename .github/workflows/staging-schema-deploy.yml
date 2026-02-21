@@ -84,7 +84,7 @@ jobs:
           done
 
           python scripts/apply_schema.py \
-            --schema "$SCHEMA_FILE" \
+            --schema src/schema/scientific_knowledge.tql \
             --address "$TYPEDB_ADDRESS" \
             --database "$TYPEDB_DATABASE" \
             --username "$TYPEDB_USERNAME" \

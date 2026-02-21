@@ -231,17 +231,18 @@ class TypeDBTemplateStore(TemplateStore):
                 for concept_row in answer.as_concept_rows():
                     row: Dict[str, Any] = {}
                     for col in concept_row.column_names():
+                        key = col[1:] if isinstance(col, str) and col.startswith("$") else col
                         concept = concept_row.get(col)
                         if concept is None:
                             continue
                         if hasattr(concept, "is_attribute") and concept.is_attribute():
-                            row[col] = concept.as_attribute().get_value()
+                            row[key] = concept.as_attribute().get_value()
                         elif hasattr(concept, "is_value") and concept.is_value():
-                            row[col] = concept.as_value().get()
+                            row[key] = concept.as_value().get()
                         elif hasattr(concept, "get_iid"):
-                            row[col] = concept.get_iid()
+                            row[key] = concept.get_iid()
                         else:
-                            row[col] = str(concept)
+                            row[key] = str(concept)
                     results.append(row)
                 return results
 
@@ -347,7 +348,7 @@ class TypeDBTemplateStore(TemplateStore):
                 has status $status,
                 has frozen $frozen,
                 has tainted $tainted;
-            get $spec, $code, $status, $frozen, $tainted;
+            select $spec, $code, $status, $frozen, $tainted;
         '''
         results = self._read_query(query)
         if not results:

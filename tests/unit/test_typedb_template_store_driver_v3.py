@@ -52,7 +52,7 @@ class _Tx:
     def _query(self, q):
         self.calls.append(q)
         if "get $spec" in q:
-            answer = _Answer([_Row({"spec": _AttrConcept("spec-hash")})])
+            answer = _Answer([_Row({"$spec": _AttrConcept("spec-hash")})])
             return _Resolved(answer)
         return _Resolved(None)
 

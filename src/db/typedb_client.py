@@ -148,15 +148,6 @@ class TypeDBConnection:
         except Exception as e:
             logger.error(f"Failed to load schema: {e}")
 
-    @contextmanager
-    def session(self, session_type=None):
-        """
-        [DEPRECATED] Context manager for database sessions.
-        TypeDB 3.x is session-less. This now returns a MockSession that yields nothing useful
-        but preserves some legacy call sites. Use .transaction() instead.
-        """
-        logger.warning("TypeDBConnection.session() is deprecated in TypeDB 3.x. Use .transaction() directly.")
-        yield MockSession()
 
     @staticmethod
     def _tx_execute(tx, query: str):
@@ -248,7 +239,7 @@ class TypeDBConnection:
 
         with driver.transaction(self.database, tx_type, options) as tx:
             yield tx
-            if tx_type == TransactionType.WRITE:
+            if tx_type in (TransactionType.WRITE, TransactionType.SCHEMA):
                 tx.commit()
 
     def query_fetch(self, query: str) -> List[Dict]:
@@ -469,10 +460,6 @@ class TypeDBConnection:
         return high_entropy
 
 
-class MockSession:
-    """Mock session for when TypeDB is not available."""
-    def transaction(self, tx_type=None):
-        return MockTransaction()
 
 
 class MockTransaction:

@@ -96,9 +96,17 @@ jobs:
           docker ps -a
           docker logs "${{ job.services.typedb.id }}" | tail -200 || true
 
+      - name: Additive Linter Pre-flight
+        run: |
+          python scripts/additive_linter.py --base main --head HEAD
+
       - name: Apply schema (CI TypeDB Core)
         run: |
           python scripts/apply_schema.py --schema src/schema/scientific_knowledge.tql --database "$TYPEDB_DATABASE"
+
+      - name: Verify Migration Safety (Dry-Run)
+        run: |
+          python scripts/migrate.py --database "$TYPEDB_DATABASE" --dry-run
 
       - name: Run tests
         run: |

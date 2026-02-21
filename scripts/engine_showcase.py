@@ -32,8 +32,9 @@ logger = logging.getLogger("EngineShowcase")
 # Ensure project root is in path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.graph.workflow_v21 import run_v21_query
 from src.db.typedb_client import TypeDBConnection
+from src.graph.workflow_v21 import run_v21_query
+
 
 async def main():
     logger.info("Starting SuperHyperion Engine (The 'Engine Start')...")
@@ -82,7 +83,7 @@ async def main():
             
             # Show Governance Metadata
             gov = result.get("governance", {})
-            print(f"\nGOVERNANCE METADATA:")
+            print("\nGOVERNANCE METADATA:")
             print(f"- Intent ID:   {gov.get('intent_id')}")
             print(f"- Proposal ID: {gov.get('proposal_id')}")
             print(f"- Scope Lock:  {gov.get('scope_lock_id')}")
@@ -91,7 +92,7 @@ async def main():
             # Show Run Capsule
             capsule = result.get("run_capsule", {})
             if capsule:
-                print(f"\nRUN CAPSULE GENERATED:")
+                print("\nRUN CAPSULE GENERATED:")
                 print(f"- Capsule ID:   {capsule.get('capsule_id')}")
                 print(f"- Capsule Hash: {capsule.get('capsule_hash')}")
                 print(f"- Created At:   {capsule.get('created_at')}")

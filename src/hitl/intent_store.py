@@ -369,7 +369,7 @@ class TypeDBIntentStore(IntentStore):
             try {{ $i has expires-at $expires; }};
             try {{ $i has supersedes-intent-id $sup; }};
 
-            get $id, $type, $status, $score, $payload, $created,
+            select $id, $type, $status, $score, $payload, $created,
                 $lane, $slid, $pid, $expires, $sup;
             limit 1;
         '''
@@ -398,7 +398,7 @@ class TypeDBIntentStore(IntentStore):
             match $i isa write-intent,
                   has proposal-id "{_escape(proposal_id)}",
                   has intent-id $id;
-            get $id;
+            select $id;
             limit 1;
         '''
         results = self._read_query(query)
@@ -414,7 +414,7 @@ class TypeDBIntentStore(IntentStore):
                   has intent-type $type,
                   has intent-status "{_escape(status)}",
                   has created-at $created;
-            get $id, $type, $created;
+            select $id, $type, $created;
         '''
 
         results = self._read_query(query)
@@ -441,7 +441,7 @@ class TypeDBIntentStore(IntentStore):
             not {{ $status = "expired"; }};
             not {{ $status = "executed"; }};
             not {{ $status = "failed"; }};
-            get $id, $status, $exp;
+            select $id, $status, $exp;
         '''
 
         results = self._read_query(query)
@@ -511,7 +511,7 @@ class TypeDBIntentStore(IntentStore):
                   has actor-type $atype,
                   has agent-id $aid,
                   has created-at $created;
-            get $eid, $from, $to, $atype, $aid, $created;
+            select $eid, $from, $to, $atype, $aid, $created;
             sort $created asc;
         '''
 
@@ -534,7 +534,7 @@ class TypeDBIntentStore(IntentStore):
             match $e isa intent-status-event,
                   has intent-id "{_escape(intent_id)}",
                   has to-status "{_escape(to_status)}";
-            get $e; limit 1;
+            select $e; limit 1;
         '''
 
         results = self._read_query(query)

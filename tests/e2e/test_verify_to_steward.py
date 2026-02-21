@@ -54,7 +54,7 @@ class StrictMockTypeDB(TypeDBConnection):
 # ----------------------------
 # Helper Classes for Tests
 # ----------------------------
-class TestVerifyAgent(VerifyAgent):
+class MockVerifyAgent(VerifyAgent):
     """
     Override _design_experiment_spec and registry execution deterministically.
     """
@@ -102,7 +102,7 @@ class TestVerifyAgent(VerifyAgent):
             warnings=[]
         )
 
-class TestOntologySteward(OntologySteward):
+class MockOntologySteward(OntologySteward):
     def __init__(self, db):
         super().__init__()
         self.db = db
@@ -131,7 +131,7 @@ async def test_v22_e2e_verify_to_steward_happy():
     db.query_insert(seed_prop)
 
     # 2) Run Verify
-    verify = TestVerifyAgent(max_budget_ms=30_000)
+    verify = MockVerifyAgent(max_budget_ms=30_000)
     context = AgentContext(graph_context={
         "session_id": "sess-e2e",
         "user_query": "E2E test query",
@@ -147,7 +147,7 @@ async def test_v22_e2e_verify_to_steward_happy():
     assert context.graph_context["is_fragile"] is False
 
     # 3) Run Steward (persist)
-    steward = TestOntologySteward(db=db)
+    steward = MockOntologySteward(db=db)
     await steward.run(context)
 
     inserts = "\n".join(db.inserts)
@@ -178,7 +178,7 @@ async def test_v22_e2e_budget_exceeded():
     db = StrictMockTypeDB()
     db.query_insert('insert $p isa proposition, has entity-id "claim-budget";')
 
-    verify = TestVerifyAgent(max_budget_ms=100)
+    verify = MockVerifyAgent(max_budget_ms=100)
     verify.mock_runtime = 5000 # Exceeds budget
 
     context = AgentContext(graph_context={
@@ -192,7 +192,7 @@ async def test_v22_e2e_budget_exceeded():
     assert context.graph_context["is_fragile"] is True, "Scalar state not fragile"
 
     # Run Steward
-    steward = TestOntologySteward(db=db)
+    steward = MockOntologySteward(db=db)
     await steward.run(context)
 
     inserts = "\n".join(db.inserts)
@@ -207,7 +207,7 @@ async def test_v22_e2e_diagnostic_failure():
     db = StrictMockTypeDB()
     db.query_insert('insert $p isa proposition, has entity-id "claim-diag";')
 
-    verify = TestVerifyAgent()
+    verify = MockVerifyAgent()
     verify.mock_diagnostics = {"toy_ok": True} # Missing ESS for MC template
 
     context = AgentContext(graph_context={
@@ -219,7 +219,7 @@ async def test_v22_e2e_diagnostic_failure():
 
     assert context.graph_context["is_fragile"] is True, "Diagnostics failure didn't trigger fragility"
 
-    steward = TestOntologySteward(db=db)
+    steward = MockOntologySteward(db=db)
     await steward.run(context)
 
     inserts = "\n".join(db.inserts)

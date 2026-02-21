@@ -88,7 +88,15 @@ jobs:
             --username "$TYPEDB_USERNAME" \
             --password "$TYPEDB_PASSWORD" \
             --auto-migrate-redeclarations \
+            --scrub-only \
             "${UNDEFINE_ARGS[@]}"
+
+          echo "Applying authoritative additive migrations..."
+          python scripts/migrate.py \
+             --database "$TYPEDB_DATABASE"
+             
+          echo "Asserting Schema Health Parity..."
+          python scripts/schema_health.py --database "$TYPEDB_DATABASE" --output "ci_artifacts/schema/staging_schema_health.json"
 
       - name: 'Connectivity smoke check'
         env:
@@ -124,3 +132,11 @@ jobs:
           finally:
               driver.close()
           EOF
+
+      - name: 'Upload Schema Execution Artifacts'
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-schema-artifacts-${{ github.run_id }}
+          path: ci_artifacts/schema/
+          retention-days: 7

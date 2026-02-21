@@ -156,10 +156,48 @@ def _compute_summary(results: List[dict]) -> dict:
         "avg_evidence_count": round(sum(evidence_counts) / n, 1),
         "avg_claim_count": round(sum(claim_counts) / n, 1),
         "avg_latency_ms": round(sum(latencies) / n, 0),
-        "min_latency_ms": min(latencies),
-        "max_latency_ms": max(latencies),
+        "min_latency_ms": min(latencies) if latencies else 0,
+        "max_latency_ms": max(latencies) if latencies else 0,
         "hold_codes": hold_codes,
     }
+
+def _export_telemetry(summary: dict):
+    """EPI-17.1: Export evaluation telemetry to CI artifacts."""
+    import os
+    from datetime import datetime
+    
+    artifact_dir = "ci_artifacts"
+    os.makedirs(artifact_dir, exist_ok=True)
+    telemetry_file = os.path.join(artifact_dir, "telemetry_trends.json")
+    
+    telemetry_data = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "metrics": summary,
+        "git_commit": os.environ.get("GITHUB_SHA", "unknown")
+    }
+    
+    # Append to existing file or create new
+    trends = []
+    if os.path.exists(telemetry_file):
+        try:
+            with open(telemetry_file, "r") as f:
+                trends = json_lib.load(f)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not read existing telemetry trends: {e}[/yellow]")
+            
+    trends.append(telemetry_data)
+    
+    # Keep only last 100 entries for manageable artifact size
+    if len(trends) > 100:
+        trends = trends[-100:]
+        
+    try:
+        with open(telemetry_file, "w") as f:
+            json_lib.dump(trends, f, indent=2)
+        console.print(f"  [dim]Telemetry exported to {telemetry_file}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to export telemetry: {e}[/yellow]")
+
 
 
 @eval_app.command("run")
@@ -220,6 +258,9 @@ def run_eval(
 
     # Compute summary
     summary = _compute_summary(results)
+    
+    # EPI-17.1 Telemetry Export
+    _export_telemetry(summary)
 
     if output_file:
         with open(output_file, "w") as f:

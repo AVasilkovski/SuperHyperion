@@ -158,7 +158,12 @@ attribute capsule-hash, value string;          # SHA-256 of the entire capsule m
 attribute mutation-id, value string;
 attribute mutation-snapshot, value string;     # JSON array of mutation IDs linked to capsule
 attribute mutation-type, value string;
+
+# --- OPS-2.0 & TRUST-1.1 Attributes ---
 attribute tenant-id, value string;
+attribute ordinal, value integer;
+attribute git-commit, value string;
+attribute applied-at, value datetime;
 
 # ============================================================================
 # ENTITY TYPES
@@ -272,6 +277,7 @@ entity run-session,
     owns started-at,
     owns ended-at,
     owns run-status,
+    owns tenant-id,
     plays session-has-trace:session,
     plays session-has-execution:session,
     plays session-has-retrieval-assessment:session,
@@ -287,7 +293,8 @@ entity run-session,
     plays session-has-scope-lock:session,
     plays session-has-meta-oversight:session,
     plays session-has-speculative-hypothesis:session,
-    plays session-has-capsule:session;
+    plays session-has-capsule:session,
+    plays tenant-ownership:owned;
 
 entity trace-entry,
     owns step-index,
@@ -361,17 +368,25 @@ entity write-intent,
     owns supersedes-intent-id,
     owns json,
     owns created-at,
+    owns tenant-id,
     plays session-has-write-intent:write-intent,
     plays intent-has-status-event:write-intent,
-    plays tenant-owns-intent:intent;
+    plays tenant-owns-intent:intent,
+    plays tenant-ownership:owned;
 
 entity tenant,
     owns tenant-id @key,
     owns created-at,
     plays tenant-owns-capsule:tenant,
-    plays tenant-owns-intent:tenant;
+    plays tenant-owns-intent:tenant,
+    plays tenant-ownership:owner;
 
-#
+# --- OPS-2.0 Migration Tracking ---
+entity schema-version,
+    owns ordinal,
+    owns git-commit,
+    owns applied-at;
+
 # Evidence abstraction (Phase 16.1)
 # - Provides a stable supertype for all grounded evidence channels.
 # - Preserves entity-id @key discipline and keeps relations unchanged.
@@ -388,6 +403,7 @@ entity evidence @abstract,
     owns json,
     owns authorized-by-intent-id,
     owns created-at,
+    owns tenant-id,
     plays session-has-evidence:evidence,
     plays evidence-for-proposition:evidence;
 
@@ -484,9 +500,11 @@ entity run-capsule,
     owns mutation-snapshot,
     owns capsule-hash,
     owns created-at,
+    owns tenant-id,
     plays session-has-capsule:capsule,
     plays asserted-by:capsule,
-    plays tenant-owns-capsule:capsule;
+    plays tenant-owns-capsule:capsule,
+    plays tenant-ownership:owned;
 
 entity mutation-event,
     owns mutation-id @key,
@@ -648,3 +666,8 @@ relation asserted-by, relates mutation-event, relates capsule;
 relation affects, relates mutation-event, relates proposition;
 relation tenant-owns-capsule, relates tenant, relates capsule;
 relation tenant-owns-intent, relates tenant, relates intent;
+
+# --- TRUST-1.1 Tenant Base Ownership ---
+relation tenant-ownership,
+    relates owner,
+    relates owned;

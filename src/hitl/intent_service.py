@@ -778,8 +778,8 @@ class WriteIntentService:
             staged = [i for i in staged if i['intent_type'] == intent_type]
         return staged
 
-    def get(self, intent_id: str) -> Optional[WriteIntent]:
-        """Get an intent by ID."""
+    def get(self, intent_id: str, tenant_id: str = "default") -> Optional[WriteIntent]:
+        """Get an intent by ID. Tenant isolation is managed downstream if configured."""
         # Check cache first
         if intent_id in self._intent_cache:
             return self._intent_cache[intent_id]

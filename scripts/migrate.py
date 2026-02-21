@@ -79,7 +79,7 @@ def apply_migration(driver, db: str, migration_file: Path, next_ordinal: int, dr
         
     schema = migration_file.read_text(encoding="utf-8")
     git_commit = os.getenv("GITHUB_SHA", "unknown")
-    applied_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    applied_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec="microseconds")
     
     # Needs to be a split transaction for schema vs data in older TypeDBs sometimes, 
     # but in 3.x schema tx can handle rule additions and schema.

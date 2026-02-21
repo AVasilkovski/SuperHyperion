@@ -11,6 +11,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from src.agents.base_agent import AgentContext
@@ -91,6 +92,28 @@ def _deterministic_evidence() -> list[dict[str, Any]]:
             "content": "deterministic ci validation evidence",
         }
     ]
+
+
+
+
+def _typedb_ready() -> tuple[bool, str]:
+    """Return (ready, reason) for TypeDB-backed deterministic gate execution."""
+    try:
+        from src.db.typedb_client import TypeDBConnection
+
+        db = TypeDBConnection()
+        if db._mock_mode:
+            return False, "typedb_unavailable_or_mock_mode"
+
+        db.query_fetch("match $x sub entity; limit 1; get;")
+        return True, "ok"
+    except Exception as exc:
+        return False, f"typedb_probe_failed:{exc}"
+
+
+def _should_enforce_typedb() -> bool:
+    """CI runs must fail closed if TypeDB is unreachable; local runs may skip."""
+    return os.environ.get("CI", "").strip().lower() in {"1", "true", "yes"}
 
 
 async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
@@ -192,6 +215,20 @@ def main() -> int:
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
+
+    db_ready, db_reason = _typedb_ready()
+    if not db_ready:
+        payload = {
+            "gate": args.gate,
+            "status": "SKIP",
+            "reason": db_reason,
+        }
+        if args.json_output:
+            print(json.dumps(payload, indent=2, sort_keys=True, default=str))
+        else:
+            print(payload)
+        return 1 if _should_enforce_typedb() else 0
+
     ok, payload = asyncio.run(_run_gate(args.gate, args.out_dir))
     if args.json_output:
         print(json.dumps(payload, indent=2, sort_keys=True, default=str))

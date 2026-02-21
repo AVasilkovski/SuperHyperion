@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from scripts.ops12_ci_trust_gates import _run_gate
+from scripts.ops12_ci_trust_gates import (
+    _run_gate,
+    _should_enforce_typedb,
+    _typedb_ready,
+)
 from src.agents.integrator_agent import IntegratorAgent
 from src.sdk.types import ReplayVerdictV1
 
@@ -52,3 +56,22 @@ async def test_hold_gate_success(tmp_path):
     assert ok is True
     assert payload["governance"]["status"] == "HOLD"
     assert payload["governance"]["hold_code"] == "NO_EVIDENCE_PERSISTED"
+
+
+def test_typedb_ready_reports_mock_mode_unavailable():
+    class FakeDB:
+        _mock_mode = True
+
+    with patch("src.db.typedb_client.TypeDBConnection", return_value=FakeDB()):
+        ready, reason = _typedb_ready()
+
+    assert ready is False
+    assert reason == "typedb_unavailable_or_mock_mode"
+
+
+def test_should_enforce_typedb_only_in_ci(monkeypatch):
+    monkeypatch.setenv("CI", "true")
+    assert _should_enforce_typedb() is True
+
+    monkeypatch.setenv("CI", "")
+    assert _should_enforce_typedb() is False

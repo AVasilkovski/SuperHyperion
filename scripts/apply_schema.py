@@ -172,6 +172,32 @@ def migrate_undefine_owns(driver, db: str, specs: list[str]):
             )
 
 
+def parse_undefine_plays_spec(spec: str) -> tuple[str, str]:
+    parts = spec.split(":", maxsplit=1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError(
+            "Invalid --undefine-plays spec. Expected format '<type>:<relation:role>', "
+            f"got: {spec}"
+        )
+    return parts[0].strip(), parts[1].strip()
+
+
+def migrate_undefine_plays(driver, db: str, specs: list[str]):
+    for spec in specs:
+        type_label, scoped_role = parse_undefine_plays_spec(spec)
+        query = f"undefine plays {scoped_role} from {type_label};"
+        try:
+            with driver.transaction(db, TransactionType.SCHEMA) as tx:
+                tx.query(query).resolve()
+                tx.commit()
+            print(f"[apply_schema] migration applied: {query}")
+        except Exception as exc:
+            print(
+                "[apply_schema] migration skipped/failed (likely already aligned schema): "
+                f"{query} error={exc}"
+            )
+
+
 def main():
     p = argparse.ArgumentParser(description="Apply TypeDB schema (local Core or Cloud TLS).")
     p.add_argument(
@@ -196,7 +222,18 @@ def main():
             "<entity>:<attribute> (for example: validation-evidence:template-id)"
         ),
     )
+    p.add_argument(
+        "--undefine-plays",
+        action="append",
+        default=[],
+        help=(
+            "Run guarded role-play migration before schema apply. Repeatable format: "
+            "<type>:<relation:role> (for example: validation-evidence:session-has-evidence:evidence)"
+        ),
+    )
     args = p.parse_args()
+
+    print(f"[apply_schema] argv: {sys.argv[1:]}")
 
     tls = env_bool("TYPEDB_TLS", "false")
     ca_path = os.getenv("TYPEDB_ROOT_CA_PATH") or None
@@ -231,6 +268,9 @@ def main():
                 print(f"[apply_schema] database deleted: {args.database}")
 
         ensure_database(driver, args.database)
+
+        if args.undefine_plays:
+            migrate_undefine_plays(driver, args.database, args.undefine_plays)
 
         if args.undefine_owns:
             migrate_undefine_owns(driver, args.database, args.undefine_owns)

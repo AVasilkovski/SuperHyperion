@@ -30,8 +30,10 @@ def _escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 def _iso_now() -> str:
-    """Return ISO format string compatible with TypeDB (no microseconds, UTC 'Z')."""
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    """Return TypeDB `datetime` literal string (timezone-naive UTC)."""
+    dt = datetime.now(timezone.utc).replace(microsecond=0)
+    # `created-at` in schema is `datetime` (not `datetime-tz`), so drop timezone suffix.
+    return dt.replace(tzinfo=None).isoformat(timespec="seconds")
 
 def _make_template_event_id(
     template_id: str,

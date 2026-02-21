@@ -183,6 +183,29 @@ class TypeDBConnection:
         if answer is None:
             return []
 
+        if hasattr(answer, "is_concept_rows") and answer.is_concept_rows():
+            rows: List[Dict] = []
+            for concept_row in answer.as_concept_rows():
+                row: Dict[str, object] = {}
+                for col in concept_row.column_names():
+                    key = col[1:] if isinstance(col, str) and col.startswith("$") else col
+                    concept = concept_row.get(col)
+                    if concept is None:
+                        continue
+                    if hasattr(concept, "is_attribute") and concept.is_attribute():
+                        row[key] = concept.as_attribute().get_value()
+                    elif hasattr(concept, "is_value") and concept.is_value():
+                        row[key] = concept.as_value().get()
+                    elif hasattr(concept, "get_iid"):
+                        row[key] = concept.get_iid()
+                    else:
+                        row[key] = str(concept)
+                rows.append(row)
+            return rows
+
+        if hasattr(answer, "is_concept_documents") and answer.is_concept_documents():
+            return list(answer.as_concept_documents())
+
         if hasattr(answer, "as_concept_documents"):
             return list(answer.as_concept_documents())
 

@@ -97,3 +97,42 @@ def test_query_insert_delete_support_legacy_query_object(monkeypatch):
 
     assert tx.query.inserts
     assert tx.query.deletes
+
+
+class _AnswerTypedRows:
+    def is_concept_rows(self):
+        return True
+
+    def is_concept_documents(self):
+        return False
+
+    def as_concept_documents(self):
+        raise AssertionError("should not cast rows answer to documents")
+
+    def as_concept_rows(self):
+        return [_Row()]
+
+
+class _PromiseTypedRows:
+    def resolve(self):
+        return _AnswerTypedRows()
+
+
+class _TxCallableTypedRows:
+    def query(self, _q: str):
+        return _PromiseTypedRows()
+
+
+def test_query_fetch_prefers_concept_rows_over_documents_when_typed(monkeypatch):
+    tx = _TxCallableTypedRows()
+    db = TypeDBConnection()
+    db._mock_mode = False
+
+    @contextmanager
+    def _tx_ctx(*_a, **_k):
+        yield tx
+
+    monkeypatch.setattr(db, "transaction", _tx_ctx)
+
+    rows = db.query_fetch("match $x isa thing, has name $name; select $name;")
+    assert rows == [{"name": "alice"}]

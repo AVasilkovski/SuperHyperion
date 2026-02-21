@@ -123,7 +123,17 @@ jobs:
         run: |
           python -m src.cli.main policy conflicts --bundles ci_artifacts --policies src.policies.builtin --out ci_artifacts/conflicts --json --fail-on-severity error
 
-      - name: Upload test artifacts on failure
+      - name: Upload CI trust artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-artifacts-${{ github.run_id }}
+          path: |
+            ci_artifacts/**
+            schemas/**
+          retention-days: 7
+
+      - name: Upload test logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -131,7 +141,6 @@ jobs:
           path: |
             .pytest_cache/
             *.log
-            ci_artifacts/**
           retention-days: 7
 
   lint:

@@ -338,6 +338,9 @@ Milestone B closure evidence:
 - OPS-1.3 emits deterministic `trust_gate_summary.json`, CI step-summary lines, and offline summary diff utility (`scripts/ops13_trust_gate_diff.py`).
 - Versioned artifact schemas are published under `schemas/` for trust summary, policy conflicts, and compliance report contracts.
 
+Milestone B LOCKED rule:
+- Any non-backward-compatible artifact contract change requires a `contract_version` bump and a new versioned JSON Schema file under `schemas/`.
+
 #### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (PLANNED)
 1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**
    - Database isolation schema (`tenant` entity + `tenant-owns-capsule` relation).

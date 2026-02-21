@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.sdk.bundles import load_bundles
+from src.graph.contracts import GovernanceSummaryV1
+from src.sdk.bundles import BundleView, load_bundles, output_prefix
 from src.sdk.compliance import build_compliance_report
 from src.sdk.sandbox import simulate_policies
 
@@ -105,3 +106,23 @@ def test_output_prefix_encoding_is_non_lossy_for_nested_and_flattened_names(tmp_
     written = simulate_policies(str(bundles), "src.policies.builtin", str(out))
     basenames = sorted(Path(p).name for p in written)
     assert basenames == ["tenant-a%2Frun-1_policy_simulation.json", "tenant-a__run-1_policy_simulation.json"]
+
+
+def test_output_prefix_normalizes_windows_separator():
+    bundle = BundleView(
+        prefix="run-1",
+        bundle_key=r"tenant-a\run-1",
+        governance=GovernanceSummaryV1(
+            contract_version="v1",
+            status="HOLD",
+            gate_code="NO_EVIDENCE_PERSISTED",
+            duration_ms=0,
+        ),
+        replay=None,
+        manifest=None,
+        explainability=None,
+        tenant_id=None,
+        effective_tenant_id="default",
+        capsule_id=None,
+    )
+    assert output_prefix(bundle) == "tenant-a%2Frun-1"

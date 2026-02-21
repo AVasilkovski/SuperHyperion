@@ -14,7 +14,6 @@ entity tenant,
   owns tenant-id;
 
 relation tenant-ownership,
-    sub relation,
     relates owner,
     relates owned;
 

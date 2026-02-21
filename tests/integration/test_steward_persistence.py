@@ -105,7 +105,7 @@ async def test_v22_end_to_end_persistence(steward, mock_db):
     assert 'has run-status "running"' in inserts_str
     # Check session completion update (separate insert/delete)
     assert 'insert $s has ended-at' in inserts_str
-    assert 'delete $s has run-status $old' in deletes_str
+    assert 'delete has $old of $s' in deletes_str
     assert 'insert $s has run-status "complete"' in inserts_str
 
     # 2. Trace
@@ -137,7 +137,7 @@ async def test_v22_end_to_end_persistence(steward, mock_db):
 
     # 6. Intent Execution (Mutation)
     # Check separate delete and insert queries
-    assert 'delete $c has epistemic-status' in deletes_str
+    assert 'delete has $old of $c' in deletes_str
     # Check insert contains the new status
     assert 'insert $c has epistemic-status "supported"' in inserts_str
 

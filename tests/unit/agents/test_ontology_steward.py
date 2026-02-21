@@ -144,7 +144,7 @@ async def test_execute_intent(steward, mock_db):
     # Check DB operations
     assert len(mock_db.deletes) >= 1
     # Find the specific delete for epistemic status
-    delete_q = next((q for q in mock_db.deletes if 'delete $c has epistemic-status' in q), None)
+    delete_q = next((q for q in mock_db.deletes if 'delete has $old of $c' in q), None)
     assert delete_q is not None
 
     # Check insert (should be in inserts list)

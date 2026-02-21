@@ -139,15 +139,21 @@ def plan_auto_migrations(
         if supertype not in subtypes:
             continue
         for child in subtypes[supertype]:
+            child_attrs = owns_of.get(child, set())
             for attr in attrs:
-                undefine_owns_specs.append((child, attr))
+                # ONLY undefine if the child ALSO has it in the TQL (redeclaration)
+                if attr in child_attrs:
+                    undefine_owns_specs.append((child, attr))
 
     for supertype, roles in plays_of.items():
         if supertype not in subtypes:
             continue
         for child in subtypes[supertype]:
+            child_roles = plays_of.get(child, set())
             for role in roles:
-                undefine_plays_specs.append((child, role))
+                # ONLY undefine if the child ALSO has it in the TQL (redeclaration)
+                if role in child_roles:
+                    undefine_plays_specs.append((child, role))
                 
     return undefine_owns_specs, undefine_plays_specs
 
@@ -197,6 +203,14 @@ def apply_schema(driver, db: str, schema_paths: list[Path]):
         print(f"[apply_schema] schema applied: {schema_path}")
 
 
+SKIP_CODES = ("SVL35", "SVL36", "UEX20", "TSV10")
+
+
+def _is_skip(exc: Exception) -> bool:
+    msg = str(exc)
+    return any(code in msg for code in SKIP_CODES)
+
+
 def parse_undefine_owns_spec(spec: str) -> tuple[str, str]:
     parts = spec.split(":", maxsplit=1)
     if len(parts) != 2 or not parts[0] or not parts[1]:
@@ -218,14 +232,9 @@ def migrate_undefine_owns(driver, db: str, specs: list[str]):
                 tx.commit()
             print(f"[apply_schema] migration applied: {query}")
         except Exception as exc:
-            msg = str(exc)
-            if "SVL36" in msg:
-                print(f"[apply_schema] migration skipped: {query} (inherited constraint)")
-            else:
-                print(
-                    "[apply_schema] migration skipped/failed (likely already aligned schema): "
-                    f"{query} error={exc}"
-                )
+            if _is_skip(exc):
+                continue
+            print(f"[apply_schema] migration failed: {query} error={exc}")
 
 
 def parse_undefine_plays_spec(spec: str) -> tuple[str, str]:
@@ -249,14 +258,9 @@ def migrate_undefine_plays(driver, db: str, specs: list[str]):
                 tx.commit()
             print(f"[apply_schema] migration applied: {query}")
         except Exception as exc:
-            msg = str(exc)
-            if "SVL36" in msg:
-                print(f"[apply_schema] migration skipped: {query} (inherited constraint)")
-            else:
-                print(
-                    "[apply_schema] migration skipped/failed (likely already aligned schema): "
-                    f"{query} error={exc}"
-                )
+            if _is_skip(exc):
+                continue
+            print(f"[apply_schema] migration failed: {query} error={exc}")
 
 
 def main():
@@ -379,5 +383,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as e:
-        print(f"[apply_schema] ERROR: {e}")
+        print(f"[apply_schema] FATAL: {e}")
         sys.exit(1)

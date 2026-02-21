@@ -392,6 +392,7 @@ entity evidence @abstract,
     plays evidence-for-proposition:evidence;
 
 entity validation-evidence sub evidence,
+    # inherits owns scope-lock-id from evidence (TypeDB 3 forbids unspecialised redeclaration)
     owns content;
 
 entity negative-evidence sub evidence,

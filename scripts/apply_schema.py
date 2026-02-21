@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+import glob
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -10,6 +12,68 @@ from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
 
 def env_bool(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() == "true"
+
+
+def resolve_schema_files(schema_args: list[str]) -> list[Path]:
+    """Resolve schema file arguments (paths and/or globs) deterministically."""
+    resolved: list[Path] = []
+    for item in schema_args:
+        matches = sorted(Path(p) for p in glob.glob(item, recursive=True))
+        if matches:
+            resolved.extend(m for m in matches if m.is_file())
+            continue
+
+        path = Path(item)
+        if path.is_file():
+            resolved.append(path)
+            continue
+
+        raise FileNotFoundError(f"Schema file/pattern did not match any files: {item}")
+
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for path in sorted(resolved):
+        if path not in seen:
+            deduped.append(path)
+            seen.add(path)
+
+    if not deduped:
+        raise FileNotFoundError("No schema files resolved from provided --schema values.")
+
+    return deduped
+
+
+def find_inherited_owns_redeclarations(schema_paths: list[Path], attribute: str = "scope-lock-id") -> list[str]:
+    """Detect subtype redeclarations of inherited `owns` without specialisation in loaded files."""
+    block_re = re.compile(r"entity\s+([a-zA-Z0-9_-]+)(?:\s+sub\s+([a-zA-Z0-9_-]+))?\s*,(.*?);", re.S)
+    owners: dict[str, dict[str, object]] = {}
+
+    for path in schema_paths:
+        content = path.read_text(encoding="utf-8")
+        for entity, supertype, body in block_re.findall(content):
+            owns_match = re.search(rf"owns\s+{re.escape(attribute)}(?:\s+([^,;\n]+))?", body)
+            if not owns_match:
+                continue
+            suffix = (owns_match.group(1) or "").strip()
+            owners[entity] = {
+                "supertype": supertype,
+                "specialised": "@card" in suffix,
+                "path": str(path),
+            }
+
+    issues: list[str] = []
+    for entity, data in owners.items():
+        supertype = data["supertype"]
+        if not supertype or supertype not in owners:
+            continue
+        if data["specialised"]:
+            continue
+        issues.append(
+            f"{entity} redeclares inherited owns {attribute} from {supertype} without specialisation "
+            f"(file: {data['path']})"
+        )
+
+    return issues
 
 
 def connect_with_retries(
@@ -28,7 +92,6 @@ def connect_with_retries(
     for i in range(1, retries + 1):
         try:
             driver = TypeDB.driver(address, creds, opts)
-            # Force a real roundtrip
             _ = [d.name for d in driver.databases.all()]
             return driver
         except Exception as e:
@@ -47,17 +110,37 @@ def ensure_database(driver, db: str):
         print(f"[apply_schema] database exists: {db}")
 
 
-def apply_schema(driver, db: str, schema_path: Path):
-    schema = schema_path.read_text(encoding="utf-8")
-    with driver.transaction(db, TransactionType.SCHEMA) as tx:
-        tx.query(schema).resolve()
-        tx.commit()
-    print(f"[apply_schema] schema applied: {schema_path}")
+def apply_schema(driver, db: str, schema_paths: list[Path]):
+    for schema_path in schema_paths:
+        schema = schema_path.read_text(encoding="utf-8")
+        with driver.transaction(db, TransactionType.SCHEMA) as tx:
+            tx.query(schema).resolve()
+            tx.commit()
+        print(f"[apply_schema] schema applied: {schema_path}")
+
+
+def migrate_drop_validation_evidence_scope_lock(driver, db: str):
+    query = "undefine validation-evidence owns scope-lock-id;"
+    try:
+        with driver.transaction(db, TransactionType.SCHEMA) as tx:
+            tx.query(query).resolve()
+            tx.commit()
+        print("[apply_schema] migration applied: dropped validation-evidence owns scope-lock-id")
+    except Exception as exc:
+        print(
+            "[apply_schema] migration skipped/failed (likely already aligned schema): "
+            f"{exc}"
+        )
 
 
 def main():
     p = argparse.ArgumentParser(description="Apply TypeDB schema (local Core or Cloud TLS).")
-    p.add_argument("--schema", default=os.getenv("TYPEDB_SCHEMA", "src/schema/scientific_knowledge.tql"))
+    p.add_argument(
+        "--schema",
+        action="append",
+        default=None,
+        help="Schema file path or glob. May be passed multiple times.",
+    )
     p.add_argument("--database", default=os.getenv("TYPEDB_DATABASE", "scientific_knowledge"))
     p.add_argument("--address", default=os.getenv("TYPEDB_ADDRESS"))
     p.add_argument("--host", default=os.getenv("TYPEDB_HOST", "localhost"))
@@ -65,22 +148,34 @@ def main():
     p.add_argument("--username", default=os.getenv("TYPEDB_USERNAME", "admin"))
     p.add_argument("--password", default=os.getenv("TYPEDB_PASSWORD", "password"))
     p.add_argument("--recreate", action="store_true", help="Delete and recreate the database before applying.")
+    p.add_argument(
+        "--drop-validation-evidence-scope-lock",
+        action="store_true",
+        help="Run guarded migration: undefine validation-evidence owns scope-lock-id before applying schema.",
+    )
     args = p.parse_args()
 
     tls = env_bool("TYPEDB_TLS", "false")
     ca_path = os.getenv("TYPEDB_ROOT_CA_PATH") or None
 
-    schema_path = Path(args.schema)
-    if not schema_path.exists():
-        raise FileNotFoundError(f"Schema file not found: {schema_path}")
+    raw_schema_args = args.schema or [os.getenv("TYPEDB_SCHEMA", "src/schema/scientific_knowledge.tql")]
+    schema_paths = resolve_schema_files(raw_schema_args)
+
+    print("[apply_schema] resolved schema files:")
+    for path in schema_paths:
+        print(f"  - {path}")
+
+    redeclaration_issues = find_inherited_owns_redeclarations(schema_paths)
+    if redeclaration_issues:
+        for issue in redeclaration_issues:
+            print(f"[apply_schema] ERROR: {issue}")
+        raise ValueError("Resolved schema set contains inherited owns redeclaration(s).")
 
     address = args.address if args.address else f"{args.host}:{args.port}"
-    
-    # Track 5: CI stabilization guard
-    # If in CI and secrets are missing (resulting in ":" or empty strings), skip.
+
     is_ci = os.getenv("GITHUB_ACTIONS") == "true"
     if is_ci and (not address or address == ":"):
-        print(f"[apply_schema] SKIP: Skipping Cloud deployment in CI (secrets missing for branch/PR)")
+        print("[apply_schema] SKIP: Skipping Cloud deployment in CI (secrets missing for branch/PR)")
         return 0
 
     print(f"[apply_schema] connecting to {address} tls={tls} ca={ca_path}")
@@ -91,9 +186,13 @@ def main():
             if driver.databases.contains(args.database):
                 driver.databases.get(args.database).delete()
                 print(f"[apply_schema] database deleted: {args.database}")
-        
+
         ensure_database(driver, args.database)
-        apply_schema(driver, args.database, schema_path)
+
+        if args.drop_validation_evidence_scope_lock:
+            migrate_drop_validation_evidence_scope_lock(driver, args.database)
+
+        apply_schema(driver, args.database, schema_paths)
     finally:
         driver.close()
 

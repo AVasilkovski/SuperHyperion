@@ -1,5 +1,6 @@
 define
 
+# --- schema version ---
 attribute ordinal, value integer;
 attribute git-commit, value string;
 attribute applied-at, value datetime;
@@ -9,16 +10,16 @@ entity schema_version,
   owns git-commit,
   owns applied-at;
 
+# --- tenant ---
 attribute tenant-id, value string;
+
 entity tenant,
   owns tenant-id;
 
+# --- generic tenant ownership relation (roles only) ---
 relation tenant-ownership,
-    relates owner,
-    relates owned;
+  relates owner,
+  relates owned;
 
+# Only attach 'plays' for types that exist in this migration.
 tenant plays tenant-ownership:owner;
-capsule plays tenant-ownership:owned;
-intent plays tenant-ownership:owned;
-run-session plays tenant-ownership:owned;
-evidence-ledger plays tenant-ownership:owned;

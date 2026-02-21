@@ -1,0 +1,7 @@
+define
+
+# Only attach 'plays' for types that exist in the canonical schema or previous migrations.
+capsule plays tenant-ownership:owned;
+intent plays tenant-ownership:owned;
+run-session plays tenant-ownership:owned;
+evidence-ledger plays tenant-ownership:owned;

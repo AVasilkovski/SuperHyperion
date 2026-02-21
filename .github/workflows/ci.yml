@@ -102,7 +102,12 @@ jobs:
 
       - name: Apply schema (CI TypeDB Core)
         run: |
-          python scripts/apply_schema.py --schema src/schema/scientific_knowledge.tql --database "$TYPEDB_DATABASE"
+          SCHEMA_FILE="src/schema/scientific_knowledge.tql"
+          python scripts/apply_schema.py --schema "$SCHEMA_FILE" --database "$TYPEDB_DATABASE"
+
+      - name: Verify Migration Safety (Dry-Run)
+        run: |
+          python scripts/migrate.py --database "$TYPEDB_DATABASE" --dry-run
 
       - name: Verify Migration Safety (Dry-Run)
         run: |

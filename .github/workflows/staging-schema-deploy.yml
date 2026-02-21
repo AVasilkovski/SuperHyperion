@@ -8,7 +8,7 @@ on:
     branches:
       - main
     paths:
-      - 'src/schema/**'
+      - 'src/schema/scientific_knowledge.tql'
       - 'scripts/apply_schema.py'
       - '.github/workflows/staging-schema-deploy.yml'
 
@@ -62,9 +62,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Hardcoded canonical schema path (no globs)
-          if [ ! -f "src/schema/scientific_knowledge.tql" ]; then
-            echo "ERROR: schema file missing: src/schema/scientific_knowledge.tql"
+          SCHEMA_FILE="src/schema/scientific_knowledge.tql"
+          echo "Using authoritative schema file: $SCHEMA_FILE"
+
+          if [ ! -f "$SCHEMA_FILE" ]; then
+            echo "ERROR: schema file missing: $SCHEMA_FILE"
             ls -la src/schema || true
             exit 1
           fi

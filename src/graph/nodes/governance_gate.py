@@ -108,6 +108,7 @@ async def governance_gate_node(state: AgentState) -> AgentState:
     mutation_ids = gc.get("mutation_ids", []) or []
     committed_intents = gc.get("committed_intents", []) or []
     session_id = (gc.get("session_id") or state.get("session_id"))
+    tenant_id = gc.get("tenant_id") or state.get("tenant_id")
 
     # Fail fast: upstream errors or missing inputs → HOLD immediately
     hold_code: Optional[str] = None
@@ -132,9 +133,10 @@ async def governance_gate_node(state: AgentState) -> AgentState:
         intent = None
         try:
             from src.hitl.intent_service import write_intent_service
-            intent = write_intent_service.get(intent_id)
+            # We enforce tenant scoping at the intent read boundary.
+            intent = write_intent_service.get(intent_id, tenant_id=tenant_id)
         except Exception as e:
-            logger.error(f"Failed to load intent {intent_id}: {e}")
+            logger.error(f"Failed to load intent {intent_id} (tenant={tenant_id}): {e}")
             intent = None
 
         # Derive scope_lock_id from intent for downstream use

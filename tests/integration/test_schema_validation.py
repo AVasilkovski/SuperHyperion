@@ -33,16 +33,6 @@ class MockTransaction:
     def __enter__(self): return self
     def __exit__(self, exc_type, exc_val, exc_tb): pass
 
-class MockSession:
-    def __init__(self):
-        self.tx = MockTransaction()
-
-    def transaction(self, tx_type):
-        return self.tx
-
-    def close(self): pass
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): pass
 
 class MockDriver:
     def __init__(self):
@@ -105,8 +95,7 @@ def test_schema_syntax_and_load(mock_typedb):
 
     # Connection logic:
     # driver = self.connect() -> returns mock_driver
-    # with driver.session(...) as session: -> returns mock_session
-    #   with session.transaction(...) as tx: -> returns mock_tx
+    # with driver.transaction(...) as tx: -> returns mock_tx
     #     tx.query.define(content)
 
     # We can access the definition via the mock_driver fixture if we ensured it was returned

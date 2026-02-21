@@ -3,7 +3,6 @@ Verify a Run Capsule from the Engine Start showcase.
 Tests the Phase 16.5 Ledger Primacy logic.
 """
 
-import os
 import json
 import logging
 import sys
@@ -45,7 +44,7 @@ def reverify(capsule_path: str):
         print("\n================================================================================")
         print("CAPSULE VERIFICATION SUCCESSFUL")
         print(f"ID:     {capsule.get('capsule_id')}")
-        print(f"STATUS: VERIFIED")
+        print("STATUS: VERIFIED")
         print("================================================================================\n")
     else:
         logger.error(f"❌ PRIMACY FAILED: [{code}] {details.get('hold_reason')}")

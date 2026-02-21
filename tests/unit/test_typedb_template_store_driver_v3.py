@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from src.montecarlo.template_store import TypeDBTemplateStore
+import pytest
+
+typedb_driver = pytest.importorskip(
+    "typedb.driver", 
+    reason="TypeDB driver not available in this environment", 
+    exc_type=ImportError
+)
+
+from src.montecarlo.template_store import TypeDBTemplateStore  # noqa: E402
 
 
 class _AttrConcept:
@@ -51,7 +59,7 @@ class _Tx:
 
     def _query(self, q):
         self.calls.append(q)
-        if "get $spec" in q:
+        if "select $spec" in q:
             answer = _Answer([_Row({"$spec": _AttrConcept("spec-hash")})])
             return _Resolved(answer)
         return _Resolved(None)
@@ -77,7 +85,7 @@ class _Driver:
 def test_typedb_template_store_supports_v3_query_callable_api():
     store = TypeDBTemplateStore(_Driver())
 
-    rows = store._read_query('match $m isa template-metadata, has spec-hash $spec; get $spec;')
+    rows = store._read_query('match $m isa template-metadata, has spec-hash $spec; select $spec;')
     assert rows == [{"spec": "spec-hash"}]
 
     store._write_query('insert $x isa template-lifecycle-event;')

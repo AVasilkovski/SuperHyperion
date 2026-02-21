@@ -54,7 +54,7 @@ class OntologySteward(BaseAgent):
 
         # 1. Persist Session
         try:
-             self.insert_to_graph(q_insert_session(session_id, user_query, "running"), cap=self._write_cap)
+             self.insert_to_graph(q_insert_session(session_id, user_query, "running", tenant_id=tenant_id), cap=self._write_cap)
         except Exception as e:
              logger.debug(f"Session insert skipped (session_id={session_id}): {e}")
 
@@ -896,17 +896,27 @@ def sha256_json(data: Any) -> str:
     except Exception:
         return "hash-error"
 
-def q_insert_session(session_id: str, user_query: str, status: str) -> str:
+def q_insert_tenant(tenant_id: str) -> str:
+    return f'''
+    insert $t isa tenant,
+      has tenant-id "{escape(tenant_id)}",
+      has created-at {iso_now()};
+    '''
+
+def q_insert_session(session_id: str, user_query: str, status: str, tenant_id: str = "default") -> str:
     uq = escape(user_query)
     # Check if exists first? TypeDB insert is additive.
     # If session-id is @key, duplicates will fail.
     # For now, we assume this is the start or we catch the error.
     return f'''
+    match $t isa tenant, has tenant-id "{escape(tenant_id)}";
     insert $s isa run-session,
       has session-id "{escape(session_id)}",
       has user-query "{uq}",
       has started-at {iso_now()},
+      has tenant-id "{escape(tenant_id)}",
       has run-status "{escape(status)}";
+    (owner: $t, owned: $s) isa tenant-ownership;
     '''
 
 def q_set_session_ended_at(session_id: str) -> str:
@@ -1015,13 +1025,7 @@ def q_insert_proposal(session_id: str, p: dict) -> str:
       (proposal: $p, proposition: $prop) isa proposal-targets-proposition;
     '''
 
-def q_insert_tenant(tenant_id: str) -> str:
-    return f'''
-    insert
-      $t isa tenant,
-        has tenant-id "{escape(tenant_id)}",
-        has created-at {iso_now()};
-    '''
+
 
 
 def q_insert_write_intent(
@@ -1041,9 +1045,10 @@ def q_insert_write_intent(
         has intent-status "{escape(status)}",
         has impact-score {float(intent.get("impact_score", 0.0))},
         has json "{escape(json.dumps(intent, sort_keys=True))}",
+        has tenant-id "{escape(tenant_id)}",
         has created-at {iso_now()};
       (session: $s, write-intent: $i) isa session-has-write-intent;
-      (tenant: $t, intent: $i) isa tenant-owns-intent;
+      (owner: $t, owned: $i) isa tenant-ownership;
     '''
 
 def q_insert_intent_status_event(intent_id: str, status: str, payload: Optional[Dict] = None) -> str:

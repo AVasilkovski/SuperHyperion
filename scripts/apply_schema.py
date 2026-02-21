@@ -75,7 +75,6 @@ def parse_canonical_caps(schema_text: str) -> tuple[dict[str, str], dict[str, se
     owns_of: dict[str, set[str]] = {}
     plays_of: dict[str, set[str]] = {}
 
-    import re
     # Strip comments robustly
     schema_text = re.sub(r"#.*", "", schema_text, flags=re.MULTILINE)
     

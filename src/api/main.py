@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
+from src.api.routes import v1_core
 from src.config import config
 from src.graph import run_query
 
@@ -39,6 +40,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(v1_core.router, prefix="/v1")
 
 # In-memory job storage (replace with Redis for production)
 jobs: Dict[str, Dict[str, Any]] = {}

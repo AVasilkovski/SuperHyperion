@@ -26,10 +26,12 @@ replay_app = typer.Typer(
 console = Console()
 
 
-def _fetch_capsule(capsule_id: str) -> dict | None:
+def _fetch_capsule(capsule_id: str, tenant_id: str | None = None) -> dict | None:
     """Fetch a run-capsule from TypeDB by capsule-id."""
     try:
         from src.db.typedb_client import TypeDBConnection
+        from src.trust.tenant_scope import scope_prefix
+        
         db = TypeDBConnection()
         if db._mock_mode:
             console.print("[yellow]⚠ TypeDB unavailable (mock mode)[/yellow]")
@@ -37,6 +39,9 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
 
         def _esc(s):
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+            
+        tenant_scope = scope_prefix(tenant_id, target_var="cap") if tenant_id else ""
+            
         query_with_mutations = f'''
         match
             $cap isa run-capsule,
@@ -50,10 +55,10 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
                 has mutation-snapshot $msnap,
                 has capsule-hash $chash;
             $cid == "{_esc(capsule_id)}";
-        get $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $msnap, $chash;
+            {tenant_scope}
+        select $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $msnap, $chash;
         '''
 
-        # Backward compatibility: pre-16.8 capsules do not have mutation-snapshot.
         query_legacy = f'''
         match
             $cap isa run-capsule,
@@ -66,7 +71,8 @@ def _fetch_capsule(capsule_id: str) -> dict | None:
                 has evidence-snapshot $esnap,
                 has capsule-hash $chash;
             $cid == "{_esc(capsule_id)}";
-        get $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $chash;
+            {tenant_scope}
+        select $cid, $sid, $qh, $slid, $iid, $pid, $esnap, $chash;
         '''
 
         rows = db.query_fetch(query_with_mutations)
@@ -101,13 +107,14 @@ def _recompute_capsule_hash(capsule_id: str, manifest: dict, manifest_version: s
     return make_capsule_manifest_hash(capsule_id, manifest, manifest_version)
 
 
-def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str]) -> tuple[bool, dict]:
+def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str], tenant_id: str | None = None) -> tuple[bool, dict]:
     """Verify all manifest mutation_ids are linked to this capsule in the ledger."""
     if not mutation_ids:
         return True, {"verified_count": 0, "missing": []}
 
     try:
         from src.db.typedb_client import TypeDBConnection
+        from src.trust.tenant_scope import scope_prefix
 
         db = TypeDBConnection()
         if db._mock_mode:
@@ -115,6 +122,8 @@ def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str]) -> tuple[
 
         def _esc(s):
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+
+        tenant_scope = scope_prefix(tenant_id, target_var="cap") if tenant_id else ""
 
         seen = set()
         
@@ -130,7 +139,8 @@ def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str]) -> tuple[
                 $mut isa mutation-event, has mutation-id $mid;
                 {or_conditions};
                 (mutation-event: $mut, capsule: $cap) isa asserted-by;
-            get $mid;
+                {tenant_scope}
+            select $mid;
             '''
             rows = db.query_fetch(query)
             for row in rows:
@@ -154,15 +164,24 @@ def verify_run(
         "--json",
         help="Output as JSON",
     ),
+    tenant_id: str = typer.Option(
+        None,
+        "--tenant-id",
+        help="Tenant ID filter to enforce fail-closed isolation",
+    ),
 ):
     """Verify a past run capsule against the ledger."""
     console.print(f"\n[bold]Replaying run:[/bold] {run_id}\n")
 
+    from src.trust.tenant_scope import enforce_scope
+    if tenant_id:
+        enforce_scope(tenant_id)
+
     # 1. Fetch capsule
-    capsule = _fetch_capsule(run_id)
+    capsule = _fetch_capsule(run_id, tenant_id=tenant_id)
     if not capsule:
         console.print(f"[red]✗ Capsule not found:[/red] {run_id}")
-        console.print("  Ensure TypeDB is running and the capsule exists.")
+        console.print("  Ensure TypeDB is running, the capsule exists, and tenant scope matches.")
         raise typer.Exit(1)
 
     console.print(f"  [green]✓[/green] Capsule found (session: {capsule['session_id']})")
@@ -209,7 +228,7 @@ def verify_run(
             console.print(f"    {primacy_details['hold_reason']}")
 
     # 4. Mutation linkage verification (Phase 16.8)
-    mutation_ok, mutation_details = _verify_mutation_linkage(run_id, capsule.get("mutation_ids") or [])
+    mutation_ok, mutation_details = _verify_mutation_linkage(run_id, capsule.get("mutation_ids") or [], tenant_id=tenant_id)
     if mutation_ok:
         console.print(f"  [green]✓[/green] Mutation linkage: PASS ({mutation_details.get('verified_count', 0)} linked)")
     else:

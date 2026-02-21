@@ -1,0 +1,24 @@
+define
+schema-version sub entity,
+    owns ordinal,
+    owns git-commit,
+    owns applied-at;
+
+ordinal sub attribute, value long;
+git-commit sub attribute, value string;
+applied-at sub attribute, value datetime;
+
+tenant sub entity,
+    owns tenant-id;
+
+tenant-id sub attribute, value string;
+
+tenant-ownership sub relation,
+    relates owner,
+    relates owned;
+
+tenant plays tenant-ownership:owner;
+capsule plays tenant-ownership:owned;
+intent plays tenant-ownership:owned;
+run-session plays tenant-ownership:owned;
+evidence-ledger plays tenant-ownership:owned;

@@ -194,29 +194,68 @@ class TypeDBTemplateStore(TemplateStore):
         self.driver = driver
         self.database = database
 
+    @staticmethod
+    def _exec_query(tx, query: str):
+        """Execute TypeQL across TypeDB driver API variants."""
+        query_api = tx.query
+        if callable(query_api):
+            result = query_api(query)
+            if hasattr(result, "resolve"):
+                return result.resolve()
+            return result
+
+        if hasattr(query_api, "insert"):
+            query_api.insert(query)
+            return None
+
+        raise TypeError("Unsupported TypeDB query API")
+
     def _write_query(self, query: str) -> None:
         from typedb.driver import TransactionType
+
         with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
-            tx.query.insert(query)
+            self._exec_query(tx, query)
             tx.commit()
 
     def _read_query(self, query: str) -> List[Dict[str, Any]]:
         from typedb.driver import TransactionType
-        results = []
+
+        results: List[Dict[str, Any]] = []
         with self.driver.transaction(self.database, TransactionType.READ) as tx:
-            answer = tx.query.get(query)
+            answer = self._exec_query(tx, query)
+
+            if answer is None:
+                return results
+
+            if hasattr(answer, "as_concept_rows"):
+                for concept_row in answer.as_concept_rows():
+                    row: Dict[str, Any] = {}
+                    for col in concept_row.column_names():
+                        concept = concept_row.get(col)
+                        if concept is None:
+                            continue
+                        if hasattr(concept, "is_attribute") and concept.is_attribute():
+                            row[col] = concept.as_attribute().get_value()
+                        elif hasattr(concept, "is_value") and concept.is_value():
+                            row[col] = concept.as_value().get()
+                        elif hasattr(concept, "get_iid"):
+                            row[col] = concept.get_iid()
+                        else:
+                            row[col] = str(concept)
+                    results.append(row)
+                return results
+
             for concept_map in answer:
                 row = {}
                 for var in concept_map.variables():
                     concept = concept_map.get(var)
-                    # Correct variable mapping fix
                     var_name = var.name() if hasattr(var, "name") else str(var)
-
-                    if hasattr(concept, 'get_value'):
+                    if hasattr(concept, "get_value"):
                         row[var_name] = concept.get_value()
-                    elif hasattr(concept, 'get_iid'):
+                    elif hasattr(concept, "get_iid"):
                         row[var_name] = concept.get_iid()
                 results.append(row)
+
         return results
 
     def append_event(
@@ -394,8 +433,8 @@ class TypeDBTemplateStore(TemplateStore):
 
         # Execute in transaction
         with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
-            # Use a single insert query containing match/delete/insert so it is atomic.
-            tx.query.insert(query)
+            # Use a single query containing match/delete/insert so it is atomic.
+            self._exec_query(tx, query)
             tx.commit()
 
         logger.info(f"Freeze attempted for {template_id}@{version} on evidence {evidence_id} (guarded)")
@@ -438,8 +477,8 @@ class TypeDBTemplateStore(TemplateStore):
 
         from typedb.driver import TransactionType
         with self.driver.transaction(self.database, TransactionType.WRITE) as tx:
-            tx.query.delete(delete_query)
-            tx.query.insert(insert_query)
+            self._exec_query(tx, delete_query)
+            self._exec_query(tx, insert_query)
             tx.commit()
 
         logger.info(f"TAINTED template {template_id}@{version}: {reason}")

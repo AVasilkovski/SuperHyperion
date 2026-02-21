@@ -43,7 +43,7 @@ class GovernedRun:
 
         Args:
             query:      User hypothesis / question to investigate.
-            tenant_id:  Tenant identifier (threaded through result, not persisted yet).
+            tenant_id:  Tenant identifier threaded through workflow/capsule metadata.
             session_id: Optional session ID override.
             thread_id:  LangGraph thread ID for checkpointing.
             mode:       Epistemic mode (reserved; currently always "grounded").
@@ -61,7 +61,10 @@ class GovernedRun:
             from src.graph.workflow_v21 import run_v21_query
 
             final_state = await run_v21_query(
-                query, thread_id=tid, session_id=session_id
+                query,
+                thread_id=tid,
+                session_id=session_id,
+                tenant_id=tenant_id,
             )
         except Exception as exc:
             logger.error("GovernedRun: workflow execution failed: %s", exc)
@@ -151,6 +154,7 @@ def _build_result(
         capsule_data = {
             "session_id": capsule.get("session_id", ""),
             "query_hash": capsule.get("query_hash", ""),
+            "tenant_id": capsule.get("tenant_id", tenant_id),
             "scope_lock_id": capsule.get("scope_lock_id", ""),
             "intent_id": capsule.get("intent_id", ""),
             "proposal_id": capsule.get("proposal_id", ""),
@@ -159,7 +163,7 @@ def _build_result(
             "capsule_hash": capsule.get("capsule_hash", ""),
             "_has_mutation_snapshot": True,  # New capsules always have mutation support
         }
-        replay_verdict = verify_capsule(capsule_id, capsule_data)
+        replay_verdict = verify_capsule(capsule_id, capsule_data, tenant_id=tenant_id)
     except Exception as exc:
         logger.warning("GovernedRun: replay verification failed: %s", exc)
 

@@ -30,7 +30,12 @@ jobs:
       - name: 'Install typedb-driver'
         run: |
           python -m pip install --upgrade pip
-          pip install "typedb-driver==3.7.0"
+          pip install "typedb-driver==3.8.0"
+
+      - name: 'Debug schema apply version'
+        run: |
+          git rev-parse --short HEAD
+          python -c "import pathlib; p=pathlib.Path('scripts/apply_schema.py'); print('apply_schema bytes:', p.stat().st_size); print(p.read_text().splitlines()[0])"
 
       - name: 'Decode TypeDB root CA (if provided)'
         env:
@@ -51,13 +56,34 @@ jobs:
           TYPEDB_USERNAME: "${{ secrets.TYPEDB_USERNAME }}"
           TYPEDB_PASSWORD: "${{ secrets.TYPEDB_PASSWORD }}"
           TYPEDB_TLS: 'true'
+          # Optional guarded legacy migration for inherited plays/owns conflicts.
+          # Comma-separated list of specs.
+          TYPEDB_UNDEFINE_PLAYS: "validation-evidence:session-has-evidence:evidence"
+          TYPEDB_UNDEFINE_OWNS: "validation-evidence:entity-id,validation-evidence:template-qid,validation-evidence:template-id,validation-evidence:scope-lock-id,validation-evidence:confidence-score,validation-evidence:success,validation-evidence:json,validation-evidence:created-at,validation-evidence:claim-id,validation-evidence:execution-id"
         run: |
+          UNDEFINE_ARGS=()
+
+          IFS=',' read -ra UNDEFINE_PLAYS <<< "$TYPEDB_UNDEFINE_PLAYS"
+          for spec in "${UNDEFINE_PLAYS[@]}"; do
+            if [ -n "$spec" ]; then
+              UNDEFINE_ARGS+=(--undefine-plays "$spec")
+            fi
+          done
+
+          IFS=',' read -ra UNDEFINES <<< "$TYPEDB_UNDEFINE_OWNS"
+          for spec in "${UNDEFINES[@]}"; do
+            if [ -n "$spec" ]; then
+              UNDEFINE_ARGS+=(--undefine-owns "$spec")
+            fi
+          done
+
           python scripts/apply_schema.py \
-            --schema src/schema/scientific_knowledge.tql \
+            --schema "$SCHEMA_FILE" \
             --address "$TYPEDB_ADDRESS" \
             --database "$TYPEDB_DATABASE" \
             --username "$TYPEDB_USERNAME" \
-            --password "$TYPEDB_PASSWORD"
+            --password "$TYPEDB_PASSWORD" \
+            "${UNDEFINE_ARGS[@]}"
 
       - name: 'Connectivity smoke check'
         env:

@@ -15,7 +15,6 @@ import pytest
 # G1: Replay hash backward compatibility
 # ============================================================================
 
-
 def test_legacy_capsule_hash_matches():
     """
     Pre-16.8 capsules were hashed without a mutation_ids key.
@@ -52,7 +51,6 @@ def test_legacy_capsule_hash_matches():
         "Replay must not add mutation_ids to legacy manifests."
     )
 
-
 def test_current_capsule_hash_includes_mutation_ids():
     """
     Post-16.8 capsules include mutation_ids in the manifest.
@@ -85,6 +83,58 @@ def test_current_capsule_hash_includes_mutation_ids():
 
     assert recomputed_hash == original_hash
 
+def test_tenant_attributed_capsule_hash_pins_tenant_id():
+    """
+    Tenant-attributed capsules (v3) must include tenant_id in hash integrity.
+    """
+    from src.governance.fingerprinting import make_capsule_manifest_hash
+
+    capsule_id = "run-tenant-001"
+    base_manifest = {
+        "session_id": "sess-tenant",
+        "query_hash": "qh-tenant",
+        "scope_lock_id": "sl-tenant",
+        "intent_id": "int-tenant",
+        "proposal_id": "prop-tenant",
+        "evidence_ids": ["ev-1"],
+        "mutation_ids": ["mut-1"],
+        "tenant_id": "tenant-a",
+    }
+
+    hash_a = make_capsule_manifest_hash(capsule_id, base_manifest, manifest_version="v3")
+    hash_b = make_capsule_manifest_hash(
+        capsule_id,
+        {**base_manifest, "tenant_id": "tenant-b"},
+        manifest_version="v3",
+    )
+
+    assert hash_a != hash_b, "tenant_id must affect v3 capsule hash"
+
+def test_v2_hash_ignores_tenant_id_for_backward_compat():
+    """
+    Legacy v2 hash computation should ignore tenant_id to preserve old capsules.
+    """
+    from src.governance.fingerprinting import make_capsule_manifest_hash
+
+    capsule_id = "run-v2-legacy"
+    manifest_v2 = {
+        "session_id": "sess-v2",
+        "query_hash": "qh-v2",
+        "scope_lock_id": "sl-v2",
+        "intent_id": "int-v2",
+        "proposal_id": "prop-v2",
+        "evidence_ids": ["ev-1"],
+        "mutation_ids": ["mut-1"],
+    }
+
+    original = make_capsule_manifest_hash(capsule_id, manifest_v2, manifest_version="v2")
+    with_tenant = make_capsule_manifest_hash(
+        capsule_id,
+        {**manifest_v2, "tenant_id": "should-be-ignored"},
+        manifest_version="v2",
+    )
+
+    assert original == with_tenant
 
 def test_adding_mutation_ids_key_changes_hash():
     """
@@ -112,11 +162,9 @@ def test_adding_mutation_ids_key_changes_hash():
         "(this proves the G1 bug exists and our fix is needed)"
     )
 
-
 # ============================================================================
 # G2: create_claim fails closed
 # ============================================================================
-
 
 def test_execute_intent_create_claim_fails_closed():
     """
@@ -137,11 +185,9 @@ def test_execute_intent_create_claim_fails_closed():
     assert not success, "create_claim should fail (not silently succeed)"
     assert "not yet implemented" in err.lower(), f"Expected NotImplementedError message, got: {err}"
 
-
 # ============================================================================
 # G3: SHOWCASE bypass denied in non-local environments
 # ============================================================================
-
 
 @pytest.mark.asyncio
 async def test_bypass_denied_in_nonlocal_env():
@@ -168,7 +214,6 @@ async def test_bypass_denied_in_nonlocal_env():
     assert gov["status"] == "HOLD", (
         f"Bypass should be DENIED in non-local env, but got status={gov['status']}"
     )
-
 
 @pytest.mark.asyncio
 async def test_bypass_allowed_in_local_dev():
@@ -200,7 +245,6 @@ async def test_bypass_allowed_in_local_dev():
         f"Local dev bypass should be allowed, but got status={gov['status']}"
     )
 
-
 @pytest.mark.asyncio
 async def test_old_showcase_env_has_no_effect():
     """
@@ -231,7 +275,6 @@ async def test_old_showcase_env_has_no_effect():
     assert gov["status"] == "HOLD", (
         f"Old SHOWCASE env var should have no effect, but got status={gov['status']}"
     )
-
 
 @pytest.mark.asyncio
 async def test_bypass_denied_in_ci():

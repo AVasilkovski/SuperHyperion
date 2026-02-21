@@ -56,7 +56,7 @@ Triggered on pull_request.
 Enforces:
 - boot TypeDB Core service container
 - apply schema cleanly to empty DB
-- run full pytest suite (currently 365 tests)
+- run full pytest suite (currently 395 tests)
 - block merge on failure
 
 ### CD (Staging Schema Deploy)
@@ -71,6 +71,15 @@ Enforces:
 - production rollout automation
 - automatic backward-compatible migrations
 - load/perf scaling
+
+
+### OPS-1.2 — Deterministic CI Trust Gates
+Status: ✅ COMPLETE
+Summary:
+- Added deterministic CI gates for `commit` and `hold` outcomes using the trust spine
+  (`OntologySteward.run -> governance_gate_node -> integrate_node -> verify_capsule`).
+- CI now runs both trust gates after pytest and uploads `ci_artifacts/**` on failure for auditability.
+- Gate outputs are deterministic JSON bundles and explicit pass/fail exit codes.
 
 ------------------------------------------------------------
 ## PHASE 1 — CLAIM INGESTION
@@ -220,7 +229,7 @@ Summary:
 ## TESTING STATUS
 ------------------------------------------------------------
 
-Total tests: 365 (baseline)
+Total tests: 421 (current)
 All green: ✅
 
 Core guarantees covered:
@@ -236,6 +245,26 @@ Core guarantees covered:
 
 This section replaces week-based roadmap labels with an industry-standard release train.
 Execution is organized by **tracks + milestones**, not calendar estimates.
+
+### Repository Naming Strategy (Git)
+
+To align engineering output with enterprise review workflows, branch + commit naming follows a strict conventional format.
+
+**Repository naming safety checklist (required before push):**
+- Branch name must follow `<type>/<short-kebab-topic>` and avoid generic names (`tmp`, `misc`, `work`).
+- Commit titles must follow `<type>(<scope>): <subject>` and avoid ambiguous verbs (`update`, `fixes`) without scope.
+- PR title should mirror the primary conventional commit subject and explicitly mention the impacted track (`EPI`, `OPS`, `TRUST`) when applicable.
+- Merge commit message should preserve milestone traceability (for example: `merge(trust): ... [TRUST-1.0.x/OPS-1.3]`).
+
+- **Commit format**: `<type>(<scope>): <subject>`
+  - Examples: `fix(governance): ...`, `docs(trust): ...`, `feat(ops): ...`
+- **Allowed primary types**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `infra`.
+- **Scope vocabulary**: reuse canonical tracks/components (`governance`, `trust`, `ops`, `sdk`, `cli`, `docs`, `p16`, `epi`).
+- **Branch format**: `<type>/<short-kebab-topic>`
+  - Examples: `fix/governance-trust-gates`, `docs/trust-roadmap-sync`.
+- **Avoid**: generic branch names (`work`, `tmp`, `misc`) and non-conventional commit titles.
+
+This keeps PR lists machine-filterable and consistent with milestone tracking (`EPI`, `OPS`, `TRUST`).
 
 ### Naming Unification Standard
 
@@ -253,7 +282,7 @@ Execution is organized by **tracks + milestones**, not calendar estimates.
 |------|-------|---------------|
 | Epistemic Core | Truth mechanics, deterministic mutation pipeline | EPI 16.x |
 | Audit & Coverage | Objective trust guarantees and replay fidelity | EPI 17.x |
-| Operational Spine | CI/CD + migration and deployment safety | OPS 2.x |
+| Operational Spine | CI/CD + migration and deployment safety | OPS 1.x–2.x |
 | Enterprise Trust Layer | Policy control plane + operator APIs + RBAC | TRUST 1.x |
 
 ### Release Train (Ordered)
@@ -278,24 +307,46 @@ Milestone A completion evidence:
 - Steward emits deterministic write-result trail (`steward_write_results`).
 - Governance output is validated under `contract_version: v1` and includes gate telemetry (`gate_code`, `failure_reason`, `duration_ms`).
 
-#### Milestone B — `EPI-17.0` / `TRUST-1.0` (HARDENING)
+#### Milestone B — `EPI-17.0` / `TRUST-1.0.x` / `OPS-1.2` / `OPS-1.3` (LOCKED)
 1. **TRUST-1.0 Enterprise SDK (v1)**
    - `GovernedRun` SDK orchestrator implementing strict fail-closed state derivation.
    - `AuditBundleExporter` for deterministic artifact formatting.
+   - Audit JSON envelopes include top-level `source_refs` filename pointers.
    - Tenant ID primitive threaded through SDK interfaces and result contracts.
    - Programmatic `verify_capsule` extraction with backward compatibility for legacy envelopes.
-2. **TRUST-1.0 Adoption Pack (Next)**
-   - Integration adapters (`GovernedAgent.from_langchain()`, `from_llamaindex()`).
-   - Developer experience baseline (auto-generated API reference, exact quickstart guide).
-3. **EPI-17.0 Coverage Logging**
-   - Sample event logs with policy label, seed, and bucket tags (`sample_event()`).
-   - Capsule-level coverage summary metrics (telemetry only, no budget enforcement).
+2. **TRUST-1.0.1 Explainability Overlay Artifacts**
+   - Introduced explainability overlay artifacts as non-hashed exports.
+   - Upgraded to `ExplainabilitySummaryV11` (compat alias: `ExplainabilitySummaryV1_1`) with deterministic narratives (`why_commit`, `why_hold`, `blocking_checks`).
+3. **TRUST-1.0.2 Policy Sandbox + Simulation (read-only)**
+   - Local CLI simulation over exported bundles.
+   - Tenant-aware filtering for bundle-only policy evaluation.
+4. **TRUST-1.0.3 Compliance Reporting**
+   - Bundle-level JSON/CSV compliance reports with percentile metadata, sample-size flags, and stage latency slices.
+5. **TRUST-1.0.4 Policy Conflict Detector**
+   - Static + dynamic conflict checks with deterministic conflict artifacts and severities.
+6. **OPS-1.2 Deterministic CI Trust Gates**
+   - Commit + hold deterministic gate runs in CI with exported artifacts.
+   - Gate runner performs explicit TypeDB readiness probing: CI remains fail-closed; local runs may emit deterministic `SKIP` when DB is unavailable.
+7. **OPS-1.3 Trust-Gate Trend Summary**
+   - Per-run `trust_gate_summary.json` plus concise CI step-summary visibility.
+8. **EPI-17.0 Coverage Logging (PLANNED, telemetry-only)**
+   - Planned sample event logs with policy label, seed, and bucket tags (`sample_event()`).
+   - Planned capsule-level coverage summary metrics (telemetry only, no budget enforcement).
 
-#### Milestone C — `OPS-2.0` / `TRUST-1.1` / `TRUST-1.2` / `EPI-17.1` (PLANNED)
+Milestone B closure evidence:
+- Deterministic tenant-aware bundle tooling with legacy-safe normalization (`effective_tenant_id`) and nested artifact isolation (`bundle_key`).
+- TRUST-1.0.4 conflict detector includes blocking-only code collisions, normalized missing blocking code (`UNSPECIFIED_CODE`), and CI guardrail failure on error severity.
+- OPS-1.3 emits deterministic `trust_gate_summary.json`, CI step-summary lines, and offline summary diff utility (`scripts/ops13_trust_gate_diff.py`).
+- Versioned artifact schemas are published under `schemas/` for trust summary, policy conflicts, and compliance report contracts.
+
+Milestone B LOCKED rule:
+- Any non-backward-compatible artifact contract change requires a `contract_version` bump and a new versioned JSON Schema file under `schemas/`.
+
+#### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (IN PROGRESS)
 1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**
-   - Database isolation schema (`tenant` entity + `tenant-owns-capsule` relation).
-   - Strict query isolation across tenants in Ontology Steward.
-   - RBAC primitives (viewer, operator, admin) and tenant-scoped SDK APIs (`list_capsules`).
+   - Database isolation baseline ACTIVE: `tenant` entity plus ownership relations (`tenant-owns-capsule`, `tenant-owns-intent`).
+   - Fail-closed tenant scope checks now gate replay verification/export paths when `tenant_id` is supplied.
+   - RBAC primitives (viewer, operator, admin) and broader tenant-scoped APIs (`list_capsules`) remain planned.
 2. **TRUST-1.2 Enterprise Control Plane**
    - Fast REST API layer (FastAPI: `/v1/run`, `/v1/capsules`, `/v1/audit/export`).
    - Minimal Web UI (Streamlit/React) for capsule browsing, audit dashboards, and policy editing.
@@ -305,6 +356,20 @@ Milestone A completion evidence:
 4. **EPI-17.1 Sampling Budget Enforcement**
    - Budgeted policy mixes only after baseline metrics stabilize.
 
+Milestone C implementation shortlist (high-ROI first):
+1. **TRUST-1.1 DB tenant isolation baseline**
+   - Introduce `tenant` ownership relations and hard query scoping in Ontology Steward reads/writes.
+   - Enforce tenant scope at API boundaries before adding broader RBAC roles.
+2. **OPS-2.0 migration safety backbone**
+   - Add ordered additive migration runner with schema-version checkpoints and deterministic rollback markers.
+   - Gate PRs with migration replay against empty + seeded fixture databases.
+3. **TRUST-1.2 minimal control-plane API**
+   - Ship `POST /v1/run`, `GET /v1/capsules`, `GET /v1/audit/export` with read-mostly flows and policy hooks.
+   - Keep UI out-of-band until API contracts stabilize.
+4. **EPI-17.1 coverage telemetry before enforcement**
+   - Emit capsule-level coverage metrics and policy-mix traces without budget blocking.
+   - Add trend reporting to CI artifacts first; enforce budgets only after variance stabilizes.
+
 ### Deliberate Non-Goals (anti-vanity constraints)
 
 - No PKI signature layer in this transition series.
@@ -312,6 +377,7 @@ Milestone A completion evidence:
 - No multi-cloud orchestration complexity.
 - No heavy confidence math before baseline observability.
 - No premature vector retrieval expansion.
+- No optional-hashed manifest keys (new integrity fields require a manifest version bump).
 
 ### Execution Principle
 

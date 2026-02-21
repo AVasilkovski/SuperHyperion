@@ -9,7 +9,11 @@ Verifies:
 
 from unittest.mock import MagicMock, patch
 
-from src.agents.ontology_steward import OntologySteward
+from src.agents.ontology_steward import (
+    OntologySteward,
+    q_delete_session_ended_at,
+    q_delete_session_run_status,
+)
 from src.epistemology.evidence_roles import EvidenceRole
 
 
@@ -199,3 +203,37 @@ class TestGenerateAndStageProposals:
 
         call_kwargs = mock_service.stage.call_args[1]
         assert call_kwargs["scope_lock_id"] == "sl-high"
+
+
+class TestTypeQL3QuerySyntax:
+    """Regression checks for TypeQL 3 query forms used by steward."""
+
+    def setup_method(self):
+        self.steward = OntologySteward()
+
+    def test_fetch_session_evidence_uses_select_not_get(self):
+        captured_queries = []
+
+        def _fake_read_query(query: str):
+            captured_queries.append(query)
+            return []
+
+        self.steward._read_query = _fake_read_query  # type: ignore[method-assign]
+
+        rows = self.steward._fetch_session_evidence("sess-1")
+
+        assert rows == []
+        assert len(captured_queries) == 2
+        assert "select $eid, $cid, $slid, $conf, $role, $pid;" in captured_queries[0]
+        assert "select $eid, $fm, $rs;" in captured_queries[1]
+        assert "get $eid" not in captured_queries[0]
+        assert "get $eid" not in captured_queries[1]
+
+    def test_delete_session_queries_use_ownership_delete_form(self):
+        ended_at_query = q_delete_session_ended_at("sess-1")
+        status_query = q_delete_session_run_status("sess-1")
+
+        assert "delete has $t of $s;" in ended_at_query
+        assert "delete $s has ended-at $t;" not in ended_at_query
+        assert "delete has $old of $s;" in status_query
+        assert "delete $s has run-status $old;" not in status_query

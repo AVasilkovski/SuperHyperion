@@ -316,7 +316,7 @@ Milestone A completion evidence:
    - Programmatic `verify_capsule` extraction with backward compatibility for legacy envelopes.
 2. **TRUST-1.0.1 Explainability Overlay Artifacts**
    - Introduced explainability overlay artifacts as non-hashed exports.
-   - Upgraded to `ExplainabilitySummaryV1_1` with deterministic narratives (`why_commit`, `why_hold`, `blocking_checks`).
+   - Upgraded to `ExplainabilitySummaryV11` (compat alias: `ExplainabilitySummaryV1_1`) with deterministic narratives (`why_commit`, `why_hold`, `blocking_checks`).
 3. **TRUST-1.0.2 Policy Sandbox + Simulation (read-only)**
    - Local CLI simulation over exported bundles.
    - Tenant-aware filtering for bundle-only policy evaluation.

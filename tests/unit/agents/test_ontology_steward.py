@@ -3,7 +3,7 @@
 import pytest
 
 from src.agents.base_agent import AgentContext
-from src.agents.ontology_steward import OntologySteward
+from src.agents.ontology_steward import OntologySteward, iso_now
 
 
 class MockTypeDB:
@@ -234,3 +234,10 @@ def test_v22_p11_missing_claim_id_does_not_fallback_to_entity_id():
 
     with pytest.raises(ValueError, match="CRITICAL: Validation evidence missing claim_id"):
         q_insert_validation_evidence("sess-4", ev)
+
+
+def test_iso_now_emits_timezone_naive_datetime_literal():
+    literal = iso_now()
+    assert "T" in literal
+    assert "Z" not in literal
+    assert "+" not in literal

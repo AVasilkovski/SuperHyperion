@@ -885,7 +885,8 @@ def escape(s: str) -> str:
 
 def iso_now() -> str:
     from datetime import datetime, timezone
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z")
+    # TypeDB `datetime` attributes must be timezone-naive literals (no Z/offset).
+    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
 
 def sha256_json(data: Any) -> str:
     """Compute stable hash of JSON-serializable data."""

@@ -39,10 +39,8 @@ def _load_typedb():
         from typedb.driver import DriverOptions as _DriverOptions
         from typedb.driver import TransactionType as _TransactionType
         from typedb.driver import TypeDB as _TypeDB
-        from typedb.driver import TypeDBDriver as _TypeDBDriver
-
         TypeDB = _TypeDB
-        TypeDBDriver = _TypeDBDriver
+        TypeDBDriver = getattr(__import__("typedb.driver", fromlist=["TypeDBDriver"]), "TypeDBDriver", None)
         TransactionType = _TransactionType
         Credentials = _Credentials
         DriverOptions = _DriverOptions

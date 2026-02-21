@@ -1,10 +1,12 @@
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add scripts directory to path to import apply_schema
 sys.path.append(str(Path(__file__).parent.parent.parent / "scripts"))
 import apply_schema
+
 
 def test_resolve_schema_empty():
     with pytest.raises(ValueError, match="No --schema provided"):

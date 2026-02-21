@@ -44,9 +44,9 @@ def resolve_schema_files(schema_args: list[str]) -> list[Path]:
 
 
 def find_inherited_owns_redeclarations(schema_paths: list[Path], attribute: str = "scope-lock-id") -> list[str]:
-    """Detect subtype redeclarations of inherited `owns` without specialisation in loaded files."""
+    """Detect duplicate/inherited `owns` declarations that will fail on TypeDB 3."""
     block_re = re.compile(r"entity\s+([a-zA-Z0-9_-]+)(?:\s+sub\s+([a-zA-Z0-9_-]+))?\s*,(.*?);", re.S)
-    owners: dict[str, dict[str, object]] = {}
+    owners: dict[str, list[dict[str, object]]] = {}
 
     for path in schema_paths:
         content = path.read_text(encoding="utf-8")
@@ -55,23 +55,30 @@ def find_inherited_owns_redeclarations(schema_paths: list[Path], attribute: str 
             if not owns_match:
                 continue
             suffix = (owns_match.group(1) or "").strip()
-            owners[entity] = {
-                "supertype": supertype,
-                "specialised": "@card" in suffix,
-                "path": str(path),
-            }
+            owners.setdefault(entity, []).append(
+                {
+                    "supertype": supertype,
+                    "specialised": "@card" in suffix,
+                    "path": str(path),
+                }
+            )
 
     issues: list[str] = []
-    for entity, data in owners.items():
-        supertype = data["supertype"]
-        if not supertype or supertype not in owners:
-            continue
-        if data["specialised"]:
-            continue
-        issues.append(
-            f"{entity} redeclares inherited owns {attribute} from {supertype} without specialisation "
-            f"(file: {data['path']})"
-        )
+    for entity, declarations in owners.items():
+        if len(declarations) > 1:
+            paths = ", ".join(sorted({str(item["path"]) for item in declarations}))
+            issues.append(f"{entity} declares owns {attribute} in multiple files: {paths}")
+
+        for data in declarations:
+            supertype = data["supertype"]
+            if not supertype or supertype not in owners:
+                continue
+            if data["specialised"]:
+                continue
+            issues.append(
+                f"{entity} redeclares inherited owns {attribute} from {supertype} without specialisation "
+                f"(file: {data['path']})"
+            )
 
     return issues
 

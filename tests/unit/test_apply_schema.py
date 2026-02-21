@@ -31,3 +31,26 @@ def test_redeclaration_detector_flags_inherited_owns_without_specialisation(tmp_
 def test_redeclaration_detector_accepts_current_canonical_schema():
     issues = apply_schema.find_inherited_owns_redeclarations([Path("src/schema/scientific_knowledge.tql")])
     assert issues == []
+
+
+def test_redeclaration_detector_flags_duplicate_owns_across_files(tmp_path: Path):
+    first = tmp_path / "01_base.tql"
+    second = tmp_path / "02_patch.tql"
+    first.write_text(
+        """
+        define
+        attribute scope-lock-id, value string;
+        entity evidence, owns scope-lock-id;
+        """,
+        encoding="utf-8",
+    )
+    second.write_text(
+        """
+        define
+        entity evidence, owns scope-lock-id;
+        """,
+        encoding="utf-8",
+    )
+
+    issues = apply_schema.find_inherited_owns_redeclarations([first, second])
+    assert any("evidence declares owns scope-lock-id in multiple files" in issue for issue in issues)

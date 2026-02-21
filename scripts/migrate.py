@@ -36,7 +36,7 @@ def connect_with_retries(
 
 def get_current_schema_version(driver, db: str) -> int:
     from typedb.driver import TransactionType
-    query = "match $v isa schema-version, has ordinal $o; select $o;"
+    query = "match $v isa schema_version, has ordinal $o; select $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
             results = list(tx.query(query).resolve())
@@ -47,7 +47,7 @@ def get_current_schema_version(driver, db: str) -> int:
             return max(ordinals) if ordinals else 0
     except Exception as e:
         # Before the schema is applied, the entity might not exist resulting in a TypeDB exception.
-        print(f"[migrate] schema-version query failed (likely no schema yet): {e}")
+        print(f"[migrate] schema_version query failed (likely no schema yet): {e}")
         return 0
 
 def get_migrations(migrations_dir: Path) -> list[Path]:
@@ -90,10 +90,10 @@ def apply_migration(driver, db: str, migration_file: Path, next_ordinal: int, dr
         tx.commit()
         
     # Then insert the version record
-    # Requires schema-version to exist, which it might not if it's the 001 migration.
-    # The 001 migration *must* include the schema-version definition.
+    # Requires schema_version to exist, which it might not if it's the 001 migration.
+    # The 001 migration *must* include the schema_version definition.
     version_query = f"""
-    insert $v isa schema-version, 
+    insert $v isa schema_version, 
       has ordinal {next_ordinal},
       has git-commit "{git_commit}",
       has applied-at {applied_at};

@@ -1,10 +1,10 @@
 define
-schema-version sub entity,
+schema_version sub entity,
     owns ordinal,
     owns git-commit,
     owns applied-at;
 
-ordinal sub attribute, value long;
+ordinal sub attribute, value integer;
 git-commit sub attribute, value string;
 applied-at sub attribute, value datetime;
 

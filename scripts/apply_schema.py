@@ -218,10 +218,14 @@ def migrate_undefine_owns(driver, db: str, specs: list[str]):
                 tx.commit()
             print(f"[apply_schema] migration applied: {query}")
         except Exception as exc:
-            print(
-                "[apply_schema] migration skipped/failed (likely already aligned schema): "
-                f"{query} error={exc}"
-            )
+            msg = str(exc)
+            if "SVL36" in msg:
+                print(f"[apply_schema] migration skipped: {query} (inherited constraint)")
+            else:
+                print(
+                    "[apply_schema] migration skipped/failed (likely already aligned schema): "
+                    f"{query} error={exc}"
+                )
 
 
 def parse_undefine_plays_spec(spec: str) -> tuple[str, str]:
@@ -245,10 +249,14 @@ def migrate_undefine_plays(driver, db: str, specs: list[str]):
                 tx.commit()
             print(f"[apply_schema] migration applied: {query}")
         except Exception as exc:
-            print(
-                "[apply_schema] migration skipped/failed (likely already aligned schema): "
-                f"{query} error={exc}"
-            )
+            msg = str(exc)
+            if "SVL36" in msg:
+                print(f"[apply_schema] migration skipped: {query} (inherited constraint)")
+            else:
+                print(
+                    "[apply_schema] migration skipped/failed (likely already aligned schema): "
+                    f"{query} error={exc}"
+                )
 
 
 def main():
@@ -293,6 +301,11 @@ def main():
         "--dry-run",
         action="store_true",
         help="Print planned schema/migration actions without executing.",
+    )
+    p.add_argument(
+        "--scrub-only",
+        action="store_true",
+        help="Only run undefine migrations, do not apply the canonical schema.",
     )
     args = p.parse_args()
 
@@ -352,7 +365,10 @@ def main():
             print(f"[apply_schema] manual undefine owns overrides: {args.undefine_owns}")
             migrate_undefine_owns(driver, args.database, args.undefine_owns)
 
-        apply_schema(driver, args.database, schema_paths)
+        if not args.scrub_only:
+            apply_schema(driver, args.database, schema_paths)
+        else:
+            print("[apply_schema] scrub-only: skipping canonical schema apply")
     finally:
         driver.close()
 

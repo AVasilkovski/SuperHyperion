@@ -36,7 +36,7 @@ def get_db_max_ordinal(database: str) -> int:
         max_db_ordinal = 0
         with db.transaction(TransactionType.READ) as tx:
             # TypeQL to get max ordinal (doing in-memory sorting for simplicity)
-            query = "match $v isa schema-version, has ordinal $o, has applied-at $a; select $o, $a;"
+            query = "match $v isa schema_version, has ordinal $o, has applied-at $a; select $o, $a;"
             iterator = tx.query(query).resolve()
             for res in iterator:
                 ord_concept = res.get("o")
@@ -66,7 +66,7 @@ def main():
         "status": "PASS" if match else "FAIL",
         "repo_max_ordinal": repo_max,
         "db_max_ordinal": db_max,
-        "message": f"Repo schema-version is {repo_max}. DB schema-version is {db_max}."
+        "message": f"Repo schema_version is {repo_max}. DB schema_version is {db_max}."
     }
     
     # Print 1-line status for dashboards

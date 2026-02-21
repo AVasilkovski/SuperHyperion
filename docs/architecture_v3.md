@@ -229,7 +229,7 @@ Summary:
 ## TESTING STATUS
 ------------------------------------------------------------
 
-Total tests: 401 (current)
+Total tests: 421 (current)
 All green: ✅
 
 Core guarantees covered:
@@ -326,6 +326,7 @@ Milestone A completion evidence:
    - Static + dynamic conflict checks with deterministic conflict artifacts and severities.
 6. **OPS-1.2 Deterministic CI Trust Gates**
    - Commit + hold deterministic gate runs in CI with exported artifacts.
+   - Gate runner performs explicit TypeDB readiness probing: CI remains fail-closed; local runs may emit deterministic `SKIP` when DB is unavailable.
 7. **OPS-1.3 Trust-Gate Trend Summary**
    - Per-run `trust_gate_summary.json` plus concise CI step-summary visibility.
 8. **EPI-17.0 Coverage Logging (PLANNED, telemetry-only)**

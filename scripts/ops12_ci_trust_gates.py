@@ -236,11 +236,16 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
         tenant_id=state.get("tenant_id"),
     )
     ok = verdict.status == "PASS"
+    replay_details = {
+        "reasons": getattr(verdict, "reasons", []),
+        "details": getattr(verdict, "details", {}),
+    }
     return ok, {
         "gate": gate,
         "governance": gov,
         "capsule_id": capsule.get("capsule_id"),
         "replay_status": verdict.status,
+        "replay_verdict": replay_details,
         "files": files,
     }
 

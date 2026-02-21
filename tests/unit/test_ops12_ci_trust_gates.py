@@ -38,6 +38,7 @@ async def test_commit_gate_success_with_mocked_steward_and_verify(tmp_path):
 
     assert ok is True
     assert payload["replay_status"] == "PASS"
+    assert payload["replay_verdict"]["reasons"] == []
     assert payload["governance"]["status"] == "STAGED"
 
 

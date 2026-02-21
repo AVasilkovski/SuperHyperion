@@ -112,7 +112,7 @@ def _verify_mutation_linkage(
                 $mut isa mutation-event, has mutation-id $mid;
                 {or_conditions};
                 (mutation-event: $mut, capsule: $cap) isa asserted-by;
-            get $mid;
+            select $mid;
             """
             rows = db.query_fetch(query)
             for row in rows:
@@ -147,7 +147,7 @@ def _verify_tenant_scope(capsule_id: str, tenant_id: str) -> Tuple[bool, str, Di
             $t isa tenant, has tenant-id "{_esc(tenant_id)}";
             $c isa run-capsule, has capsule-id "{_esc(capsule_id)}";
             (tenant: $t, capsule: $c) isa tenant-owns-capsule;
-        get $c;
+        select $c;
         """
         if db.query_fetch(ownership_q):
             return True, "PASS", {"code": "PASS"}
@@ -156,7 +156,7 @@ def _verify_tenant_scope(capsule_id: str, tenant_id: str) -> Tuple[bool, str, Di
         match
             $c isa run-capsule, has capsule-id "{_esc(capsule_id)}";
             (tenant: $any_t, capsule: $c) isa tenant-owns-capsule;
-        get $any_t;
+        select $any_t;
         """
         has_any_tenant = bool(db.query_fetch(linked_q))
         code = "TENANT_FORBIDDEN" if has_any_tenant else "TENANT_SCOPE_MISSING"

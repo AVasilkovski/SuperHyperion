@@ -34,7 +34,19 @@ jobs:
 
       - name: 'Debug schema apply version'
         run: |
+          echo "Workflow file SHA:"
+          python - <<'PY'
+          import hashlib, pathlib
+          p = pathlib.Path(".github/workflows/staging-schema-deploy.yml")
+          print(hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+          
+          echo "Git HEAD:"
           git rev-parse --short HEAD
+          
+          echo "Workflow Content (partial):"
+          cat .github/workflows/staging-schema-deploy.yml | sed -n '1,120p'
+          
           python -c "import pathlib; p=pathlib.Path('scripts/apply_schema.py'); print('apply_schema bytes:', p.stat().st_size); print(p.read_text().splitlines()[0])"
 
       - name: 'Decode TypeDB root CA (if provided)'

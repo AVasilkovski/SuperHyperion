@@ -22,6 +22,7 @@ async def test_commit_gate_success_with_mocked_steward_and_verify(tmp_path):
 
     with (
         patch("scripts.ops12_ci_trust_gates.OntologySteward.insert_to_graph", return_value=None),
+        patch("scripts.ops12_ci_trust_gates.OntologySteward.query_graph", return_value=[{"eid": "ev-ci-1"}]),
         patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)),
         patch.object(
             IntegratorAgent,
@@ -38,6 +39,24 @@ async def test_commit_gate_success_with_mocked_steward_and_verify(tmp_path):
     assert ok is True
     assert payload["replay_status"] == "PASS"
     assert payload["governance"]["status"] == "STAGED"
+
+
+@pytest.mark.asyncio
+async def test_commit_gate_fails_early_when_persisted_id_not_linked_in_ledger(tmp_path):
+    async def _fake_run(ctx):
+        ctx.graph_context["persisted_all_evidence_ids"] = ["ev-ci-1"]
+        return ctx
+
+    with (
+        patch("scripts.ops12_ci_trust_gates.OntologySteward.insert_to_graph", return_value=None),
+        patch("scripts.ops12_ci_trust_gates.OntologySteward.query_graph", return_value=[]),
+        patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)),
+    ):
+        ok, payload = await _run_gate("commit", str(tmp_path))
+
+    assert ok is False
+    assert payload["error"] == "Persisted evidence IDs missing from ledger linkage"
+    assert payload["missing_evidence_ids"] == ["ev-ci-1"]
 
 
 @pytest.mark.asyncio

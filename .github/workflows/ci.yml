@@ -146,6 +146,7 @@ jobs:
           path: |
             .pytest_cache/
             *.log
+          if-no-files-found: ignore
           retention-days: 7
 
   lint:

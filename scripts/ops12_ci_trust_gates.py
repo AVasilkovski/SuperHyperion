@@ -117,6 +117,28 @@ def _should_enforce_typedb() -> bool:
     return os.environ.get("CI", "").strip().lower() in {"1", "true", "yes"}
 
 
+def _ensure_gate_prereqs(steward: OntologySteward, session_id: str, gate: str) -> None:
+    """Insert deterministic seed entities required by steward evidence writes."""
+    try:
+        steward.insert_to_graph(
+            f'insert $s isa run-session, has session-id "{session_id}";',
+            cap=steward._write_cap,
+        )
+    except Exception:
+        # Idempotent behavior for reruns in same database.
+        pass
+
+    if gate == "commit":
+        try:
+            steward.insert_to_graph(
+                'insert $p isa proposition, has entity-id "ci-claim-1";',
+                cap=steward._write_cap,
+            )
+        except Exception:
+            # Idempotent behavior for reruns in same database.
+            pass
+
+
 async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
     _reset_intent_service()
 
@@ -127,22 +149,15 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
 
     steward = OntologySteward()
 
-    if gate == "commit":
-        # Ensure claim exists so steward evidence inserts can link proposition deterministically.
-        try:
-            steward.insert_to_graph(
-                "insert $p isa proposition, has entity-id \"ci-claim-1\";",
-                cap=steward._write_cap,
-            )
-        except Exception:
-            # Idempotent behavior for reruns in same database.
-            pass
+    session_id = state["graph_context"]["session_id"]
+    _ensure_gate_prereqs(steward, session_id, gate)
 
     ctx = AgentContext()
     ctx.graph_context = {
         "session_id": state["graph_context"]["session_id"],
         "user_query": f"OPS-1.2 deterministic gate={gate}",
         "evidence": _deterministic_evidence() if gate == "commit" else [],
+        "tenant_id": state["tenant_id"],
     }
 
     ctx = await steward.run(ctx)
@@ -152,6 +167,28 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
         persisted_ids = sorted(state["graph_context"].get("persisted_all_evidence_ids", []))
         if not persisted_ids:
             return False, {"error": "No persisted evidence IDs from steward"}
+
+        or_clauses = " or ".join(f'{{ $eid == "{eid}"; }}' for eid in persisted_ids)
+        evidence_probe_query = f'''
+        match
+            $s isa run-session, has session-id "{state["graph_context"]["session_id"]}";
+            (session: $s, evidence: $e) isa session-has-evidence;
+            $e has entity-id $eid;
+            {or_clauses};
+        select $eid;
+        '''
+        ledger_rows = steward.query_graph(evidence_probe_query)
+        ledger_ids = {str(r.get("eid")) for r in ledger_rows if r.get("eid")}
+        missing_ids = [eid for eid in persisted_ids if eid not in ledger_ids]
+        if missing_ids:
+            return False, {
+                "gate": gate,
+                "error": "Persisted evidence IDs missing from ledger linkage",
+                "session_id": state["graph_context"]["session_id"],
+                "missing_evidence_ids": missing_ids,
+                "persisted_evidence_ids": persisted_ids,
+            }
+
         _seed_deterministic_intent(
             intent_id="intent-ci-1",
             proposal_id="prop-ci-1",

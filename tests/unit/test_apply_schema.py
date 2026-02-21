@@ -82,3 +82,8 @@ def test_redeclaration_detector_flags_template_id_inheritance_conflict(tmp_path:
 
     issues = apply_schema.find_inherited_owns_redeclarations([schema_path])
     assert any("validation-evidence redeclares inherited owns template-id" in issue for issue in issues)
+
+
+def test_resolve_schema_files_rejects_invalid_triple_star_glob():
+    with pytest.raises(FileNotFoundError, match="Invalid schema glob pattern"):
+        apply_schema.resolve_schema_files(["src/schema/***.tql"])

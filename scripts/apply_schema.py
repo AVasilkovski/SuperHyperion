@@ -294,6 +294,11 @@ def main():
         action="store_true",
         help="Print planned schema/migration actions without executing.",
     )
+    p.add_argument(
+        "--scrub-only",
+        action="store_true",
+        help="Only run undefine migrations, do not apply the canonical schema.",
+    )
     args = p.parse_args()
 
     print(f"[apply_schema] argv: {sys.argv[1:]}")
@@ -352,7 +357,10 @@ def main():
             print(f"[apply_schema] manual undefine owns overrides: {args.undefine_owns}")
             migrate_undefine_owns(driver, args.database, args.undefine_owns)
 
-        apply_schema(driver, args.database, schema_paths)
+        if not args.scrub_only:
+            apply_schema(driver, args.database, schema_paths)
+        else:
+            print("[apply_schema] scrub-only: skipping canonical schema apply")
     finally:
         driver.close()
 

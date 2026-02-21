@@ -6,7 +6,7 @@ The `GovernedRun` SDK is the single enterprise entrypoint. It wraps the canonica
 
 ```python
 import asyncio
-from superhyperion.sdk import GovernedRun
+from superhyperion.sdk import GovernedRun, AuditBundleExporter
 
 async def main():
     # 1. Execute a governed run (fail-closed integration)
@@ -24,7 +24,7 @@ async def main():
         print(f"Hold Reason: [{result.hold_code}] {result.hold_reason}")
 
     # 3. Export auditable artifacts for reviewers
-    artifacts = result.export_audit_bundle("./audit_logs")
+    artifacts = AuditBundleExporter.export(result, "./audit_logs")
     print(f"Exported artifacts: {artifacts}")
 
 if __name__ == "__main__":

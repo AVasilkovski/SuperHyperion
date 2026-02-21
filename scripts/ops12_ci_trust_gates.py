@@ -172,6 +172,7 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
             "capsule_hash": capsule.get("capsule_hash", ""),
             "_has_mutation_snapshot": True,
         },
+        tenant_id=state.get("tenant_id"),
     )
     ok = verdict.status == "PASS"
     return ok, {

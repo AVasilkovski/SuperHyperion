@@ -367,7 +367,20 @@ async def integrate_node(state: AgentState) -> AgentState:
                 def _esc(s):
                     return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
 
+                ensure_tenant_q = f'''
+                insert
+                    $t isa tenant,
+                        has tenant-id "{_esc(tenant_id)}";
+                '''
+                from src.db.capabilities import WriteCap
+                try:
+                    db.query_insert(ensure_tenant_q, cap=WriteCap._mint())
+                except Exception:
+                    logger.debug("integrate_node: Tenant already exists: %s", tenant_id)
+
                 insert_q = f'''
+                match
+                    $t isa tenant, has tenant-id "{_esc(tenant_id)}";
                 insert
                     $cap isa run-capsule,
                         has capsule-id "{_esc(capsule_id)}",
@@ -379,8 +392,8 @@ async def integrate_node(state: AgentState) -> AgentState:
                         has evidence-snapshot "{_esc(evidence_snapshot_json)}",
                         has mutation-snapshot "{_esc(mutation_snapshot_json)}",
                         has capsule-hash "{_esc(capsule_hash)}";
+                    (tenant: $t, capsule: $cap) isa tenant-owns-capsule;
                 '''
-                from src.db.capabilities import WriteCap
                 db.query_insert(insert_q, cap=WriteCap._mint())
                 logger.info(f"integrate_node: Run capsule persisted: {capsule_id}")
 

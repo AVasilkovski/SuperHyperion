@@ -158,6 +158,7 @@ attribute capsule-hash, value string;          # SHA-256 of the entire capsule m
 attribute mutation-id, value string;
 attribute mutation-snapshot, value string;     # JSON array of mutation IDs linked to capsule
 attribute mutation-type, value string;
+attribute tenant-id, value string;
 
 # ============================================================================
 # ENTITY TYPES
@@ -361,7 +362,14 @@ entity write-intent,
     owns json,
     owns created-at,
     plays session-has-write-intent:write-intent,
-    plays intent-has-status-event:write-intent;
+    plays intent-has-status-event:write-intent,
+    plays tenant-owns-intent:intent;
+
+entity tenant,
+    owns tenant-id @key,
+    owns created-at,
+    plays tenant-owns-capsule:tenant,
+    plays tenant-owns-intent:tenant;
 
 #
 # Evidence abstraction (Phase 16.1)
@@ -476,7 +484,8 @@ entity run-capsule,
     owns capsule-hash,
     owns created-at,
     plays session-has-capsule:capsule,
-    plays asserted-by:capsule;
+    plays asserted-by:capsule,
+    plays tenant-owns-capsule:capsule;
 
 entity mutation-event,
     owns mutation-id @key,
@@ -636,3 +645,5 @@ relation speculative-hypothesis-targets-proposition, relates hypothesis, relates
 relation session-has-capsule, relates session, relates capsule;
 relation asserted-by, relates mutation-event, relates capsule;
 relation affects, relates mutation-event, relates proposition;
+relation tenant-owns-capsule, relates tenant, relates capsule;
+relation tenant-owns-intent, relates tenant, relates intent;

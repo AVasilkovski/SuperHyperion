@@ -123,6 +123,14 @@ jobs:
         run: |
           python -m src.cli.main policy conflicts --bundles ci_artifacts --policies src.policies.builtin --out ci_artifacts/conflicts --json --fail-on-severity error
 
+      - name: TRUST-1.0.3 compliance report artifact
+        run: |
+          python -m src.cli.main compliance report --bundles ci_artifacts --out ci_artifacts/compliance/compliance_report.json --format json
+
+      - name: OPS artifact schema validation gate
+        run: |
+          python scripts/validate_ci_artifacts.py --root ci_artifacts --schemas schemas
+
       - name: Upload CI trust artifacts (always)
         if: always()
         uses: actions/upload-artifact@v4

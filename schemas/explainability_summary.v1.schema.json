@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superhyperion.dev/schemas/explainability_summary.v1.schema.json",
+  "title": "TRUST-1.0.1 Explainability Summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "tenant_id",
+    "status",
+    "hold",
+    "source_refs",
+    "governance_gate",
+    "governance_checks",
+    "evidence",
+    "lineage"
+  ],
+  "properties": {
+    "contract_version": {"enum": ["v1", "v1.1"]},
+    "capsule_id": {"type": ["string", "null"]},
+    "tenant_id": {"type": "string"},
+    "status": {"enum": ["COMMIT", "HOLD", "ERROR"]},
+    "hold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hold_code", "hold_reason"],
+      "properties": {
+        "hold_code": {"type": ["string", "null"]},
+        "hold_reason": {"type": ["string", "null"]}
+      }
+    },
+    "source_refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governance_summary_file", "replay_verdict_file", "capsule_manifest_file"],
+      "properties": {
+        "governance_summary_file": {"type": "string"},
+        "replay_verdict_file": {"type": ["string", "null"]},
+        "capsule_manifest_file": {"type": ["string", "null"]}
+      }
+    },
+    "governance_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gate_code", "duration_ms", "failure_reason"],
+      "properties": {
+        "status": {"enum": ["STAGED", "HOLD"]},
+        "gate_code": {"type": "string"},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "failure_reason": {"type": ["string", "null"]}
+      }
+    },
+    "governance_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hash_integrity", "primacy", "mutation_linkage"],
+      "properties": {
+        "hash_integrity": {"type": "object"},
+        "primacy": {"type": "object"},
+        "mutation_linkage": {"type": "object"}
+      }
+    },
+    "evidence": {"type": "object"},
+    "lineage": {"type": "object"},
+    "why_commit": {"type": "string"},
+    "why_hold": {"type": "string"},
+    "blocking_checks": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

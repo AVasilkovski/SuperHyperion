@@ -154,3 +154,31 @@ def policy_hold_b(bundle):
     assert len(duplicate_code) == 1
     assert duplicate_code[0]["code"] == "UNSPECIFIED_CODE"
     assert duplicate_code[0]["decision"] == "HOLD"
+
+
+def test_policy_conflicts_dynamic_artifact_names_are_non_lossy(tmp_path, monkeypatch):
+    bundles = tmp_path / "bundles"
+    out = tmp_path / "out"
+    moddir = tmp_path / "mods"
+    bundles.mkdir()
+    (bundles / "tenant-a").mkdir(parents=True)
+    moddir.mkdir()
+
+    _bundle(bundles, "tenant-a__run-1", "tenant-flat")
+    _bundle(bundles / "tenant-a", "run-1", "tenant-nested")
+
+    module_file = moddir / "policy_pack_conflict.py"
+    module_file.write_text(
+        """
+def policy_allow(bundle):
+    return {"policy_id":"allow","decision":"ALLOW","code":"OK","reason":"ok"}
+
+def policy_hold(bundle):
+    return {"policy_id":"hold","decision":"HOLD","code":"HC","reason":"hold"}
+"""
+    )
+    monkeypatch.syspath_prepend(str(moddir))
+
+    run_policy_conflicts(str(bundles), "policy_pack_conflict", str(out))
+    per_run = sorted(p.name for p in out.glob("*_policy_conflicts.json") if p.name != "policy_conflicts_summary.json")
+    assert per_run == ["tenant-a%2Frun-1_policy_conflicts.json", "tenant-a__run-1_policy_conflicts.json"]

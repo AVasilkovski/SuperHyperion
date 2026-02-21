@@ -82,6 +82,7 @@ def discover_bundle_paths(bundles_dir: str, tenant_id: Optional[str] = None) -> 
     for path in files:
         name = os.path.basename(path)
         rel_dir = os.path.relpath(os.path.dirname(path), bundles_dir)
+        rel_dir = rel_dir.replace("\\", "/")
         for suffix, key in suffixes.items():
             if name.endswith(suffix):
                 prefix = name[: -len(suffix)]

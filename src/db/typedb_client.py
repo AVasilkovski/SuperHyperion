@@ -39,10 +39,8 @@ def _load_typedb():
         from typedb.driver import DriverOptions as _DriverOptions
         from typedb.driver import TransactionType as _TransactionType
         from typedb.driver import TypeDB as _TypeDB
-        from typedb.driver import TypeDBDriver as _TypeDBDriver
-
         TypeDB = _TypeDB
-        TypeDBDriver = _TypeDBDriver
+        TypeDBDriver = getattr(__import__("typedb.driver", fromlist=["TypeDBDriver"]), "TypeDBDriver", None)
         TransactionType = _TransactionType
         Credentials = _Credentials
         DriverOptions = _DriverOptions
@@ -53,10 +51,8 @@ def _load_typedb():
     except ImportError as e:
         logger.warning(f"TypeDB driver not available: {e}")
         logger.warning(
-            "To fix on Python 3.13:\n"
-            "  1. Install Visual C++ Redistributable: https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
-            "  2. Or use Python 3.12: pyenv install 3.12\n"
-            "  3. Or run TypeDB in Docker only"
+            "TypeDB import failed; ensure typedb-driver is installed and compatible "
+            "with this runtime."
         )
         return False
 

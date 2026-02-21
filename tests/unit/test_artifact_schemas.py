@@ -7,6 +7,7 @@ SCHEMAS = [
     "schemas/trust_gate_summary.v1.schema.json",
     "schemas/policy_conflicts_summary.v1.schema.json",
     "schemas/compliance_report.v1.schema.json",
+    "schemas/explainability_summary.v1.schema.json",
 ]
 
 

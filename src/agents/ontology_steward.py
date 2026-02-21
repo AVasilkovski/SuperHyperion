@@ -45,6 +45,12 @@ class OntologySteward(BaseAgent):
         """Persist all v2.2 artifacts and execute approved writes."""
         session_id = context.graph_context.get("session_id", f"sess-{time.time_ns()}")
         user_query = context.graph_context.get("user_query", "unknown")
+        tenant_id = context.graph_context.get("tenant_id") or "default"
+
+        try:
+            self.insert_to_graph(q_insert_tenant(tenant_id), cap=self._write_cap)
+        except Exception as e:
+            logger.debug("Tenant insert skipped (tenant_id=%s): %s", tenant_id, e)
 
         # 1. Persist Session
         try:
@@ -199,7 +205,10 @@ class OntologySteward(BaseAgent):
              if is_approved:
                  status = "approved"
 
-             self.insert_to_graph(q_insert_write_intent(session_id, intent, status), cap=self._write_cap)
+             self.insert_to_graph(
+                 q_insert_write_intent(session_id, intent, status, tenant_id=tenant_id),
+                 cap=self._write_cap,
+             )
 
         # 6. Execute Approved Intents & Log Status Events
         approved_intents = context.graph_context.get("approved_write_intents", [])
@@ -1005,9 +1014,25 @@ def q_insert_proposal(session_id: str, p: dict) -> str:
       (proposal: $p, proposition: $prop) isa proposal-targets-proposition;
     '''
 
-def q_insert_write_intent(session_id: str, intent: dict, status: str = "staged") -> str:
+def q_insert_tenant(tenant_id: str) -> str:
     return f'''
-    match $s isa run-session, has session-id "{escape(session_id)}";
+    insert
+      $t isa tenant,
+        has tenant-id "{escape(tenant_id)}",
+        has created-at {iso_now()};
+    '''
+
+
+def q_insert_write_intent(
+    session_id: str,
+    intent: dict,
+    status: str = "staged",
+    tenant_id: str = "default",
+) -> str:
+    return f'''
+    match
+      $s isa run-session, has session-id "{escape(session_id)}";
+      $t isa tenant, has tenant-id "{escape(tenant_id)}";
     insert
       $i isa write-intent,
         has intent-id "{escape(intent.get("intent_id"))}",
@@ -1017,6 +1042,7 @@ def q_insert_write_intent(session_id: str, intent: dict, status: str = "staged")
         has json "{escape(json.dumps(intent, sort_keys=True))}",
         has created-at {iso_now()};
       (session: $s, write-intent: $i) isa session-has-write-intent;
+      (tenant: $t, intent: $i) isa tenant-owns-intent;
     '''
 
 def q_insert_intent_status_event(intent_id: str, status: str, payload: Optional[Dict] = None) -> str:

@@ -13,7 +13,7 @@ No DB writes — strictly read-only verification.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from src.sdk.types import ReplayVerdictV1
@@ -97,7 +97,7 @@ def _verify_mutation_linkage(
             }
 
         def _esc(s: str) -> str:
-            return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
+            return (str(s) or "").replace("\\", "\\\\").replace('"', '\"')
 
         seen: set[str] = set()
         chunk_size = 50
@@ -128,7 +128,49 @@ def _verify_mutation_linkage(
         }
 
 
-def verify_capsule(capsule_id: str, capsule_data: dict) -> "ReplayVerdictV1":
+
+
+def _verify_tenant_scope(capsule_id: str, tenant_id: str) -> Tuple[bool, str, Dict[str, Any]]:
+    """Fail-closed tenant ownership check before replay integrity checks."""
+    try:
+        from src.db.typedb_client import TypeDBConnection
+
+        db = TypeDBConnection()
+        if db._mock_mode:
+            return False, "TENANT_SCOPE_MISSING", {"code": "TENANT_SCOPE_MISSING", "reason": "mock_mode"}
+
+        def _esc(s: str) -> str:
+            return (str(s) or "").replace("\\", "\\\\").replace('"', '\"')
+
+        ownership_q = f"""
+        match
+            $t isa tenant, has tenant-id "{_esc(tenant_id)}";
+            $c isa run-capsule, has capsule-id "{_esc(capsule_id)}";
+            (tenant: $t, capsule: $c) isa tenant-owns-capsule;
+        get $c;
+        """
+        if db.query_fetch(ownership_q):
+            return True, "PASS", {"code": "PASS"}
+
+        linked_q = f"""
+        match
+            $c isa run-capsule, has capsule-id "{_esc(capsule_id)}";
+            (tenant: $any_t, capsule: $c) isa tenant-owns-capsule;
+        get $any_t;
+        """
+        has_any_tenant = bool(db.query_fetch(linked_q))
+        code = "TENANT_FORBIDDEN" if has_any_tenant else "TENANT_SCOPE_MISSING"
+        return False, code, {"code": code, "capsule_id": capsule_id, "tenant_id": tenant_id}
+    except Exception as e:
+        return False, "TENANT_SCOPE_MISSING", {"code": "TENANT_SCOPE_MISSING", "error": str(e)}
+
+
+def verify_capsule(
+    capsule_id: str,
+    capsule_data: dict,
+    *,
+    tenant_id: Optional[str] = None,
+) -> "ReplayVerdictV1":
     """
     Verify a run capsule against the ledger.
 
@@ -136,6 +178,8 @@ def verify_capsule(capsule_id: str, capsule_data: dict) -> "ReplayVerdictV1":
         capsule_id:   The capsule identifier.
         capsule_data: Pre-fetched capsule manifest dict, including
                       ``_has_mutation_snapshot`` flag for backward compat.
+        tenant_id: Optional tenant scope. When provided, verification fails
+                   closed unless the capsule is linked to that tenant.
 
     Returns:
         ReplayVerdictV1 with status PASS or FAIL and detailed reasons.
@@ -144,6 +188,14 @@ def verify_capsule(capsule_id: str, capsule_data: dict) -> "ReplayVerdictV1":
 
     reasons: List[str] = []
     details: Dict[str, Any] = {}
+
+    # 0. Tenant scope verification (fail-closed when tenant_id is provided)
+    if tenant_id is not None:
+        tenant_ok, tenant_code, tenant_details = _verify_tenant_scope(capsule_id, tenant_id)
+        details["tenant_scope"] = tenant_details
+        if not tenant_ok:
+            reasons.append(f"Tenant scope failed: [{tenant_code}] capsule is not accessible for tenant")
+            return ReplayVerdictV1(status="FAIL", reasons=reasons, details=details)
 
     # 1. Hash integrity
     hash_ok, hash_details = _verify_hash_integrity(capsule_id, capsule_data)

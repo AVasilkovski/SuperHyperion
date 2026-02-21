@@ -229,7 +229,7 @@ Summary:
 ## TESTING STATUS
 ------------------------------------------------------------
 
-Total tests: 401 (current)
+Total tests: 421 (current)
 All green: ✅
 
 Core guarantees covered:
@@ -326,6 +326,7 @@ Milestone A completion evidence:
    - Static + dynamic conflict checks with deterministic conflict artifacts and severities.
 6. **OPS-1.2 Deterministic CI Trust Gates**
    - Commit + hold deterministic gate runs in CI with exported artifacts.
+   - Gate runner performs explicit TypeDB readiness probing: CI remains fail-closed; local runs may emit deterministic `SKIP` when DB is unavailable.
 7. **OPS-1.3 Trust-Gate Trend Summary**
    - Per-run `trust_gate_summary.json` plus concise CI step-summary visibility.
 8. **EPI-17.0 Coverage Logging (PLANNED, telemetry-only)**
@@ -341,11 +342,11 @@ Milestone B closure evidence:
 Milestone B LOCKED rule:
 - Any non-backward-compatible artifact contract change requires a `contract_version` bump and a new versioned JSON Schema file under `schemas/`.
 
-#### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (PLANNED)
+#### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (IN PROGRESS)
 1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**
-   - Database isolation schema (`tenant` entity + `tenant-owns-capsule` relation).
-   - Strict query isolation across tenants in Ontology Steward.
-   - RBAC primitives (viewer, operator, admin) and tenant-scoped SDK APIs (`list_capsules`).
+   - Database isolation baseline ACTIVE: `tenant` entity plus ownership relations (`tenant-owns-capsule`, `tenant-owns-intent`).
+   - Fail-closed tenant scope checks now gate replay verification/export paths when `tenant_id` is supplied.
+   - RBAC primitives (viewer, operator, admin) and broader tenant-scoped APIs (`list_capsules`) remain planned.
 2. **TRUST-1.2 Enterprise Control Plane**
    - Fast REST API layer (FastAPI: `/v1/run`, `/v1/capsules`, `/v1/audit/export`).
    - Minimal Web UI (Streamlit/React) for capsule browsing, audit dashboards, and policy editing.

@@ -40,7 +40,7 @@ def connect_with_retries(
 def get_current_schema_version(driver, db: str) -> int:
     from typedb.driver import TransactionType
 
-    query = "match $v isa schema_version, has ordinal $o; select $o;"
+    query = "match $v isa schema_version, has ordinal $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
             results = tx.query(query).resolve()
@@ -52,7 +52,7 @@ def get_current_schema_version(driver, db: str) -> int:
             return max(ordinals) if ordinals else 0
     except Exception as e:
         # Catch ConceptError or missing schema_version gracefully
-        print(f"[migrate] schema_version query failed (returning 0): {e}")
+        print(f"[migrate] schema_version type not found or query failed (returning 0): {e}")
         return 0
 
 

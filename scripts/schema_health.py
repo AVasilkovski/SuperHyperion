@@ -24,15 +24,19 @@ def repo_head_ordinal(migrations_dir: str) -> int:
 def db_current_ordinal(driver, db: str) -> int:
     from typedb.driver import TransactionType
 
-    q = "match $v isa schema_version, has ordinal $o; select $o;"
-    with driver.transaction(db, TransactionType.READ) as tx:
-        ans = tx.query(q).resolve()
-        ords = []
-        for row in ans.as_concept_rows():
-            c = row.get("o")
-            if c and c.is_attribute():
-                ords.append(int(c.as_attribute().get_value()))
-        return max(ords) if ords else 0
+    q = "match $v isa schema_version, has ordinal $o;"
+    try:
+        with driver.transaction(db, TransactionType.READ) as tx:
+            ans = tx.query(q).resolve()
+            ords = []
+            for row in ans.as_concept_rows():
+                c = row.get("o")
+                if c and c.is_attribute():
+                    ords.append(int(c.as_attribute().get_value()))
+            return max(ords) if ords else 0
+    except Exception as e:
+        print(f"[schema_health] schema_version query failed (assuming 0): {e}")
+        return 0
 
 
 def connect(address: str, username: str, password: str, tls: bool, ca_path: str | None):

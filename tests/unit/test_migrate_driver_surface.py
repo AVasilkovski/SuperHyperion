@@ -14,13 +14,12 @@ def test_migrate_driver_surface_invariants():
 
     content = migrate_path.read_text(encoding="utf-8")
 
-    forbidden = [".query.define", ".query.get", ".query.insert", "get $o;"]
+    forbidden = [".query.define", ".query.get", ".query.insert", "get $o;", "select $o;"]
     for word in forbidden:
         assert word not in content, (
             f"Forbidden legacy driver surface or TypeQL syntax found: {word}."
         )
 
-    assert "select $o;" in content, "Expected TypeQL 'select $o;' syntax not found in migrate.py"
     assert "tx.query(" in content, "Expected callable tx.query(...) pattern not found in migrate.py"
 
 
@@ -34,15 +33,12 @@ def test_schema_health_driver_surface_invariants():
 
     content = sh_path.read_text(encoding="utf-8")
 
-    forbidden = [".query.define", ".query.get", ".query.insert", "get $o;"]
+    forbidden = [".query.define", ".query.get", ".query.insert", "get $o;", "select $o;"]
     for word in forbidden:
         assert word not in content, (
             f"Forbidden legacy driver surface or TypeQL syntax found in schema_health.py: {word}."
         )
 
-    assert "select $o;" in content, (
-        "Expected TypeQL 'select $o;' syntax not found in schema_health.py"
-    )
     assert "tx.query(" in content, (
         "Expected callable tx.query(...) pattern not found in schema_health.py"
     )

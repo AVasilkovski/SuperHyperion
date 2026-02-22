@@ -67,12 +67,12 @@ def test_tenant_isolation_baseline(ghost_db):
 
     with driver.transaction(db_name, TransactionType.READ) as tx:
         # Step A1: Can we find the Tenant?
-        q_t = f'match $t isa tenant, has tenant-id "{tenant_a}"; select $t;'
+        q_t = f'match $t isa tenant, has tenant-id "{tenant_a}";'
         ans_t = list(tx.query(q_t).resolve().as_concept_rows())
         assert len(ans_t) == 1, f"Tenant {tenant_a} not found in DB"
 
         # Step A2: Can we find the Capsule?
-        q_c = f'match $c isa run-capsule, has capsule-id "{capsule_a}"; select $c;'
+        q_c = f'match $c isa run-capsule, has capsule-id "{capsule_a}";'
         ans_c = list(tx.query(q_c).resolve().as_concept_rows())
         assert len(ans_c) == 1, f"Capsule {capsule_a} not found in DB"
 
@@ -82,7 +82,6 @@ def test_tenant_isolation_baseline(ghost_db):
             $t isa tenant, has tenant-id "{tenant_a}";
             $c isa run-capsule, has capsule-id "{capsule_a}";
             (tenant: $t, capsule: $c) isa tenant-owns-capsule;
-        select $c;
         """
         ans_a = list(tx.query(q_a).resolve().as_concept_rows())
         assert len(ans_a) == 1, "Tenant A should see their own capsule via relation"
@@ -93,7 +92,6 @@ def test_tenant_isolation_baseline(ghost_db):
             $t isa tenant, has tenant-id "{tenant_b}";
             $c isa run-capsule, has capsule-id "{capsule_a}";
             (tenant: $t, capsule: $c) isa tenant-owns-capsule;
-        select $c;
         """
         ans_b = list(tx.query(q_b).resolve().as_concept_rows())
         assert len(ans_b) == 0, "Tenant B MUST NOT see Tenant A's capsule (isolation leak)"

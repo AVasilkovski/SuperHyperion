@@ -21,7 +21,10 @@ def test_db_current_ordinal_parsing():
 
     # Mock tx.query(q).resolve() returning answer
     mock_query_res = MagicMock()
-    mock_tx.query.side_effect = lambda q: mock_query_res if "select" in q else MagicMock()
+    def check_query_syntax(q):
+        assert "select " not in q and "get " not in q, f"Query '{q}' contains forbidden 'get' or 'select'."
+        return mock_query_res
+    mock_tx.query.side_effect = check_query_syntax
     mock_query_res.resolve.return_value = mock_answer
 
     # Mock row 1: ordinal 5

@@ -330,10 +330,10 @@ Milestone A completion evidence:
 6. **OPS-1.2 Deterministic CI Trust Gates**
    - Commit + hold deterministic gate runs in CI with exported artifacts.
    - Gate runner performs explicit TypeDB readiness probing: CI remains fail-closed; local runs may emit deterministic `SKIP` when DB is unavailable.
-7. **OPS-1.3 TypeDB Cloud Schema Deploy Stabilization**
-   - **Self-Healing**: Automated SVL42 auto-migration engine (75 owns, 12 plays identified).
-   - **Fail-Fast**: Hardcoded canonical paths + pre-flight bash assertions.
-   - **Observability**: Dry-run auditing supported without functional TypeDB driver DLLs.
+7. **OPS-1.3 TypeDB Cloud Schema Deploy Stabilization (HARDENED)**
+   - **Self-Healing**: Automated SVL42 auto-migration engine (noise suppressed via inherited capability scrubbing).
+   - **Fail-Fast**: Hardcoded canonical paths + pre-flight workflow assertions (`set -euo pipefail`, `test -f`, wildcard guards).
+   - **Observability**: Dry-run auditing supported without functional TypeDB driver DLLs; prints argv + resolved schema file list for provenance.
    - **Naming Safety**: Implementation of Repository Naming Safety Checklist for PR/Merge parity.
 8. **OPS-1.4 Trust-Gate Trend Summary**
    - Per-run `trust_gate_summary.json` plus concise CI step-summary visibility.
@@ -344,49 +344,49 @@ Milestone A completion evidence:
 Milestone B closure evidence:
 - Deterministic tenant-aware bundle tooling with legacy-safe normalization (`effective_tenant_id`) and nested artifact isolation (`bundle_key`).
 - TRUST-1.0.4 conflict detector includes blocking-only code collisions, normalized missing blocking code (`UNSPECIFIED_CODE`), and CI guardrail failure on error severity.
-- OPS-1.3/OPS-1.4: Emits deterministic `trust_gate_summary.json` and supports **Self-Healing Schema CD** with 87 auto-identified migration targets.
-- Operational parity: CD runner is hardened against empty parameters; naming follows strict Conventional Commit hierarchy.
+- OPS-1.3/OPS-1.4: Emits deterministic `trust_gate_summary.json` and supports **Self-Healing Schema CD**.
 - Versioned artifact schemas are published under `schemas/` for trust summary, policy conflicts, and compliance report contracts.
 
 Milestone B LOCKED rule:
 - Any non-backward-compatible artifact contract change requires a `contract_version` bump and a new versioned JSON Schema file under `schemas/`.
 
-#### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (IN PROGRESS)
-1. **TRUST-1.1 Multi-Tenant Foundation & RBAC**
-   - Database isolation baseline ACTIVE: `tenant` entity plus ownership relations (`tenant-owns-capsule`, `tenant-owns-intent`).
-   - Fail-closed tenant scope checks now gate replay verification/export paths when `tenant_id` is supplied.
-   - RBAC primitives (viewer, operator, admin) and broader tenant-scoped APIs (`list_capsules`) remain planned.
-2. **TRUST-1.2 Enterprise Control Plane**
-   - Fast REST API layer (FastAPI: `/v1/run`, `/v1/capsules`, `/v1/audit/export`).
-   - Minimal Web UI (Streamlit/React) for capsule browsing, audit dashboards, and policy editing.
-3. **OPS-2.0 Enterprise Migration Framework**
+#### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (ACTIVE)
+1. **OPS-2.0 Enterprise Migration Framework (HARDENED)**
    - **Linearity**: Ordered `migrations/NNN_topic.tql` path for explicit state progression.
-   - **Versioning**: Mandatory `schema-version` entity in TypeDB (attributes: `ordinal`, `git-commit`).
-   - **N-1 Strategy**: Enforcement of additive-only schema changes (no `undefine` of data-holding concepts across releases).
-   - **Drift Guard**: OPS 1.3 "Auto-Migrate" logic remains as a continuous background auditor for hierarchy drift.
-   - **Perf Safety**: Gate merging via p99 latency regression tests against seeded "Ghost Databases" (100k+ entities).
-4. **EPI-17.1 Sampling Budget Enforcement**
-   - Budgeted policy mixes only after baseline metrics stabilize.
+     - `001_init`: core bootstrap (schema_version, tenant, tenancy roles).
+     - `002_minimal_types`: domain labels to resolve `[SYR1]` type-not-found errors.
+     - `003_role_attachment`: Attach `plays` constraints to validated types.
+   - **Versioning**: Mandatory `schema-version` entity in TypeDB (attributes: `ordinal`, `git-commit`, `applied-at`).
+   - **N-1 Strategy**: Enforcement of additive-only schema changes via `additive_linter.py`.
+   - **Health Check**: TypeDB 3.8 compatible `schema_health.py` resolving ordinals from migration history; elimination of `SessionType` legacy imports.
+   - **Immutability**: Hardened `SCHEMA_FILE` guards in CI/CD blocks (mandatory `unset`, double-bracket wildcard rejection, `test -f` fatal checks).
+   - **Perf Safety**: "Ghost DB" automated benchmark (10k entities) for P99 latency tracking.
+2. **TRUST-1.1 Multi-Tenant Foundation & RBAC (ACTIVE)**
+   - Database isolation baseline: `tenant` entity plus ownership relations (`tenant-owns-capsule`, etc.).
+   - **Tenant Scope Helper**: `tenant_scope.py` injection for hard query scoping in Steward.
+   - Fail-closed tenant checks gate replay verification/export paths when `tenant_id` is supplied.
+3. **TRUST-1.2 Enterprise Control Plane (ACTIVE)**
+   - Minimal FastAPI endpoints: `POST /v1/run`, `GET /v1/capsules`, `GET /v1/audit/export`.
+   - Tenant-scoping at the API boundary (fail-closed, returning 404 for tenant mismatch to prevent enumeration).
+   - Basic RBAC: `POST /v1/run` requires `operator`/`admin`; `GET` endpoints allow `viewer`. Note: TRUST-1.2 RBAC is interface-level, not identity-backed yet.
+   - **Explicit Non-Goals**: No persistent job store, no RBAC UI, no policy DSL editing UI.
+4. **EPI-17.1 Telemetry before enforcement (PLANNED)**
+   - Capsule-level coverage metrics and CI artifact trends.
+   - Trend reporting to CI artifacts; budgets enforced only after variance stabilizes.
 
-Milestone C implementation shortlist (high-ROI first):
-1. **TRUST-1.1 DB tenant isolation baseline**
-   - Introduce `tenant` ownership relations and hard query scoping in Ontology Steward reads/writes.
-   - Enforce tenant scope at API boundaries before adding broader RBAC roles.
-2. **OPS-2.0 migration safety backbone**
-   - **Reuse**: Build the **"Additive-Only" linter** by extending the `parse_canonical_caps` engine (from OPS 1.3).
-   - **Foundation**: Deploy `scripts/migrate.py` to execute linear `.tql` versions, protected by the existing **OPS 1.3 Drift Guard**.
-   - **Integrate**: Add performance regression gates (seeded mockery) to the PR pipeline.
-3. **TRUST-1.2 minimal control-plane API**
-   - Ship `POST /v1/run`, `GET /v1/capsules`, `GET /v1/audit/export` with read-mostly flows and policy hooks.
-   - Keep UI out-of-band until API contracts stabilize.
-4. **EPI-17.1 coverage telemetry before enforcement**
-   - Emit capsule-level coverage metrics and policy-mix traces without budget blocking.
-   - Add trend reporting to CI artifacts first; enforce budgets only after variance stabilizes.
+------------------------------------------------------------
+## RISK REGISTER (Milestone C)
+------------------------------------------------------------
 
-**Prerequisites Met (OPS 1.3 Foundation)**:
-- [x] Hardened schema parser with word-boundary awareness.
-- [x] Self-healing "Auto-Migrate" logic for inherited capability drift.
-- [x] Conventional Commit discipline for milestone traceability.
+| Risk ID | Description | Likelihood | Impact | Detection | Mitigation | Rollback Plan |
+|---|---|---|---|---|---|---|
+| REQ-01 | **Tenant Isolation Leak**: Cross-tenant data leakage. | Low | High | Unit & Acceptance tests querying cross-tenant resources. | Use `tenant_scope.py` injection helper; default fail-closed. | Revert API deployment, reset DB tenant mappings manually. |
+| REQ-02 | **Migration Correctness**: `schema-version` drift or partial apply. | Med | High | Pre-flight linear version checks in `migrate.py` + `schema_health.py`. | Atomic `TypeDB.transaction` wrapping version increments. | Restore from TypeDB Cloud backup snapshot. |
+| REQ-03 | **Drift Guard Masking**: Auto-migrate hides migration accountability. | Med | Med | Code review and Linter tracking `undefine` execution. | Restrict guard scope to inherited capability scrubbing (SVL42). | Fast-forward fix commit restricting `apply_schema.py` scope. |
+| REQ-04 | **Cloud Operations**: TLS/CA issues or Schema Tx aborts. | Low | High | CI connectivity smoke tests and CD dry-runs. | Retries implemented in `migrate.py`; driver cert hardening. | Rollback CI/CD runner environments; bypass TLS temporary locally. |
+| REQ-05 | **Performance Regression**: Added tenant checks slow down P99 latency. | Med | Med | "Ghost DB" automated benchmark run in CI PR gate. | Indexed ownership lookups; 10k entity baseline gates. | Disable tenant enforcement temporarily or revert. |
+| REQ-06 | **Observability Gaps**: Missing logging for tenant-scoped failures. | Low | Med | Lack of structured logs. | FastAPI Dependency injection ensures all `tenant_id` scopes are logged. | Hotfix adding middleware loggers. |
+| REQ-07 | **Overengineering**: Too many moving parts block launch. | High | Med | PR cycle times increase; team velocity drops. | Choose smallest architectural footprint that satisfies safety. | Cut scope directly; merge strictly required safety first. |
 
 ### Deliberate Non-Goals (anti-vanity constraints)
 

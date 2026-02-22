@@ -1,4 +1,5 @@
 name: staging-schema-deploy
+# Hardening Trigger: 2026-02-22T00:58
 
 # Ops 1.0: Deploy schema to TypeDB Cloud staging on pushes to main.
 # Isolated via GitHub Environment — PR workflows cannot access these secrets.
@@ -7,10 +8,14 @@ on:
   push:
     branches:
       - main
+      - fix/ops-milestone-c-hardened-deploy
     paths:
       - 'src/schema/scientific_knowledge.tql'
+      - 'src/schema/migrations/**'
       - 'scripts/apply_schema.py'
+      - 'scripts/migrate.py'
       - '.github/workflows/staging-schema-deploy.yml'
+  workflow_dispatch:
 
 jobs:
   deploy-schema:
@@ -74,19 +79,17 @@ jobs:
         run: |
           set -euo pipefail
 
+          unset SCHEMA_FILE || true
           SCHEMA_FILE="src/schema/scientific_knowledge.tql"
+
+          # Hard fail if wildcard sneaks in
+          if [[ "$SCHEMA_FILE" == *"*"* || "$SCHEMA_FILE" == *"?"* || "$SCHEMA_FILE" == *"["* ]]; then
+            echo "ERROR: wildcard in SCHEMA_FILE: $SCHEMA_FILE"
+            exit 1
+          fi
+
           echo "Using authoritative schema file: $SCHEMA_FILE"
-
-          if [[ "$SCHEMA_FILE" == *"***"* || "$SCHEMA_FILE" == *"*"* ]]; then
-            echo "ERROR: glob schema path is forbidden: $SCHEMA_FILE"
-            exit 1
-          fi
-
-          if [ ! -f "$SCHEMA_FILE" ]; then
-            echo "ERROR: schema file missing: $SCHEMA_FILE"
-            ls -la src/schema || true
-            exit 1
-          fi
+          test -f "$SCHEMA_FILE" || (echo "Missing schema file" && ls -la src/schema && exit 1)
 
           UNDEFINE_ARGS=()
 

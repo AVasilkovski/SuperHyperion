@@ -1,78 +1,147 @@
+"""
+TRUST-1.2 API Routes
+"""
+
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Optional, Tuple
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.db.typedb_client import TypeDBConnection
-from src.trust.tenant_scope import scope_prefix
+from src.api.contracts.v1 import (
+    AuditExportV1,
+    CapsuleListItemV1,
+    CapsuleListV1,
+    RoleEnum,
+    RunRequestV1,
+    RunResponseV1,
+)
+from src.api.deps import get_request_context, require_operator
+from src.api.services.typedb_reads import (
+    fetch_capsule_by_id_scoped,
+    list_capsules_for_tenant,
+)
+
+# Defer importing GovernedRun and verify_capsule so they don't block startup or leak
+# state implicitly at import time for API layer.
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/v1", tags=["core"])
 
-class TenantContext(BaseModel):
-    tenant_id: str
-    role: str
+router = APIRouter(tags=["core"])
 
-def get_tenant_context(
-    x_tenant_id: str = Header(..., alias="X-Tenant-Id"),
-    x_role: str = Header("viewer", alias="X-Role")
-) -> TenantContext:
-    """Dependency to extract tenant and role from headers."""
-    return TenantContext(tenant_id=x_tenant_id, role=x_role)
 
-@router.post("/run", response_model=Dict[str, Any])
+@router.post("/run", response_model=RunResponseV1)
 async def trigger_run(
-    query: str,
-    context: TenantContext = Depends(get_tenant_context)
+    request: RunRequestV1,
+    context: Tuple[str, RoleEnum] = Depends(get_request_context),
 ):
     """TRUST-1.2: Trigger a new epistemic run scoped to the tenant."""
-    # Logic to initialize a run context with tenant_id would go here.
-    return {
-        "status": "accepted",
-        "tenant_id": context.tenant_id,
-        "run_id": "r-mock-123"
-    }
+    tenant_id, role = context
 
-@router.get("/capsules", response_model=List[Dict[str, Any]])
+    # Enforce operator/admin role
+    require_operator(role)
+
+    # Local import
+    from src.sdk.governed_run import GovernedRun
+
+    try:
+        # Pydantic validates payload, GovernedRun handles the rest
+        result = await GovernedRun.run(
+            query=request.query,
+            tenant_id=tenant_id,
+            session_id=request.session_id,
+            thread_id=request.thread_id,
+            mode=request.mode,
+            **request.options,
+        )
+        return RunResponseV1(contract_version="v1", result=result)
+
+    except Exception as e:
+        logger.error(f"GovernedRun failed for tenant {tenant_id}: {e}")
+        # Return 500 error but do not leak secrets
+        raise HTTPException(
+            status_code=500,
+            detail={"error_code": "RUN_ERROR", "message": "Unexpected execution failure"},
+        )
+
+
+@router.get("/capsules", response_model=CapsuleListV1)
 async def list_capsules(
-    limit: int = Query(50, le=100),
-    cursor: Optional[str] = Query(None, description="Pagination cursor (timestamp)"),
-    context: TenantContext = Depends(get_tenant_context)
+    limit: int = Query(50, ge=1, le=200),
+    cursor: Optional[str] = Query(None, description="Pagination cursor"),
+    context: Tuple[str, RoleEnum] = Depends(get_request_context),
 ):
     """TRUST-1.2: Fetch a paginated list of capsules owned by the tenant."""
-    from typedb.driver import TransactionType
+    tenant_id, role = context
+    # Viewers can access this endpoint
 
-    db = TypeDBConnection()
-    if getattr(db, "_mock_mode", False):
-         return []
-         
-    scope_injection = scope_prefix(context.tenant_id, target_var="c").strip()
-    query = f"match $c isa run-capsule, has capsule-id $cid, has session-id $sid, {scope_injection.replace('$c ', '')}; select $cid, $sid; limit {limit};"
-    try:
-        with db.transaction(TransactionType.READ) as tx:
-            rows = db._to_rows(tx.query(query).resolve())
-            return [
-                {
-                    "capsule_id": r.get("cid"), 
-                    "session_id": r.get("sid"),
-                    "tenant_id": context.tenant_id
-                } for r in rows
-            ]
-    except Exception as e:
-        logger.error(f"DB Error: {e}")
-        # Fail-closed semantics: return 404 instead of 403 or 500 when access/scoping fails
-        raise HTTPException(status_code=404, detail="Capsules not found or unavailable")
+    items, next_cursor = list_capsules_for_tenant(
+        tenant_id=tenant_id, limit=limit, cursor=cursor
+    )
 
-@router.get("/audit/export/{capsule_id}")
+    capsule_items = []
+    for row in items:
+        # map db fields to model (TypeDB returns dict with '-' or '_' keys, typedb_reads handled translation to '_')
+        capsule_items.append(CapsuleListItemV1(**row))
+
+    return CapsuleListV1(
+        contract_version="v1",
+        tenant_id=tenant_id,
+        items=capsule_items,
+        next_cursor=next_cursor,
+    )
+
+
+@router.get("/audit/export", response_model=AuditExportV1)
 async def export_audit_ledger(
-    capsule_id: str,
-    context: TenantContext = Depends(get_tenant_context)
+    capsule_id: str = Query(..., description="The ID of the capsule to export"),
+    context: Tuple[str, RoleEnum] = Depends(get_request_context),
 ):
     """TRUST-1.2: Export cryptographic proof of reasoning, scoping fail-closed."""
-    # In a full impl, if capsule_id is not owned by context.tenant_id, throw 404
-    return {
-        "capsule_id": capsule_id,
-        "tenant_id": context.tenant_id,
-        "proof": "base64-encoded-proof-placeholder"
+    tenant_id, role = context
+
+    # 1. Fetch capsule scoped to tenant (returns None if not found or not owned)
+    db_capsule = fetch_capsule_by_id_scoped(tenant_id, capsule_id)
+    if not db_capsule:
+        raise HTTPException(
+            status_code=404, detail="Capsule not found or unavailable."
+        )
+
+    # 2. Run deterministic verification on the capsule
+    from src.verification.replay_verify import verify_capsule
+
+    try:
+        # We explicitly thread `tenant_id` to `verify_capsule` for defense-in-depth.
+        # verify_capsule signature is verify_capsule(capsule_id, capsule_data, *, tenant_id=None)
+        verdict = verify_capsule(capsule_id, capsule_data=db_capsule, tenant_id=tenant_id)
+    except Exception as e:
+        logger.error(f"Replay verification failed: {e}")
+        raise HTTPException(
+            status_code=500, detail="Audit verification failed to execute."
+        )
+
+    # 3. Construct the clean capsule manifest
+    # We use db_capsule but make sure to only include allowed keys, e.g., the canonical manifest
+    manifest_keys = [
+        "capsule_id",
+        "session_id",
+        "query_hash",
+        "scope_lock_id",
+        "intent_id",
+        "proposal_id",
+        "created_at",
+        "manifest_version",
+    ]
+    capsule_manifest = {
+        k: db_capsule[k] for k in manifest_keys if k in db_capsule and db_capsule[k]
     }
+
+    # If it was missing manifest_version in DB, supply a default
+    if "manifest_version" not in capsule_manifest:
+        capsule_manifest["manifest_version"] = "v2"
+
+    return AuditExportV1(
+        contract_version="v1",
+        tenant_id=tenant_id,
+        capsule_manifest=capsule_manifest,
+        replay_verdict=verdict,
+    )

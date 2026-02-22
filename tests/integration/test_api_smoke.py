@@ -17,19 +17,33 @@ def test_api_health(client):
     data = response.json()
     assert data["status"] == "healthy"
 
-def test_api_capsules_requires_tenant(client):
+def test_api_capsules_requires_auth(client):
     # Tests that the dependency injection is correctly wired in the app
     response = client.get("/v1/capsules")
-    assert response.status_code == 400
-    assert "X-Tenant-Id" in response.json()["detail"]
+    assert response.status_code == 401
+    assert "authentication" in str(response.json()["detail"]).lower()
 
 def test_api_capsules_with_mocked_db(client):
+    import jwt
+
+    from src.config import config
+    
+    config.auth.jwt_secret = "test-secret"
+    config.auth.env = "prod"
+    config.auth.allow_insecure_headers = False
+
     with patch("src.api.routes.v1_core.list_capsules_for_tenant") as mock_list:
         mock_list.return_value = ([], None)
     
+        token = jwt.encode(
+            {"tenant_id": "t-123", "role": "operator", "sub": "test-user"},
+            "test-secret",
+            algorithm="HS256"
+        )
+        
         response = client.get(
             "/v1/capsules",
-            headers={"X-Tenant-Id": "t-123", "X-Role": "operator"}
+            headers={"Authorization": f"Bearer {token}"}
         )
         
         assert response.status_code == 200

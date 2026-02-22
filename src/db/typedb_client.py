@@ -27,9 +27,17 @@ Credentials = None
 DriverOptions = None
 SessionType = None
 
+
 def _load_typedb():
     """Lazy load TypeDB driver to handle import errors gracefully."""
-    global TYPEDB_AVAILABLE, TypeDB, TypeDBDriver, TransactionType, Credentials, DriverOptions, SessionType
+    global \
+        TYPEDB_AVAILABLE, \
+        TypeDB, \
+        TypeDBDriver, \
+        TransactionType, \
+        Credentials, \
+        DriverOptions, \
+        SessionType
 
     if TYPEDB_AVAILABLE:
         return True
@@ -39,8 +47,11 @@ def _load_typedb():
         from typedb.driver import DriverOptions as _DriverOptions
         from typedb.driver import TransactionType as _TransactionType
         from typedb.driver import TypeDB as _TypeDB
+
         TypeDB = _TypeDB
-        TypeDBDriver = getattr(__import__("typedb.driver", fromlist=["TypeDBDriver"]), "TypeDBDriver", None)
+        TypeDBDriver = getattr(
+            __import__("typedb.driver", fromlist=["TypeDBDriver"]), "TypeDBDriver", None
+        )
         TransactionType = _TransactionType
         Credentials = _Credentials
         DriverOptions = _DriverOptions
@@ -115,9 +126,9 @@ class TypeDBConnection:
     def load_schema(self, schema_paths: Optional[List[Path]] = None):
         """
         Load TypeQL schema into database.
-        
+
         Args:
-            schema_paths: List of paths to .tql schema files. 
+            schema_paths: List of paths to .tql schema files.
                         If None, loads scientific_knowledge.tql and schema_v22_patch.tql.
         """
         if schema_paths is None:
@@ -147,7 +158,6 @@ class TypeDBConnection:
             logger.info(f"Schema loaded: {[p.name for p in schema_paths]}")
         except Exception as e:
             logger.error(f"Failed to load schema: {e}")
-
 
     @staticmethod
     def _tx_execute(tx, query: str):
@@ -256,6 +266,7 @@ class TypeDBConnection:
     def query_insert(self, query: str, *, cap=None):
         """Execute an insert query. Requires WriteCap."""
         from src.db.capabilities import WriteCap
+
         if not isinstance(cap, WriteCap):
             raise PermissionError("query_insert requires a WriteCap")
         if self._mock_mode:
@@ -269,6 +280,7 @@ class TypeDBConnection:
     def query_delete(self, query: str, *, cap=None):
         """Execute a delete query. Requires WriteCap."""
         from src.db.capabilities import WriteCap
+
         if not isinstance(cap, WriteCap):
             raise PermissionError("query_delete requires a WriteCap")
         if self._mock_mode:
@@ -290,7 +302,7 @@ class TypeDBConnection:
         confidence: float = 0.5,
         belief_state: str = "proposed",
         *,
-        cap=None
+        cap=None,
     ):
         """Insert a proposition into the graph."""
         query = f"""
@@ -309,7 +321,7 @@ class TypeDBConnection:
         alpha: float = 1.0,
         beta: float = 1.0,
         *,
-        cap=None
+        cap=None,
     ):
         """Insert a hypothesis with Bayesian parameters."""
         query = f"""
@@ -325,13 +337,7 @@ class TypeDBConnection:
         self.query_insert(query, cap=cap)
 
     def insert_source_reputation(
-        self,
-        entity_id: str,
-        entity_type: str,
-        alpha: float = 1.0,
-        beta: float = 1.0,
-        *,
-        cap=None
+        self, entity_id: str, entity_type: str, alpha: float = 1.0, beta: float = 1.0, *, cap=None
     ):
         """Insert or update source reputation."""
         query = f"""
@@ -346,12 +352,7 @@ class TypeDBConnection:
         self.query_insert(query, cap=cap)
 
     def update_reputation(
-        self,
-        entity_id: str,
-        positive: bool = True,
-        weight: float = 1.0,
-        *,
-        cap=None
+        self, entity_id: str, positive: bool = True, weight: float = 1.0, *, cap=None
     ):
         """Update reputation with new evidence."""
         # First get current values
@@ -374,9 +375,9 @@ class TypeDBConnection:
             return
 
         current = results[0]
-        alpha = current.get('reputation-alpha', 1.0)
-        beta = current.get('reputation-beta', 1.0)
-        entity_type = current.get('entity_type', 'agent') # Default to agent if not found
+        alpha = current.get("reputation-alpha", 1.0)
+        beta = current.get("reputation-beta", 1.0)
+        entity_type = current.get("entity_type", "agent")  # Default to agent if not found
 
         if positive:
             alpha += weight
@@ -444,36 +445,46 @@ class TypeDBConnection:
         # Filter by entropy calculation
         high_entropy = []
         for r in results:
-            alpha = r.get('beta-alpha', 1.0)
-            beta = r.get('beta-beta', 1.0)
+            alpha = r.get("beta-alpha", 1.0)
+            beta = r.get("beta-beta", 1.0)
             p = alpha / (alpha + beta)
             # Bernoulli entropy
             if p > 0 and p < 1:
-                entropy = -p * (p if p > 0 else 1) - (1-p) * ((1-p) if (1-p) > 0 else 1)
+                entropy = -p * (p if p > 0 else 1) - (1 - p) * ((1 - p) if (1 - p) > 0 else 1)
                 # Actually use Shannon entropy approximation
                 import math
-                entropy = -p * math.log2(p) - (1-p) * math.log2(1-p) if p > 0 and p < 1 else 0
+
+                entropy = -p * math.log2(p) - (1 - p) * math.log2(1 - p) if p > 0 and p < 1 else 0
                 if entropy > threshold:
-                    r['entropy'] = entropy
+                    r["entropy"] = entropy
                     high_entropy.append(r)
 
         return high_entropy
 
 
-
-
 class MockTransaction:
     """Mock transaction for when TypeDB is not available."""
+
     class MockQuery:
-        def fetch(self, q): return []
-        def insert(self, q): pass
-        def delete(self, q): pass
-        def define(self, q): pass
+        def fetch(self, q):
+            return []
+
+        def insert(self, q):
+            pass
+
+        def delete(self, q):
+            pass
+
+        def define(self, q):
+            pass
 
     query = MockQuery()
 
-    def commit(self): pass
-    def close(self): pass
+    def commit(self):
+        pass
+
+    def close(self):
+        pass
 
 
 # Global connection instance

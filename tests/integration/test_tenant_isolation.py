@@ -48,7 +48,8 @@ def test_tenant_isolation_baseline(ghost_db):
     """
 
     with ghost_db.transaction(TransactionType.WRITE) as tx:
-        tx.query(setup_q.strip()).resolve()
+        ans = tx.query(setup_q.strip()).resolve()
+        list(ans.as_concept_rows())  # Exhaust the iterator to execute the insert
 
     # 2. Test Fetching with Scoping Helper
 

@@ -1,5 +1,7 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 
 def test_no_legacy_get_select_in_scripts():
     """

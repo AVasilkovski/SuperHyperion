@@ -65,7 +65,7 @@ def list_capsules_for_tenant(
     query = f"""
     match
         $t isa tenant, has tenant-id "{tenant_id}";
-        $rel (tenant: $t, capsule: $c) isa tenant-owns-capsule;
+        (owner: $t, owned: $c) isa tenant-ownership;
         $c isa run-capsule,
             has capsule-id $cid,
             has session-id $sid,
@@ -151,7 +151,7 @@ def fetch_capsule_by_id_scoped(tenant_id: str, capsule_id: str) -> Optional[Dict
     match
         $t isa tenant, has tenant-id "{tenant_id}";
         $c isa run-capsule, has capsule-id "{capsule_id}";
-        $rel (tenant: $t, capsule: $c) isa tenant-owns-capsule;
+        (owner: $t, owned: $c) isa tenant-ownership;
     fetch
         $c: capsule-id, session-id, query-hash, scope-lock-id, intent-id, proposal-id, created-at, manifest-version;
     """

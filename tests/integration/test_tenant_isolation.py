@@ -44,13 +44,25 @@ def exec_write(tx, q: str) -> None:
         raise ValueError(f"exec_write query must start with insert, match, define, or undefine. Got: {qs[:20]}")
         
     # Force exhaustion of the lazy TypeDB 3.x iterator
-    for _ in tx.query(qs):
-        pass
+    res = tx.query(qs)
+    if hasattr(res, "resolve"):
+        res = res.resolve()
+    if hasattr(res, "as_concept_rows"):
+        for _ in res.as_concept_rows():
+            pass
+    else:
+        for _ in res:
+            pass
 
 
 def exec_read(tx, q: str):
     # Materialize lazy read iterator directly to a list
-    return list(tx.query(q.strip()))
+    res = tx.query(q.strip())
+    if hasattr(res, "resolve"):
+        res = res.resolve()
+    if hasattr(res, "as_concept_rows"):
+        return list(res.as_concept_rows())
+    return list(res)
 
 
 @pytest.fixture(scope="module")

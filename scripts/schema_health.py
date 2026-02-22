@@ -23,7 +23,7 @@ def db_current_ordinal(driver, db: str) -> int:
     from typedb.driver import TransactionType
     q = "match $v isa schema_version, has ordinal $o; get $o;"
     with driver.transaction(db, TransactionType.READ) as tx:
-        ans = tx.query.get(q)
+        ans = tx.query(q).resolve()
         ords = []
         for row in ans:
             c = row.get("o")

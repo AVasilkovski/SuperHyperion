@@ -39,7 +39,7 @@ def get_current_schema_version(driver, db: str) -> int:
     query = "match $v isa schema_version, has ordinal $o; get $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
-            results = tx.query.get(query)
+            results = tx.query(query).resolve()
             ordinals = []
             for r in results:
                 o = r.get("o")
@@ -116,7 +116,7 @@ def apply_migration(driver, db: str, migration_file: Path, next_ordinal: int, dr
     
     try:
         with driver.transaction(db, TransactionType.SCHEMA) as tx:
-            tx.query.define(schema)
+            tx.query(schema).resolve()
             tx.commit()
     except Exception as e:
         raise RuntimeError(f"Failed to apply SCHEMA transaction for {migration_file.name} (Ordinal: {next_ordinal}): {e}") from e
@@ -130,7 +130,7 @@ def apply_migration(driver, db: str, migration_file: Path, next_ordinal: int, dr
     
     try:
         with driver.transaction(db, TransactionType.WRITE) as tx:
-            tx.query.insert(version_query)
+            tx.query(version_query).resolve()
             tx.commit()
     except Exception as e:
         raise RuntimeError(f"Failed to apply WRITE transaction for {migration_file.name} (Ordinal: {next_ordinal}): {e}") from e

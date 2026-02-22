@@ -59,12 +59,23 @@ class APIConfig:
 
 
 @dataclass
+class AuthConfig:
+    """Authentication configuration."""
+    jwt_secret: str = os.getenv("AUTH_JWT_SECRET", "")
+    jwt_issuer: Optional[str] = os.getenv("AUTH_JWT_ISSUER") or None
+    jwt_audience: Optional[str] = os.getenv("AUTH_JWT_AUDIENCE") or None
+    env: str = os.getenv("SUPERHYPERION_ENV", "prod")
+    allow_insecure_headers: bool = os.getenv("SUPERHYPERION_ALLOW_INSECURE_HEADERS", "false").lower() == "true"
+
+
+@dataclass
 class Config:
     """Main configuration container."""
     typedb: TypeDBConfig
     ollama: OllamaConfig
     jupyter: JupyterConfig
     api: APIConfig
+    auth: AuthConfig
 
     # Dialectical entropy threshold for triggering Socratic debate
     entropy_threshold: float = float(os.getenv("ENTROPY_THRESHOLD", "0.4"))
@@ -80,6 +91,7 @@ class Config:
             ollama=OllamaConfig(),
             jupyter=JupyterConfig(),
             api=APIConfig(),
+            auth=AuthConfig(),
         )
 
 

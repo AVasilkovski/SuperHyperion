@@ -229,7 +229,7 @@ Summary:
 ## TESTING STATUS
 ------------------------------------------------------------
 
-Total tests: 421 (current)
+Total tests: 458 (current)
 All green: ✅
 
 Core guarantees covered:
@@ -330,7 +330,7 @@ Milestone A completion evidence:
 6. **OPS-1.2 Deterministic CI Trust Gates**
    - Commit + hold deterministic gate runs in CI with exported artifacts.
    - Gate runner performs explicit TypeDB readiness probing: CI remains fail-closed; local runs may emit deterministic `SKIP` when DB is unavailable.
-7. **OPS-1.3 TypeDB Cloud Schema Deploy Stabilization (HARDENED)**
+7. **OPS-1.3 TypeDB Cloud Schema Deploy Stabilization (✅ COMPLETE)**
    - **Self-Healing**: Automated SVL42 auto-migration engine (noise suppressed via inherited capability scrubbing).
    - **Fail-Fast**: Hardcoded canonical paths + pre-flight workflow assertions (`set -euo pipefail`, `test -f`, wildcard guards).
    - **Observability**: Dry-run auditing supported without functional TypeDB driver DLLs; prints argv + resolved schema file list for provenance.
@@ -350,8 +350,8 @@ Milestone B closure evidence:
 Milestone B LOCKED rule:
 - Any non-backward-compatible artifact contract change requires a `contract_version` bump and a new versioned JSON Schema file under `schemas/`.
 
-#### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (ACTIVE)
-1. **OPS-2.0 Enterprise Migration Framework (HARDENED)**
+#### Milestone C — `TRUST-1.1` / `TRUST-1.2` / `OPS-2.0` / `EPI-17.1` (LOCKED)
+1. **OPS-2.0 Enterprise Migration Framework (✅ COMPLETE)**
    - **Linearity**: Ordered `migrations/NNN_topic.tql` path for explicit state progression.
      - `001_init`: core bootstrap (schema_version, tenant, tenancy roles).
      - `002_minimal_types`: domain labels to resolve `[SYR1]` type-not-found errors.
@@ -361,15 +361,18 @@ Milestone B LOCKED rule:
    - **Health Check**: TypeDB 3.8 compatible `schema_health.py` resolving ordinals from migration history; elimination of `SessionType` legacy imports.
    - **Immutability**: Hardened `SCHEMA_FILE` guards in CI/CD blocks (mandatory `unset`, double-bracket wildcard rejection, `test -f` fatal checks).
    - **Perf Safety**: "Ghost DB" automated benchmark (10k entities) for P99 latency tracking.
-2. **TRUST-1.1 Multi-Tenant Foundation & RBAC (ACTIVE)**
+2. **TRUST-1.1 Multi-Tenant Foundation & RBAC (✅ COMPLETE)**
    - Database isolation baseline: `tenant` entity plus ownership relations (`tenant-owns-capsule`, etc.).
    - **Tenant Scope Helper**: `tenant_scope.py` injection for hard query scoping in Steward.
    - Fail-closed tenant checks gate replay verification/export paths when `tenant_id` is supplied.
-3. **TRUST-1.2 Enterprise Control Plane (ACTIVE)**
+3. **TRUST-1.2 Enterprise Control Plane (✅ COMPLETE)**
    - Minimal FastAPI endpoints: `POST /v1/run`, `GET /v1/capsules`, `GET /v1/audit/export`.
    - Tenant-scoping at the API boundary (fail-closed, returning 404 for tenant mismatch to prevent enumeration).
-   - Basic RBAC: `POST /v1/run` requires `operator`/`admin`; `GET` endpoints allow `viewer`. Note: TRUST-1.2 RBAC is interface-level, not identity-backed yet.
-   - **Explicit Non-Goals**: No persistent job store, no RBAC UI, no policy DSL editing UI.
+   - Basic RBAC: `POST /v1/run` requires `operator`/`admin`; `GET` endpoints allow `viewer`.
+   - **TRUST-1.2.1 Auth Context Binding (✅ HARDENING/COMPLETE)**: 
+     - Supported JWT claims: `tenant_id` or `tid`, `role`, `sub`, `exp`, optional `iss`/`aud`.
+     - **Explicit requirement:** header auth is dev-only triple-gated. Production requires JWT-bound AuthContext.
+   - **Explicit Non-Goals**: No persistent job store, no RBAC UI, no policy DSL editing UI, no JWKS/OIDC discovery.
 4. **EPI-17.1 Telemetry before enforcement (PLANNED)**
    - Capsule-level coverage metrics and CI artifact trends.
    - Trend reporting to CI artifacts; budgets enforced only after variance stabilizes.

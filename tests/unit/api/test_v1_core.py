@@ -4,16 +4,30 @@ Tests for TRUST-1.2 API Core Endpoints
 
 from unittest.mock import AsyncMock, patch
 
+import jwt
 from fastapi.testclient import TestClient
 
 from src.api.main import app
+from src.config import config
 from src.sdk.types import GovernedResultV1, ReplayVerdictV1
+
+config.auth.jwt_secret = "test-secret"
+config.auth.env = "prod"
+config.auth.allow_insecure_headers = False
 
 client = TestClient(app)
 
+def create_test_token(tenant_id: str, role: str) -> dict:
+    token = jwt.encode(
+        {"tenant_id": tenant_id, "role": role, "sub": "test-user"},
+        "test-secret",
+        algorithm="HS256"
+    )
+    return {"Authorization": f"Bearer {token}"}
+
 # Common Headers
-H_VIEWER = {"X-Tenant-Id": "t-123", "X-Role": "viewer"}
-H_OPERATOR = {"X-Tenant-Id": "t-123", "X-Role": "operator"}
+H_VIEWER = create_test_token("t-123", "viewer")
+H_OPERATOR = create_test_token("t-123", "operator")
 
 
 # 1) test_api_run_requires_operator_role
@@ -25,10 +39,10 @@ def test_api_run_requires_operator_role():
 
 # 2) test_api_run_requires_tenant_header_fail_closed
 def test_api_run_requires_tenant_header_fail_closed():
-    # Missing tenant id completely
-    response = client.post("/v1/run", headers={"X-Role": "operator"}, json={"query": "test", "mode": "grounded"})
-    assert response.status_code == 400
-    assert "Missing required X-Tenant-Id" in response.json()["detail"]
+    # Missing token completely
+    response = client.post("/v1/run", headers={}, json={"query": "test", "mode": "grounded"})
+    assert response.status_code == 401
+    assert "authentication" in str(response.json()["detail"]).lower()
 
 
 # 3) test_api_run_threads_tenant_id_to_governedrun
@@ -127,3 +141,15 @@ def test_api_audit_export_calls_verify_capsule_with_tenant(mock_verify, mock_fet
     assert "unknown_key" not in data["capsule_manifest"]
     assert data["capsule_manifest"]["capsule_id"] == "cap-777"
     assert data["replay_verdict"]["status"] == "PASS"
+
+# 7) test_api_auth_fails_before_typedb
+@patch("src.api.routes.v1_core.list_capsules_for_tenant")
+def test_api_auth_fails_before_typedb(mock_list):
+    # Mock to ensure it raises if called
+    mock_list.side_effect = Exception("TypeDB should not be reached!")
+    
+    response = client.get("/v1/capsules", headers={})
+    assert response.status_code == 401
+    
+    # Prove the DB read function was never invoked
+    mock_list.assert_not_called()

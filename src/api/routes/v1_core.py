@@ -3,10 +3,11 @@ TRUST-1.2 API Routes
 """
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.auth.context import AuthContextV1
 from src.api.contracts.v1 import (
     AuditExportV1,
     CapsuleListItemV1,
@@ -15,7 +16,7 @@ from src.api.contracts.v1 import (
     RunRequestV1,
     RunResponseV1,
 )
-from src.api.deps import get_request_context, require_operator
+from src.api.deps import get_auth_context, verify_operator_role
 from src.api.services.typedb_reads import (
     fetch_capsule_by_id_scoped,
     list_capsules_for_tenant,
@@ -32,13 +33,11 @@ router = APIRouter(tags=["core"])
 @router.post("/run", response_model=RunResponseV1)
 async def trigger_run(
     request: RunRequestV1,
-    context: Tuple[str, RoleEnum] = Depends(get_request_context),
+    auth: AuthContextV1 = Depends(get_auth_context),
+    role: RoleEnum = Depends(verify_operator_role),
 ):
     """TRUST-1.2: Trigger a new epistemic run scoped to the tenant."""
-    tenant_id, role = context
-
-    # Enforce operator/admin role
-    require_operator(role)
+    tenant_id = auth.tenant_id
 
     # Local import
     from src.sdk.governed_run import GovernedRun
@@ -68,10 +67,10 @@ async def trigger_run(
 async def list_capsules(
     limit: int = Query(50, ge=1, le=200),
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
-    context: Tuple[str, RoleEnum] = Depends(get_request_context),
+    auth: AuthContextV1 = Depends(get_auth_context),
 ):
     """TRUST-1.2: Fetch a paginated list of capsules owned by the tenant."""
-    tenant_id, role = context
+    tenant_id = auth.tenant_id
     # Viewers can access this endpoint
 
     items, next_cursor = list_capsules_for_tenant(
@@ -94,10 +93,10 @@ async def list_capsules(
 @router.get("/audit/export", response_model=AuditExportV1)
 async def export_audit_ledger(
     capsule_id: str = Query(..., description="The ID of the capsule to export"),
-    context: Tuple[str, RoleEnum] = Depends(get_request_context),
+    auth: AuthContextV1 = Depends(get_auth_context),
 ):
     """TRUST-1.2: Export cryptographic proof of reasoning, scoping fail-closed."""
-    tenant_id, role = context
+    tenant_id = auth.tenant_id
 
     # 1. Fetch capsule scoped to tenant (returns None if not found or not owned)
     db_capsule = fetch_capsule_by_id_scoped(tenant_id, capsule_id)

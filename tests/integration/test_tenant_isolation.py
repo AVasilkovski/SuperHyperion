@@ -53,7 +53,17 @@ def test_tenant_isolation_baseline(ghost_db):
     # 2. Test Fetching with Scoping Helper
 
     with ghost_db.transaction(TransactionType.READ) as tx:
-        # Query A: Tenant A requests their own capsule -> Should Succeed
+        # Step A1: Can we find the Tenant?
+        q_t = f'match $t isa tenant, has tenant-id "{tenant_a}"; select $t;'
+        ans_t = list(tx.query(q_t).resolve().as_concept_rows())
+        assert len(ans_t) == 1, f"Tenant {tenant_a} not found in DB"
+
+        # Step A2: Can we find the Capsule?
+        q_c = f'match $c isa run-capsule, has capsule-id "{capsule_a}"; select $c;'
+        ans_c = list(tx.query(q_c).resolve().as_concept_rows())
+        assert len(ans_c) == 1, f"Capsule {capsule_a} not found in DB"
+
+        # Step A3: Can we find the Relation?
         q_a = f"""
         match
             $t isa tenant, has tenant-id "{tenant_a}";
@@ -62,7 +72,7 @@ def test_tenant_isolation_baseline(ghost_db):
         select $c;
         """
         ans_a = list(tx.query(q_a).resolve().as_concept_rows())
-        assert len(ans_a) == 1, "Tenant A should see their own capsule"
+        assert len(ans_a) == 1, "Tenant A should see their own capsule via relation"
 
         # Query B: Tenant B requests Tenant A's capsule -> Should Fail (Return empty)
         q_b = f"""

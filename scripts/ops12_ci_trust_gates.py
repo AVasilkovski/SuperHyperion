@@ -173,7 +173,6 @@ async def _run_gate(gate: str, out_dir: str) -> tuple[bool, dict[str, Any]]:
             (session: $s, evidence: $e) isa session-has-evidence;
             $e has entity-id $eid;
             {or_clauses};
-        select $eid;
         '''
         ledger_rows = steward.query_graph(evidence_probe_query)
         ledger_ids = {str(r.get("eid")) for r in ledger_rows if r.get("eid")}

@@ -8,6 +8,7 @@ OntologySteward insert contract.
 Non-destructive: preserves original keys (hypothesis_id, codeact_execution_id)
 for traceability.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional

@@ -14,6 +14,7 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, TypedDi
 
 class NodeType(str, Enum):
     """Types of nodes in the workflow."""
+
     # Speculative lane
     CLARIFY = "clarify"
     DECOMPOSE = "decompose"
@@ -50,7 +51,7 @@ EpistemicMode = Literal["grounded", "speculative"]
 class ScientificUncertainty:
     """
     Scientific uncertainty (NOT rhetorical disagreement).
-    
+
     Components:
         variance: Statistical variance of results
         sensitivity: Sensitivity to assumptions
@@ -58,6 +59,7 @@ class ScientificUncertainty:
         model_fit_error: Residual error from model fitting
         confidence_interval: (lower, upper) bounds
     """
+
     variance: float = 0.0
     sensitivity: float = 0.0
     sample_size: int = 0
@@ -68,20 +70,18 @@ class ScientificUncertainty:
         """Calculate total scientific uncertainty."""
         if self.sample_size == 0:
             return 1.0  # Maximum uncertainty
-        return (
-            (self.variance * self.sensitivity) / (self.sample_size ** 0.5)
-            + self.model_fit_error
-        )
+        return (self.variance * self.sensitivity) / (self.sample_size**0.5) + self.model_fit_error
 
 
 @dataclass
 class Evidence:
     """
     v2.2: Links belief updates to template execution.
-    
+
     INVARIANT: No belief update is legal without an Evidence object
     that references a successful template execution.
     """
+
     hypothesis_id: str
     claim_id: Optional[str] = None
     template_id: str = "codeact_v1"
@@ -124,9 +124,11 @@ class Evidence:
 # Original v1 Types (kept for compatibility)
 # =============================================================================
 
+
 @dataclass
 class Message:
     """A message in the agent conversation."""
+
     role: str  # "user", "assistant", "system", "code", "result"
     content: str
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -135,6 +137,7 @@ class Message:
 @dataclass
 class CodeExecution:
     """Record of a code execution."""
+
     code: str
     result: str
     success: bool
@@ -144,23 +147,23 @@ class CodeExecution:
 @dataclass
 class GraphEntity:
     """An entity from the knowledge graph."""
+
     entity_type: str
     id: str
     attributes: Dict[str, Any]
     relations: List[Dict[str, Any]] = field(default_factory=list)
 
 
-
-
 class AgentState(TypedDict):
     """
     State passed between LangGraph nodes.
-    
+
     This is the central state object that flows through the workflow graph.
     Each node reads from and writes to this state.
-    
+
     v2.1: Extended with epistemic mode, evidence chain, and scientific uncertainty.
     """
+
     # =========================================================================
     # v2.1 Epistemic Fields (CRITICAL)
     # =========================================================================
@@ -275,8 +278,6 @@ class AgentState(TypedDict):
     iteration: int
 
 
-
-
 def create_initial_state(
     query: str,
     session_id: Optional[str] = None,
@@ -284,6 +285,7 @@ def create_initial_state(
 ) -> AgentState:
     """Create initial state for a new query."""
     import uuid
+
     sid = session_id or f"sess-{uuid.uuid4().hex[:8]}"
     tid = tenant_id or "default"
     return AgentState(
@@ -340,8 +342,6 @@ def create_initial_state(
     )
 
 
-
-
 def add_message(state: AgentState, role: str, content: str) -> AgentState:
     """Add a message to the state."""
     state["messages"].append({"role": role, "content": content})
@@ -349,17 +349,15 @@ def add_message(state: AgentState, role: str, content: str) -> AgentState:
 
 
 def add_code_execution(
-    state: AgentState,
-    code: str,
-    result: str,
-    success: bool,
-    execution_id: int
+    state: AgentState, code: str, result: str, success: bool, execution_id: int
 ) -> AgentState:
     """Add a code execution record to the state."""
-    state["code_executions"].append({
-        "code": code,
-        "result": result,
-        "success": success,
-        "execution_id": execution_id,
-    })
+    state["code_executions"].append(
+        {
+            "code": code,
+            "result": result,
+            "success": success,
+            "execution_id": execution_id,
+        }
+    )
     return state

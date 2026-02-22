@@ -103,9 +103,7 @@ def _verify_mutation_linkage(
         chunk_size = 50
         for i in range(0, len(mutation_ids), chunk_size):
             chunk = mutation_ids[i : i + chunk_size]
-            or_conditions = " or ".join(
-                [f'{{ $mid == "{_esc(m)}"; }}' for m in chunk]
-            )
+            or_conditions = " or ".join([f'{{ $mid == "{_esc(m)}"; }}' for m in chunk])
             query = f"""
             match
                 $cap isa run-capsule, has capsule-id "{_esc(capsule_id)}";
@@ -128,8 +126,6 @@ def _verify_mutation_linkage(
         }
 
 
-
-
 def _verify_tenant_scope(capsule_id: str, tenant_id: str) -> Tuple[bool, str, Dict[str, Any]]:
     """Fail-closed tenant ownership check before replay integrity checks."""
     try:
@@ -137,7 +133,11 @@ def _verify_tenant_scope(capsule_id: str, tenant_id: str) -> Tuple[bool, str, Di
 
         db = TypeDBConnection()
         if db._mock_mode:
-            return False, "TENANT_SCOPE_MISSING", {"code": "TENANT_SCOPE_MISSING", "reason": "mock_mode"}
+            return (
+                False,
+                "TENANT_SCOPE_MISSING",
+                {"code": "TENANT_SCOPE_MISSING", "reason": "mock_mode"},
+            )
 
         def _esc(s: str) -> str:
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
@@ -194,7 +194,9 @@ def verify_capsule(
         tenant_ok, tenant_code, tenant_details = _verify_tenant_scope(capsule_id, tenant_id)
         details["tenant_scope"] = tenant_details
         if not tenant_ok:
-            reasons.append(f"Tenant scope failed: [{tenant_code}] capsule is not accessible for tenant")
+            reasons.append(
+                f"Tenant scope failed: [{tenant_code}] capsule is not accessible for tenant"
+            )
             return ReplayVerdictV1(status="FAIL", reasons=reasons, details=details)
 
     # 1. Hash integrity
@@ -218,9 +220,7 @@ def verify_capsule(
     mutation_ok, mutation_details = _verify_mutation_linkage(capsule_id, mutation_ids)
     details["mutation_linkage"] = mutation_details
     if not mutation_ok:
-        reasons.append(
-            f"Mutation linkage failed: {mutation_details.get('missing', [])}"
-        )
+        reasons.append(f"Mutation linkage failed: {mutation_details.get('missing', [])}")
 
     overall = hash_ok and primacy_ok and mutation_ok
     return ReplayVerdictV1(

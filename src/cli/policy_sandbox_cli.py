@@ -14,13 +14,19 @@ policy_app = typer.Typer(name="policy", help="Local policy sandbox tools", no_ar
 
 @policy_app.command("simulate")
 def simulate(
-    bundles: str = typer.Option(..., "--bundles", help="Directory containing exported bundle artifacts"),
-    policies: str = typer.Option(..., "--policies", help="Python module path exposing policy callables"),
+    bundles: str = typer.Option(
+        ..., "--bundles", help="Directory containing exported bundle artifacts"
+    ),
+    policies: str = typer.Option(
+        ..., "--policies", help="Python module path exposing policy callables"
+    ),
     out: str = typer.Option(..., "--out", help="Output directory for policy simulation artifacts"),
     tenant: str | None = typer.Option(None, "--tenant", help="Optional tenant filter"),
     json_output: bool = typer.Option(False, "--json", help="Output JSON summary"),
 ):
-    written = simulate_policies(bundles_dir=bundles, policies_module=policies, out_dir=out, tenant_id=tenant)
+    written = simulate_policies(
+        bundles_dir=bundles, policies_module=policies, out_dir=out, tenant_id=tenant
+    )
     if json_output:
         print(json.dumps({"written": written}, indent=2))
     else:
@@ -30,8 +36,12 @@ def simulate(
 
 @policy_app.command("conflicts")
 def conflicts(
-    bundles: str = typer.Option(..., "--bundles", help="Directory containing exported bundle artifacts"),
-    policies: str = typer.Option(..., "--policies", help="Python module path exposing policy callables"),
+    bundles: str = typer.Option(
+        ..., "--bundles", help="Directory containing exported bundle artifacts"
+    ),
+    policies: str = typer.Option(
+        ..., "--policies", help="Python module path exposing policy callables"
+    ),
     out: str = typer.Option(..., "--out", help="Output directory for policy conflict artifacts"),
     tenant: str | None = typer.Option(None, "--tenant", help="Optional tenant filter"),
     fail_on_severity: str = typer.Option(
@@ -41,7 +51,9 @@ def conflicts(
     ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON summary"),
 ):
-    written = run_policy_conflicts(bundles_dir=bundles, policies_module=policies, out_dir=out, tenant_id=tenant)
+    written = run_policy_conflicts(
+        bundles_dir=bundles, policies_module=policies, out_dir=out, tenant_id=tenant
+    )
     summary_path = next((p for p in written if p.endswith("policy_conflicts_summary.json")), None)
     summary = None
     if summary_path:

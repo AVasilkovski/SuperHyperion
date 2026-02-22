@@ -51,14 +51,17 @@ jobs: Dict[str, Dict[str, Any]] = {}
 # Request/Response Models
 # ============================================
 
+
 class QueryRequest(BaseModel):
     """Request model for query endpoint."""
+
     query: str = Field(..., description="Natural language query or claim to investigate")
     thread_id: Optional[str] = Field(None, description="Thread ID for conversation continuity")
 
 
 class QueryResponse(BaseModel):
     """Response model for query endpoint."""
+
     job_id: str
     status: str
     message: str
@@ -66,6 +69,7 @@ class QueryResponse(BaseModel):
 
 class JobStatus(BaseModel):
     """Status of a background job."""
+
     job_id: str
     status: str  # "pending", "running", "completed", "failed"
     created_at: str
@@ -76,6 +80,7 @@ class JobStatus(BaseModel):
 
 class UploadResponse(BaseModel):
     """Response model for file upload."""
+
     filename: str
     status: str
     message: str
@@ -84,6 +89,7 @@ class UploadResponse(BaseModel):
 # ============================================
 # Background Task Handlers
 # ============================================
+
 
 async def process_query(job_id: str, query: str, thread_id: str):
     """Process a query in the background."""
@@ -114,6 +120,7 @@ async def process_query(job_id: str, query: str, thread_id: str):
 # Endpoints
 # ============================================
 
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -138,7 +145,7 @@ async def health():
 async def query(request: QueryRequest, background_tasks: BackgroundTasks):
     """
     Submit a natural language query for investigation.
-    
+
     Returns a job_id that can be used to check status via /status/{job_id}
     or stream results via /stream/{job_id}.
     """
@@ -182,7 +189,7 @@ async def get_status(job_id: str):
 async def stream_job(job_id: str):
     """
     Server-Sent Events endpoint for streaming job updates.
-    
+
     Streams events with types:
     - thought: Agent reasoning
     - code: Code being executed
@@ -260,17 +267,15 @@ async def stream_job(job_id: str):
 async def upload_file(file: UploadFile = File(...)):
     """
     Upload a PDF file for ingestion.
-    
+
     The file will be processed asynchronously by the IngestionAgent.
     """
     if not file.filename.endswith(".pdf"):
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are supported"
-        )
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
     # Save file (in production, use cloud storage)
     import os
+
     upload_dir = "uploads"
     os.makedirs(upload_dir, exist_ok=True)
 
@@ -327,8 +332,10 @@ async def delete_job(job_id: str):
 
 if __name__ == "__main__":
     from src.utils.logging_setup import setup_logging
+
     setup_logging()
     import uvicorn
+
     uvicorn.run(
         "src.api.main:app",
         host=config.api.host,

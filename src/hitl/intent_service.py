@@ -31,8 +31,10 @@ logger = logging.getLogger(__name__)
 # Intent Status Enum
 # =============================================================================
 
+
 class IntentStatus(str, Enum):
     """Write-intent lifecycle states."""
+
     # Initial
     STAGED = "staged"
 
@@ -102,9 +104,11 @@ ALLOWED_TRANSITIONS: Dict[IntentStatus, Set[IntentStatus]] = {
 # Data Models
 # =============================================================================
 
+
 @dataclass
 class WriteIntent:
     """A write-intent record."""
+
     intent_id: str
     intent_type: str  # "update_epistemic_status", "create_proposition", etc.
     lane: str  # "grounded" | "speculative" - Envelope metadata
@@ -162,6 +166,7 @@ class WriteIntent:
 @dataclass
 class IntentStatusEvent:
     """An append-only status transition event."""
+
     event_id: str
     intent_id: str
     from_status: IntentStatus
@@ -194,18 +199,22 @@ class IntentStatusEvent:
 # Transition Errors
 # =============================================================================
 
+
 class IntentTransitionError(Exception):
     """Raised when an illegal transition is attempted."""
+
     pass
 
 
 class IntentNotFoundError(Exception):
     """Raised when intent is not found."""
+
     pass
 
 
 class ScopeLockRequiredError(Exception):
     """Raised when scope_lock_id is required but missing."""
+
     pass
 
 
@@ -213,13 +222,14 @@ class ScopeLockRequiredError(Exception):
 # Write Intent Service (Core)
 # =============================================================================
 
+
 class WriteIntentService:
     """
     Core service for write-intent lifecycle.
-    
+
     Pure Python, no UI. This is the constitutional layer.
     Streamlit/CLI are just ports that call this service.
-    
+
     Uses IntentStore for persistence:
     - InMemoryIntentStore for tests
     - TypeDBIntentStore for production
@@ -228,11 +238,12 @@ class WriteIntentService:
     def __init__(self, store: Optional["IntentStore"] = None):
         """
         Initialize with optional IntentStore.
-        
+
         If no store provided, uses InMemoryIntentStore.
         """
         if store is None:
             from .intent_store import InMemoryIntentStore
+
             store = InMemoryIntentStore()
         self._store = store
 
@@ -333,13 +344,13 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Stage a new write-intent.
-        
-        New in 16.3: 
+
+        New in 16.3:
         - proposal_id is envelope metadata (rejected from payload)
         - deduplication via get_by_proposal_id
         - lane is envelope metadata (removed from payload if present)
         - full policy enforcement at stage time (registry validation + scope lock check)
-        
+
         Returns a new intent in STAGED status.
         """
         from .intent_registry import ScopeLockPolicy, get_intent_spec, validate_intent_payload
@@ -352,13 +363,17 @@ class WriteIntentService:
         if proposal_id:
             existing = self._store.get_by_proposal_id(proposal_id)
             if existing:
-                logger.info(f"Dedupe: proposal {proposal_id} already staged as {existing['intent_id']}")
+                logger.info(
+                    f"Dedupe: proposal {proposal_id} already staged as {existing['intent_id']}"
+                )
                 return self._reconstruct_intent(existing)
 
         # 1. Enforce envelope lane invariant (strip from payload if matched)
         if "lane" in payload:
             if payload["lane"] != lane:
-                raise ValueError(f"Payload lane '{payload['lane']}' mismatch envelope lane '{lane}'")
+                raise ValueError(
+                    f"Payload lane '{payload['lane']}' mismatch envelope lane '{lane}'"
+                )
             # Remove from payload (it's envelope only now)
             payload = {k: v for k, v in payload.items() if k != "lane"}
 
@@ -445,7 +460,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Submit a staged intent for HITL review.
-        
+
         Transition: staged → awaiting_hitl
         """
         intent = self._get_or_raise(intent_id)
@@ -469,7 +484,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Approve an intent for execution.
-        
+
         Transition: awaiting_hitl → approved
         """
         intent = self._get_or_raise(intent_id)
@@ -493,7 +508,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Reject an intent (terminal).
-        
+
         Transition: awaiting_hitl → rejected
         """
         intent = self._get_or_raise(intent_id)
@@ -518,7 +533,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Defer an intent for later review.
-        
+
         Transition: awaiting_hitl → deferred
         """
         intent = self._get_or_raise(intent_id)
@@ -544,7 +559,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Cancel an intent (terminal).
-        
+
         Transition: staged | awaiting_hitl → cancelled
         """
         intent = self._get_or_raise(intent_id)
@@ -566,7 +581,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Expire an intent (system transition, terminal).
-        
+
         Transition: awaiting_hitl | deferred → expired
         """
         intent = self._get_or_raise(intent_id)
@@ -589,7 +604,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Mark intent as executed.
-        
+
         INVARIANT: Requires prior approved event.
         Transition: approved → executed
         """
@@ -603,9 +618,7 @@ class WriteIntentService:
 
         # CONSTITUTIONAL INVARIANT: scope_lock_id required for certain types
         if intent.requires_scope_lock() and not intent.scope_lock_id:
-            raise ScopeLockRequiredError(
-                f"Intent {intent_id} requires scope_lock_id for execution"
-            )
+            raise ScopeLockRequiredError(f"Intent {intent_id} requires scope_lock_id for execution")
 
         self._assert_transition_allowed(intent.status, IntentStatus.EXECUTED)
 
@@ -684,7 +697,7 @@ class WriteIntentService:
     ) -> WriteIntent:
         """
         Mark intent as failed.
-        
+
         Transition: approved → failed
         """
         intent = self._get_or_raise(intent_id)
@@ -703,7 +716,7 @@ class WriteIntentService:
     def expire_stale(self, max_age_days: int = 7) -> List[str]:
         """
         Expire all stale intents.
-        
+
         Returns list of expired intent IDs.
         """
         expired_ids = []
@@ -729,7 +742,7 @@ class WriteIntentService:
     def reactivate_deferred(self) -> List[str]:
         """
         Reactivate deferred intents where defer_until has passed.
-        
+
         Returns list of reactivated intent IDs.
         """
         reactivated_ids = []
@@ -773,9 +786,9 @@ class WriteIntentService:
     # =========================================================================
 
     def list_staged(self, intent_type: str = None) -> list:
-        staged = self._store.list_intents_by_status('staged')
+        staged = self._store.list_intents_by_status("staged")
         if intent_type:
-            staged = [i for i in staged if i['intent_type'] == intent_type]
+            staged = [i for i in staged if i["intent_type"] == intent_type]
         return staged
 
     def get(self, intent_id: str, tenant_id: str = "default") -> Optional[WriteIntent]:
@@ -797,7 +810,9 @@ class WriteIntentService:
             payload=data.get("payload", {}),
             impact_score=data.get("impact_score", 0.0),
             status=IntentStatus(data["status"]),
-            created_at=data["created_at"] if isinstance(data["created_at"], datetime) else datetime.fromisoformat(data["created_at"]),
+            created_at=data["created_at"]
+            if isinstance(data["created_at"], datetime)
+            else datetime.fromisoformat(data["created_at"]),
             expires_at=data.get("expires_at"),
             scope_lock_id=data.get("scope_lock_id"),
             supersedes_intent_id=data.get("supersedes_intent_id"),
@@ -831,19 +846,23 @@ class WriteIntentService:
         event_data = self._store.get_events(intent_id)
         events = []
         for e in event_data:
-            events.append(IntentStatusEvent(
-                event_id=e["event_id"],
-                intent_id=e["intent_id"],
-                from_status=IntentStatus(e["from_status"]),
-                to_status=IntentStatus(e["to_status"]),
-                actor_type=e["actor_type"],
-                actor_id=e["actor_id"],
-                created_at=e["created_at"] if isinstance(e["created_at"], datetime) else datetime.fromisoformat(e["created_at"]),
-                rationale=e.get("rationale"),
-                defer_until=e.get("defer_until"),
-                execution_id=e.get("execution_id"),
-                error=e.get("error"),
-            ))
+            events.append(
+                IntentStatusEvent(
+                    event_id=e["event_id"],
+                    intent_id=e["intent_id"],
+                    from_status=IntentStatus(e["from_status"]),
+                    to_status=IntentStatus(e["to_status"]),
+                    actor_type=e["actor_type"],
+                    actor_id=e["actor_id"],
+                    created_at=e["created_at"]
+                    if isinstance(e["created_at"], datetime)
+                    else datetime.fromisoformat(e["created_at"]),
+                    rationale=e.get("rationale"),
+                    defer_until=e.get("defer_until"),
+                    execution_id=e.get("execution_id"),
+                    error=e.get("error"),
+                )
+            )
         return events
 
     def _has_approved_event(self, intent_id: str) -> bool:

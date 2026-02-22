@@ -28,15 +28,17 @@ if TYPE_CHECKING:
 # Template Version
 # =============================================================================
 
+
 @dataclass(frozen=True, order=True)
 class TemplateVersion:
     """
     Semantic version for templates.
-    
+
     - major: Breaking change to contract
     - minor: New optional capabilities
     - patch: Bug fix (same semantics)
     """
+
     major: int
     minor: int
     patch: int
@@ -70,15 +72,21 @@ class TemplateVersion:
 # Epistemic Semantics (Phase 16.2)
 # =============================================================================
 
+
 @dataclass
 class EpistemicSemantics:
     """
     Governed epistemic semantics for a template.
     Included in spec_hash.
     """
-    instrument: str = "confirmatory"  # confirmatory, falsification, replication, method_audit, consistency_check
+
+    instrument: str = (
+        "confirmatory"  # confirmatory, falsification, replication, method_audit, consistency_check
+    )
     negative_role_on_fail: str = "none"  # refute, undercut, replicate, none
-    default_failure_mode: str = "null_effect"  # null_effect, sign_flip, violated_assumption, nonidentifiable
+    default_failure_mode: str = (
+        "null_effect"  # null_effect, sign_flip, violated_assumption, nonidentifiable
+    )
     strength_model: str = "binary_default"  # binary_default, ci_proximity_to_null
 
     def to_canonical_dict(self) -> Dict[str, str]:
@@ -90,13 +98,14 @@ class EpistemicSemantics:
         }
 
 
-
 # =============================================================================
 # Template Capabilities (Security Surface)
 # =============================================================================
 
+
 class TemplateCapability(str, Enum):
     """Declared capabilities of a template."""
+
     FILESYSTEM = "filesystem"
     NETWORK = "network"
     RANDOMNESS = "randomness"
@@ -108,25 +117,29 @@ class TemplateCapability(str, Enum):
 # Template Status (Lifecycle)
 # =============================================================================
 
+
 class TemplateStatus(str, Enum):
     """Template lifecycle status."""
-    ACTIVE = "active"           # Can be used for new experiments
-    DEPRECATED = "deprecated"   # Cannot be used for new, but queries work
-    BANNED = "banned"           # Cannot be executed at all
+
+    ACTIVE = "active"  # Can be used for new experiments
+    DEPRECATED = "deprecated"  # Cannot be used for new, but queries work
+    BANNED = "banned"  # Cannot be executed at all
 
 
 # =============================================================================
 # Template Spec (Declared Contract)
 # =============================================================================
 
+
 @dataclass
 class TemplateSpec:
     """
     Declared contract for a template.
-    
+
     This is what gets hashed for spec_hash.
     Changes to this require version bumps.
     """
+
     template_id: str
     version: TemplateVersion
     description: str
@@ -152,7 +165,6 @@ class TemplateSpec:
 
     # Phase 16.2: Governed epistemic semantics
     epistemic: EpistemicSemantics = field(default_factory=EpistemicSemantics)
-
 
     def to_canonical_json(self) -> str:
         """Return canonical JSON for hashing (sorted keys, no whitespace)."""
@@ -193,7 +205,7 @@ def sha256_json_strict(data: Any) -> str:
 def normalize_ast(source: str) -> str:
     """
     Normalize Python source to AST dump (ignoring line numbers/formatting).
-    
+
     This allows hashing code semantics, not whitespace.
     """
     try:
@@ -208,7 +220,7 @@ def normalize_ast(source: str) -> str:
 def compute_code_hash(obj: Any, strict: bool = False) -> str:
     """
     Compute hash of the entire template class implementation.
-    
+
     Uses AST normalization on the class source code.
     If strict=True, raises exception on failure instead of returning placeholder.
     """
@@ -225,10 +237,11 @@ def compute_code_hash(obj: Any, strict: bool = False) -> str:
         # In PROD this should probably fail, but for now we maintain robustness
         return f"hash-error-{str(e)}"
 
+
 def compute_code_hash_strict(cls: type) -> str:
     """
     Compute code hash of template class, failing hard on error.
-    
+
     Constitutional Seal Usage: This MUST be used during freeze/validation.
     """
     return compute_code_hash(cls, strict=True)
@@ -238,14 +251,16 @@ def compute_code_hash_strict(cls: type) -> str:
 # Template Metadata (Governance Record)
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class TemplateMetadata:
     """
     Governance metadata for a template version.
-    
+
     Persisted in TypeDB + manifest.json.
     Immutable: updates require creating new instance.
     """
+
     template_id: str
     version: TemplateVersion
 
@@ -312,14 +327,18 @@ class TemplateMetadata:
             deps_hash=data.get("deps_hash"),
             status=TemplateStatus(data.get("status", "active")),
             approved_by=data.get("approved_by"),
-            approved_at=datetime.fromisoformat(data["approved_at"]) if data.get("approved_at") else None,
+            approved_at=datetime.fromisoformat(data["approved_at"])
+            if data.get("approved_at")
+            else None,
             frozen=data.get("frozen", False),
             frozen_at=datetime.fromisoformat(data["frozen_at"]) if data.get("frozen_at") else None,
             first_evidence_id=data.get("first_evidence_id"),
             freeze_claim_id=data.get("freeze_claim_id"),
             freeze_scope_lock_id=data.get("freeze_scope_lock_id"),
             tainted=data.get("tainted", False),
-            tainted_at=datetime.fromisoformat(data["tainted_at"]) if data.get("tainted_at") else None,
+            tainted_at=datetime.fromisoformat(data["tainted_at"])
+            if data.get("tainted_at")
+            else None,
             tainted_reason=data.get("tainted_reason"),
             superseded_by=data.get("superseded_by"),
         )
@@ -335,10 +354,11 @@ class TemplateMetadata:
 
 logger = logging.getLogger(__name__)
 
+
 class VersionedTemplateRegistry:
     """
     Explicit registry of versioned templates.
-    
+
     Keys are qualified IDs: 'template_id@version'
     """
 
@@ -355,7 +375,7 @@ class VersionedTemplateRegistry:
     ) -> str:
         """
         Register a versioned template.
-        
+
         Returns the qualified ID.
         """
         qualified_id = f"{spec.template_id}@{spec.version}"
@@ -411,8 +431,8 @@ class VersionedTemplateRegistry:
         versions = [
             (TemplateVersion.parse(qid.split("@")[1]), qid)
             for qid in self._templates
-            if qid.startswith(f"{template_id}@") and
-               self._metadata[qid].status == TemplateStatus.ACTIVE
+            if qid.startswith(f"{template_id}@")
+            and self._metadata[qid].status == TemplateStatus.ACTIVE
         ]
         if not versions:
             return None
@@ -425,10 +445,7 @@ class VersionedTemplateRegistry:
 
     def list_by_status(self, status: TemplateStatus) -> List[str]:
         """List templates by status."""
-        return [
-            qid for qid, meta in self._metadata.items()
-            if meta.status == status
-        ]
+        return [qid for qid, meta in self._metadata.items() if meta.status == status]
 
     def freeze(
         self,
@@ -439,7 +456,7 @@ class VersionedTemplateRegistry:
     ) -> TemplateMetadata:
         """
         Freeze a template on first evidence.
-        
+
         Returns updated metadata (new instance).
         """
         metadata = self._metadata.get(qualified_id)
@@ -449,11 +466,17 @@ class VersionedTemplateRegistry:
         if metadata.frozen:
             # Idempotent freeze: return existing if frozen
             # Log warning if provenance drifts (e.g. different evidence ID)
-            if metadata.first_evidence_id and evidence_id and metadata.first_evidence_id != evidence_id:
+            if (
+                metadata.first_evidence_id
+                and evidence_id
+                and metadata.first_evidence_id != evidence_id
+            ):
                 logger.warning(
                     "Registry freeze called for already-frozen template with different evidence_id. "
                     "Keeping original first_evidence_id. qualified_id=%s frozen_first=%s new=%s",
-                    qualified_id, metadata.first_evidence_id, evidence_id
+                    qualified_id,
+                    metadata.first_evidence_id,
+                    evidence_id,
                 )
             return metadata
 
@@ -513,10 +536,7 @@ class VersionedTemplateRegistry:
         current_spec_hash = spec.spec_hash()
         current_code_hash = compute_code_hash(type(template), strict=True)
 
-        return (
-            current_spec_hash == metadata.spec_hash and
-            current_code_hash == metadata.code_hash
-        )
+        return current_spec_hash == metadata.spec_hash and current_code_hash == metadata.code_hash
 
     def to_manifest(self) -> Dict[str, Any]:
         """Export registry to manifest format for CI."""

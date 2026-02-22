@@ -19,4 +19,3 @@ __all__ = [
     "SourceReputationModel",
     "source_reputation_model",
 ]
-

@@ -44,22 +44,25 @@ MIN_EVIDENCE_COUNT = 2
 # Theory Change Actions
 # =============================================================================
 
+
 class TheoryAction(str, Enum):
     """Possible theory change actions."""
-    REVISE = "revise"          # Update belief state in place
-    FORK = "fork"              # Create competing hypothesis
+
+    REVISE = "revise"  # Update belief state in place
+    FORK = "fork"  # Create competing hypothesis
     QUARANTINE = "quarantine"  # Suspend due to methodological issues
-    HOLD = "hold"              # Insufficient evidence to act
+    HOLD = "hold"  # Insufficient evidence to act
 
 
 # =============================================================================
 # Canonical ID Resolver
 # =============================================================================
 
+
 def get_evidence_entity_id(ev: Dict[str, Any]) -> str:
     """
     Canonical resolver for evidence entity IDs.
-    
+
     Handles all common key variations across Python/TypeQL:
     - DB row keys: eid
     - entity_id / entity-id
@@ -78,7 +81,7 @@ def get_evidence_entity_id(ev: Dict[str, Any]) -> str:
 def get_claim_id(ev: Dict[str, Any]) -> str:
     """
     Canonical resolver for claim IDs.
-    
+
     Handles all common key variations across Python/TypeQL:
     - DB row keys: cid
     - claim_id / claim-id
@@ -98,7 +101,7 @@ def get_claim_id(ev: Dict[str, Any]) -> str:
 def get_confidence_value(ev: Dict[str, Any]) -> float:
     """
     Canonical resolver for confidence/strength values with clamping.
-    
+
     Handles all common key variations and applies numeric hygiene.
     - DB row keys: conf, rs
     - confidence_score / confidence-score
@@ -128,6 +131,7 @@ EvidenceChannel = Literal["validation", "negative"]
 @dataclass
 class EvidenceAggregate:
     """Aggregated evidence statistics for a claim."""
+
     claim_id: str
     support_count: int
     support_max_conf: float
@@ -138,7 +142,7 @@ class EvidenceAggregate:
     undercut_count: int
     undercut_max_conf: float
     replicate_success_count: int  # From validation channel
-    replicate_fail_count: int     # From negative channel
+    replicate_fail_count: int  # From negative channel
 
     @property
     def total_count(self) -> int:
@@ -157,11 +161,7 @@ class EvidenceAggregate:
     @property
     def has_negative_evidence(self) -> bool:
         """True if any refute/undercut/replicate-fail evidence exists."""
-        return (
-            self.refute_count > 0
-            or self.undercut_count > 0
-            or self.replicate_fail_count > 0
-        )
+        return self.refute_count > 0 or self.undercut_count > 0 or self.replicate_fail_count > 0
 
 
 def aggregate_evidence(
@@ -170,11 +170,11 @@ def aggregate_evidence(
 ) -> EvidenceAggregate:
     """
     Aggregate evidence by role and channel for a claim.
-    
+
     Args:
         claim_id: The claim being evaluated
         evidence_with_roles: List of (evidence_dict, role, channel) tuples
-        
+
     Returns:
         EvidenceAggregate with summary statistics
     """
@@ -225,14 +225,15 @@ def aggregate_evidence(
 # Conflict Metrics
 # =============================================================================
 
+
 def compute_conflict_score(agg: EvidenceAggregate) -> float:
     """
     Compute conflict score between support and refutation evidence.
-    
+
     Returns value in [0, 1]:
     - 0.0: No conflict (all evidence agrees)
     - 1.0: Maximum conflict (equal support and refutation)
-    
+
     Formula: 2 * min(support_weight, refute_weight) / total_weight
     """
     # Include replicate_success in support weight
@@ -257,7 +258,7 @@ def compute_conflict_score(agg: EvidenceAggregate) -> float:
 def compute_entropy_proxy(agg: EvidenceAggregate) -> float:
     """
     Compute entropy proxy for evidence distribution.
-    
+
     Higher values indicate more uncertainty/disagreement.
     """
     counts = [agg.support_count, agg.refute_count, agg.undercut_count]
@@ -266,6 +267,7 @@ def compute_entropy_proxy(agg: EvidenceAggregate) -> float:
         return 0.0
 
     import math
+
     entropy = 0.0
     for c in counts:
         if c > 0:
@@ -280,17 +282,18 @@ def compute_entropy_proxy(agg: EvidenceAggregate) -> float:
 # Theory Change Decision
 # =============================================================================
 
+
 def compute_theory_change_action(
     claim_id: str,
     evidence_with_roles: List[Tuple[Dict[str, Any], EvidenceRole, EvidenceChannel]],
 ) -> Tuple[TheoryAction, Dict[str, Any]]:
     """
     Deterministic policy function for computing theory change action.
-    
+
     Args:
         claim_id: The claim being evaluated
         evidence_with_roles: List of (evidence_dict, role, channel) tuples
-        
+
     Returns:
         Tuple of (action, metadata_dict) where metadata contains:
         - conflict_score
@@ -344,9 +347,11 @@ def compute_theory_change_action(
 # Proposal Generation (Proposal-Only Mode)
 # =============================================================================
 
+
 @dataclass
 class TheoryChangeProposal:
     """A staged theory change proposal for HITL review."""
+
     proposal_id: str
     claim_id: str
     action: TheoryAction
@@ -359,7 +364,7 @@ class TheoryChangeProposal:
     def to_intent_payload(self) -> Dict[str, Any]:
         """
         Convert to write-intent payload for staging.
-        
+
         Phase 16.3: proposal_id is now envelope metadata, not payload.
         """
         return {
@@ -380,16 +385,16 @@ def generate_proposal(
 ) -> TheoryChangeProposal:
     """
     Generate a theory change proposal for a claim.
-    
+
     This creates a proposal object that can be staged as a write-intent.
     The actual mutation requires HITL approval.
-    
+
     Args:
         claim_id: The claim being evaluated
         evidence_with_roles: List of (evidence_dict, role, channel) tuples
         proposal_id: Optional ID for the proposal (generated if not provided)
         precomputed: Optional (action, metadata) tuple to skip recomputation
-        
+
     Returns:
         TheoryChangeProposal ready for staging
     """
@@ -399,16 +404,13 @@ def generate_proposal(
         action, metadata = precomputed
     else:
         action, metadata = compute_theory_change_action(claim_id, evidence_with_roles)
-    
+
     # Phase 16.3: Check proposal_id
     if not proposal_id:
         raise ValueError("proposal_id is required (Phase 16.3 deterministic idempotency)")
 
     # Extract evidence IDs using canonical resolver
-    evidence_ids = [
-        get_evidence_entity_id(ev)
-        for ev, _, _ in evidence_with_roles
-    ]
+    evidence_ids = [get_evidence_entity_id(ev) for ev, _, _ in evidence_with_roles]
 
     return TheoryChangeProposal(
         proposal_id=proposal_id,

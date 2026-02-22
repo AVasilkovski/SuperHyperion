@@ -57,4 +57,3 @@ __all__ = [
     "OntologySteward",
     "ontology_steward",
 ]
-

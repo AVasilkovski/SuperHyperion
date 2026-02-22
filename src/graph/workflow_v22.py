@@ -39,8 +39,10 @@ logger = logging.getLogger(__name__)
 # Trace Wrapper (Monotonic step_index)
 # =============================================================================
 
+
 def traced_node(node_name: str, phase: str = "execute"):
     """Decorator to enforce monotonic step_index and trace logging."""
+
     def decorator(fn):
         async def wrapped(state: AgentState) -> AgentState:
             # Increment step_index
@@ -50,22 +52,27 @@ def traced_node(node_name: str, phase: str = "execute"):
             if "traces" not in state:
                 state["traces"] = []
 
-            state["traces"].append({
-                "step_index": state["step_index"],
-                "node": node_name,
-                "phase": phase,
-                "timestamp": time.time(),
-            })
+            state["traces"].append(
+                {
+                    "step_index": state["step_index"],
+                    "node": node_name,
+                    "phase": phase,
+                    "timestamp": time.time(),
+                }
+            )
 
             # Execute node
             return await fn(state)
+
         return wrapped
+
     return decorator
 
 
 # =============================================================================
 # v2.2 Node Functions
 # =============================================================================
+
 
 @traced_node("clarify", "speculative")
 async def clarify_node(state: AgentState) -> AgentState:
@@ -75,6 +82,7 @@ async def clarify_node(state: AgentState) -> AgentState:
     state["epistemic_mode"] = "speculative"
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.messages = state["messages"]
     context.graph_context = state.get("graph_context", {})
@@ -91,11 +99,14 @@ async def decompose_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.DECOMPOSE.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
-    context.current_hypothesis = state["graph_context"].get(
-        "clarified_hypothesis", {}
-    ).get("clarified_hypothesis", state["query"])
+    context.current_hypothesis = (
+        state["graph_context"]
+        .get("clarified_hypothesis", {})
+        .get("clarified_hypothesis", state["query"])
+    )
 
     result = await decomposer_agent.run(context)
     state["graph_context"] = result.graph_context
@@ -111,6 +122,7 @@ async def ground_node(state: AgentState) -> AgentState:
     state["epistemic_mode"] = "grounded"
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -131,6 +143,7 @@ async def retrieval_gate_node(state: AgentState) -> AgentState:
     logger.info("v2.2: Retrieval Gate Node")
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.graph_context["reground_attempts"] = state.get("reground_attempts", 0)
@@ -152,6 +165,7 @@ async def speculate_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.SPECULATE.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -169,6 +183,7 @@ async def verify_node(state: AgentState) -> AgentState:
     state["epistemic_mode"] = "grounded"
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -190,6 +205,7 @@ async def critique_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.CRITIQUE.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.messages = state["messages"]
@@ -207,6 +223,7 @@ async def benchmark_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.BENCHMARK.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -222,6 +239,7 @@ async def uncertainty_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.UNCERTAINTY.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -247,6 +265,7 @@ async def meta_critic_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.META_CRITIC.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -268,6 +287,7 @@ async def propose_node(state: AgentState) -> AgentState:
     state["current_node"] = "propose"
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.graph_context["meta_critique"] = state.get("meta_critique", {})
@@ -310,7 +330,7 @@ async def epistemic_gate_node(state: AgentState) -> AgentState:
             audit_log.log_gate_triggered(
                 claim_id=proposal.get("claim_id", "unknown"),
                 gate_type="epistemic",
-                trigger_reason=f"Transition to {proposal.get('final_proposed_status')}"
+                trigger_reason=f"Transition to {proposal.get('final_proposed_status')}",
             )
 
     state["pending_hitl_decisions"] = pending_decisions
@@ -324,6 +344,7 @@ async def integrate_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.INTEGRATE.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.response = state.get("response")
@@ -375,11 +396,13 @@ async def steward_node(state: AgentState) -> AgentState:
 
     # Filter to approved intents only
     approved_intents = [
-        intent for intent in write_intents
+        intent
+        for intent in write_intents
         if intent.get("intent_id") not in pending_ids or not intent.get("requires_hitl", False)
     ]
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.graph_context["approved_write_intents"] = approved_intents
@@ -393,6 +416,7 @@ async def steward_node(state: AgentState) -> AgentState:
 # =============================================================================
 # Routing Functions
 # =============================================================================
+
 
 def route_retrieval(state: AgentState) -> str:
     """Route based on retrieval gate decision."""
@@ -411,10 +435,11 @@ def check_high_impact(state: AgentState) -> str:
 # Graph Builder
 # =============================================================================
 
+
 def build_v22_workflow() -> StateGraph:
     """
     Build the v2.2 LangGraph workflow.
-    
+
     v2.2 Changes:
         - retrieval_gate after ground (ground-only loop)
         - verify/propose split
@@ -429,12 +454,12 @@ def build_v22_workflow() -> StateGraph:
     workflow.add_node("ground", ground_node)
     workflow.add_node("retrieval_gate", retrieval_gate_node)  # NEW
     workflow.add_node("speculate", speculate_node)
-    workflow.add_node("verify", verify_node)                  # NEW (replaces validate)
+    workflow.add_node("verify", verify_node)  # NEW (replaces validate)
     workflow.add_node("critique", critique_node)
     workflow.add_node("benchmark", benchmark_node)
     workflow.add_node("uncertainty", uncertainty_node)
     workflow.add_node("meta_critic", meta_critic_node)
-    workflow.add_node("propose", propose_node)                # NEW
+    workflow.add_node("propose", propose_node)  # NEW
     workflow.add_node("epistemic_gate", epistemic_gate_node)
     workflow.add_node("integrate", integrate_node)
     workflow.add_node("impact_gate", impact_gate_node)
@@ -490,11 +515,11 @@ app_v22 = workflow_v22.compile(checkpointer=memory_v22)
 async def run_v22_query(query: str, thread_id: str = "default") -> AgentState:
     """
     Run a query through the v2.2 workflow.
-    
+
     Args:
         query: User's hypothesis to investigate
         thread_id: Thread ID for checkpointing
-        
+
     Returns:
         Final agent state with dual outputs
     """
@@ -518,7 +543,9 @@ if __name__ == "__main__":
         print(result.get("grounded_response", {}).get("summary", "No grounded response"))
         print("\n=== EPISTEMIC PROPOSALS ===")
         for prop in result.get("epistemic_update_proposal", [])[:3]:
-            print(f"- {prop.get('claim_id')}: {prop.get('final_proposed_status')} (caps: {prop.get('cap_reasons', [])})")
+            print(
+                f"- {prop.get('claim_id')}: {prop.get('final_proposed_status')} (caps: {prop.get('cap_reasons', [])})"
+            )
         print("\n=== WRITE INTENTS ===")
         for intent in result.get("write_intents", [])[:3]:
             print(f"- {intent.get('intent_type')}: {intent.get('payload', {}).get('claim_id')}")

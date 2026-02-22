@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class UncertaintyAgent(BaseAgent):
     """
     Step 10: Computes scientific uncertainty from evidence.
-    
+
     This is NOT rhetorical entropy (LLM disagreement).
     This is empirical uncertainty from experiments:
         - Variance of results
@@ -44,10 +44,7 @@ class UncertaintyAgent(BaseAgent):
             claim_id = claim.get("claim_id", "unknown")
 
             # Get evidence for this claim
-            claim_evidence = [
-                e for e in evidence
-                if e.get("hypothesis_id") == claim_id
-            ]
+            claim_evidence = [e for e in evidence if e.get("hypothesis_id") == claim_id]
 
             if not claim_evidence:
                 uncertainty_results[claim_id] = {
@@ -90,11 +87,13 @@ class UncertaintyAgent(BaseAgent):
 
             # Flag high-risk items
             if total > 0.5:
-                high_risk_items.append({
-                    "claim_id": claim_id,
-                    "uncertainty": total,
-                    "reason": "High uncertainty - needs more experiments",
-                })
+                high_risk_items.append(
+                    {
+                        "claim_id": claim_id,
+                        "uncertainty": total,
+                        "reason": "High uncertainty - needs more experiments",
+                    }
+                )
 
         # Store in context
         context.graph_context["uncertainty"] = uncertainty_results

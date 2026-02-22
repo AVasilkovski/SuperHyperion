@@ -28,16 +28,16 @@ def make_evidence_id(
 ) -> str:
     """
     Deterministic evidence ID generator for validation-evidence.
-    
+
     Creates a stable, joinable ID for positive evidence channel.
     Returns 35 characters: "ev-" + 32-char MD5 hash.
-    
+
     Args:
         session_id: Session identifier
         claim_id: Claim/proposition identifier
         execution_id: Template execution identifier
         template_qid: Template qualified identifier
-        
+
     Returns:
         Deterministic evidence ID string (35 chars)
     """
@@ -60,19 +60,19 @@ def make_negative_evidence_id(
 ) -> str:
     """
     Deterministic evidence ID generator for negative-evidence.
-    
+
     Creates a stable, joinable ID for negative evidence channel.
     Returns 36 characters: "nev-" + 32-char MD5 hash.
-    
+
     Uses the same fingerprint protocol as positive evidence,
     but with a different prefix to ensure channel separation.
-    
+
     Args:
         session_id: Session identifier
         claim_id: Claim/proposition identifier
         execution_id: Template execution identifier
         template_qid: Template qualified identifier
-        
+
     Returns:
         Deterministic negative evidence ID string (36 chars)
     """
@@ -95,16 +95,16 @@ def make_capsule_id(
 ) -> str:
     """
     Deterministic ID generator for reproducibility capsules (Phase 16.3).
-    
+
     Creates a stable ID for a sealed run bundle.
     Returns 38 characters: "cap-" + 32-char MD5 hash.
-    
+
     Args:
         template_qid: Template qualified identifier
         spec_hash: Specification hash
         code_hash: Code hash
         retrieval_snapshot_digest: Optional retrieval snapshot digest
-        
+
     Returns:
         Deterministic capsule ID string (36 chars)
     """
@@ -151,6 +151,7 @@ def make_policy_hash() -> str:
         MIN_EVIDENCE_COUNT,
         QUARANTINE_THRESHOLD,
     )
+
     payload = {
         "FORK_THRESHOLD": FORK_THRESHOLD,
         "QUARANTINE_THRESHOLD": QUARANTINE_THRESHOLD,
@@ -198,10 +199,12 @@ def make_run_capsule_id(
     return f"run-{h}"
 
 
-def make_capsule_manifest_hash(capsule_id: str, manifest: dict, manifest_version: str = "v2") -> str:
+def make_capsule_manifest_hash(
+    capsule_id: str, manifest: dict, manifest_version: str = "v2"
+) -> str:
     """
     Compute the integrity hash for a capsule manifest (Phase 16.6).
-    
+
     `manifest_version` protects backward-compatibility against accidental dict key additions.
     - "v1": Legacy capsules (pre-16.8) without mutation_ids
     - "v2": Post-16.8 capsules with mutation_ids support
@@ -210,9 +213,24 @@ def make_capsule_manifest_hash(capsule_id: str, manifest: dict, manifest_version
     Returns 64-char SHA-256 hex digest of the canonical JSON representation.
     """
     if manifest_version == "v1":
-        allowed_keys = {"session_id", "query_hash", "scope_lock_id", "intent_id", "proposal_id", "evidence_ids"}
+        allowed_keys = {
+            "session_id",
+            "query_hash",
+            "scope_lock_id",
+            "intent_id",
+            "proposal_id",
+            "evidence_ids",
+        }
     elif manifest_version == "v2":
-        allowed_keys = {"session_id", "query_hash", "scope_lock_id", "intent_id", "proposal_id", "evidence_ids", "mutation_ids"}
+        allowed_keys = {
+            "session_id",
+            "query_hash",
+            "scope_lock_id",
+            "intent_id",
+            "proposal_id",
+            "evidence_ids",
+            "mutation_ids",
+        }
     elif manifest_version == "v3":
         allowed_keys = {
             "session_id",

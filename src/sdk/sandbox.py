@@ -18,7 +18,11 @@ def discover_policies(module_name: str) -> list[Callable[[BundleView], Decision]
     policies: list[Callable[[BundleView], Decision]] = []
     for name in dir(module):
         obj = getattr(module, name)
-        if inspect.isfunction(obj) and obj.__module__ == module.__name__ and not name.startswith("_"):
+        if (
+            inspect.isfunction(obj)
+            and obj.__module__ == module.__name__
+            and not name.startswith("_")
+        ):
             policies.append(obj)
     decorated = []
     for fn in policies:

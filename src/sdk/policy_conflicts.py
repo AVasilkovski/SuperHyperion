@@ -75,7 +75,9 @@ def _policy_metadata(fn: Callable[[BundleView], Decision]) -> dict[str, str]:
     }
 
 
-def detect_static_conflicts(policies: list[Callable[[BundleView], Decision]]) -> list[dict[str, Any]]:
+def detect_static_conflicts(
+    policies: list[Callable[[BundleView], Decision]],
+) -> list[dict[str, Any]]:
     conflicts: list[dict[str, Any]] = []
     seen_ids: dict[str, list[str]] = defaultdict(list)
     seen_names: dict[str, list[str]] = defaultdict(list)
@@ -128,13 +130,22 @@ def detect_static_conflicts(policies: list[Callable[[BundleView], Decision]]) ->
                 }
             )
 
-    conflicts.sort(key=lambda c: (c["type"], c.get("policy_id", ""), c.get("code", ""), c.get("policy_name", "")))
+    conflicts.sort(
+        key=lambda c: (
+            c["type"],
+            c.get("policy_id", ""),
+            c.get("code", ""),
+            c.get("policy_name", ""),
+        )
+    )
     return conflicts
 
 
 def detect_dynamic_conflicts(simulation_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     conflicts: list[dict[str, Any]] = []
-    for item in sorted(simulation_results, key=lambda x: str(x.get("bundle_key") or x.get("prefix", ""))):
+    for item in sorted(
+        simulation_results, key=lambda x: str(x.get("bundle_key") or x.get("prefix", ""))
+    ):
         prefix = str(item.get("prefix", ""))
         bundle_key = str(item.get("bundle_key") or prefix)
         decisions = item.get("decisions") or []
@@ -151,7 +162,9 @@ def detect_dynamic_conflicts(simulation_results: list[dict[str, Any]]) -> list[d
                 }
             )
 
-        hold_codes = sorted({str(d.get("code")) for d in decisions if str(d.get("decision")).upper() == "HOLD"})
+        hold_codes = sorted(
+            {str(d.get("code")) for d in decisions if str(d.get("decision")).upper() == "HOLD"}
+        )
         if len(hold_codes) > 1:
             conflicts.append(
                 {
@@ -234,7 +247,9 @@ def run_policy_conflicts(
         payload = {
             "contract_version": "v1",
             "prefix": bundle_key,
-            "conflicts": sorted(dynamic_by_key[bundle_key], key=lambda c: (c["type"], c.get("severity", ""))),
+            "conflicts": sorted(
+                dynamic_by_key[bundle_key], key=lambda c: (c["type"], c.get("severity", ""))
+            ),
         }
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2, sort_keys=True)

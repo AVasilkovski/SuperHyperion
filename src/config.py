@@ -13,6 +13,7 @@ from typing import Optional
 @dataclass
 class TypeDBConfig:
     """TypeDB connection configuration."""
+
     host: str = os.getenv("TYPEDB_HOST", "localhost")
     port: int = int(os.getenv("TYPEDB_PORT", "1729"))
     database: str = os.getenv("TYPEDB_DATABASE", "superhyperion")
@@ -31,6 +32,7 @@ class TypeDBConfig:
 @dataclass
 class OllamaConfig:
     """Ollama LLM configuration."""
+
     host: str = os.getenv("OLLAMA_HOST", "localhost")
     port: int = int(os.getenv("OLLAMA_PORT", "11434"))
     model: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
@@ -44,6 +46,7 @@ class OllamaConfig:
 @dataclass
 class JupyterConfig:
     """Jupyter sandbox configuration."""
+
     host: str = os.getenv("JUPYTER_HOST", "localhost")
     port: int = int(os.getenv("JUPYTER_PORT", "8888"))
     token: str = os.getenv("JUPYTER_TOKEN", "superhyperion")
@@ -53,6 +56,7 @@ class JupyterConfig:
 @dataclass
 class APIConfig:
     """FastAPI configuration."""
+
     host: str = os.getenv("API_HOST", "0.0.0.0")
     port: int = int(os.getenv("API_PORT", "8000"))
     debug: bool = os.getenv("API_DEBUG", "true").lower() == "true"
@@ -61,16 +65,20 @@ class APIConfig:
 @dataclass
 class AuthConfig:
     """Authentication configuration."""
+
     jwt_secret: str = os.getenv("AUTH_JWT_SECRET", "")
     jwt_issuer: Optional[str] = os.getenv("AUTH_JWT_ISSUER") or None
     jwt_audience: Optional[str] = os.getenv("AUTH_JWT_AUDIENCE") or None
     env: str = os.getenv("SUPERHYPERION_ENV", "prod")
-    allow_insecure_headers: bool = os.getenv("SUPERHYPERION_ALLOW_INSECURE_HEADERS", "false").lower() == "true"
+    allow_insecure_headers: bool = (
+        os.getenv("SUPERHYPERION_ALLOW_INSECURE_HEADERS", "false").lower() == "true"
+    )
 
 
 @dataclass
 class Config:
     """Main configuration container."""
+
     typedb: TypeDBConfig
     ollama: OllamaConfig
     jupyter: JupyterConfig

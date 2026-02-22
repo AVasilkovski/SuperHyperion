@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # v2.1 Node Functions
 # =============================================================================
 
+
 async def clarify_node(state: AgentState) -> AgentState:
     """Step 2: Clarify hypothesis into testable form."""
     logger.info("v2.1: Clarify Node")
@@ -43,6 +44,7 @@ async def clarify_node(state: AgentState) -> AgentState:
     state["epistemic_mode"] = "speculative"
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.messages = state["messages"]
     context.graph_context = state.get("graph_context", {})
@@ -59,11 +61,14 @@ async def decompose_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.DECOMPOSE.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
-    context.current_hypothesis = state["graph_context"].get(
-        "clarified_hypothesis", {}
-    ).get("clarified_hypothesis", state["query"])
+    context.current_hypothesis = (
+        state["graph_context"]
+        .get("clarified_hypothesis", {})
+        .get("clarified_hypothesis", state["query"])
+    )
 
     result = await decomposer_agent.run(context)
 
@@ -79,6 +84,7 @@ async def ground_node(state: AgentState) -> AgentState:
     state["epistemic_mode"] = "grounded"
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -96,6 +102,7 @@ async def speculate_node(state: AgentState) -> AgentState:
     # Note: stays in current mode, output is tagged as speculative
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -109,7 +116,7 @@ async def speculate_node(state: AgentState) -> AgentState:
 async def validate_node(state: AgentState) -> AgentState:
     """
     Step 6: CodeAct validation - THE BELIEF GATEKEEPER.
-    
+
     CRITICAL: Only this node produces Evidence objects.
     No belief update is legal without Evidence.authorizes_update() == True.
     """
@@ -118,6 +125,7 @@ async def validate_node(state: AgentState) -> AgentState:
     state["epistemic_mode"] = "grounded"
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.code_results = state.get("code_executions", [])
@@ -126,11 +134,11 @@ async def validate_node(state: AgentState) -> AgentState:
 
     # Phase 16.4: Normalize evidence dicts into steward insert contract
     from src.graph.evidence_normalization import normalize_validation_evidence
+
     raw_evidence = result.graph_context.get("evidence", [])
     scope_lock_id = result.graph_context.get("scope_lock_id")
     normalized = [
-        normalize_validation_evidence(ev, scope_lock_id=scope_lock_id)
-        for ev in raw_evidence
+        normalize_validation_evidence(ev, scope_lock_id=scope_lock_id) for ev in raw_evidence
     ]
     state["evidence"] = normalized
     result.graph_context["evidence"] = normalized
@@ -147,6 +155,7 @@ async def critique_node(state: AgentState) -> AgentState:
 
     # Use existing socratic agent for critique
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.messages = state["messages"]
@@ -167,6 +176,7 @@ async def benchmark_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.BENCHMARK.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -182,6 +192,7 @@ async def uncertainty_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.UNCERTAINTY.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -207,6 +218,7 @@ async def meta_critic_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.META_CRITIC.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -241,7 +253,7 @@ async def epistemic_gate_node(state: AgentState) -> AgentState:
             audit_log.log_gate_triggered(
                 claim_id=classification.get("claim_id", "unknown"),
                 gate_type="epistemic",
-                trigger_reason=f"Transition to {classification.get('status')}"
+                trigger_reason=f"Transition to {classification.get('status')}",
             )
 
     state["pending_hitl_decisions"] = pending_decisions
@@ -269,7 +281,12 @@ async def integrate_node(state: AgentState) -> AgentState:
         msg = f"HOLD: [{hold_code}] {reason}"
         logger.warning(f"integrate_node: {msg}")
         state["response"] = msg
-        state["grounded_response"] = {"summary": msg, "status": "HOLD", "hold_code": hold_code, "governance": gov}
+        state["grounded_response"] = {
+            "summary": msg,
+            "status": "HOLD",
+            "hold_code": hold_code,
+            "governance": gov,
+        }
         state["speculative_alternatives"] = []
         return state
 
@@ -277,9 +294,9 @@ async def integrate_node(state: AgentState) -> AgentState:
     gc = state.get("graph_context", {}) or {}
     # P1 Fix: Harden session_id source to prevent false HOLDs
     session_id = (
-        gov.get("session_id") 
-        or state.get("session_id") 
-        or gc.get("session_id") 
+        gov.get("session_id")
+        or state.get("session_id")
+        or gc.get("session_id")
         or "session-untracked"
     )
     evidence_ids = gov.get("persisted_evidence_ids", [])
@@ -289,8 +306,7 @@ async def integrate_node(state: AgentState) -> AgentState:
     # Derive expected claim IDs from the claims being synthesized
     atomic_claims = gc.get("atomic_claims", [])
     expected_claim_ids = {
-        c.get("claim_id") for c in atomic_claims
-        if c.get("claim_id")
+        c.get("claim_id") for c in atomic_claims if c.get("claim_id")
     } or None  # None means "skip claim check" if no claims available
 
     primacy_ok, primacy_code, primacy_details = integrator_agent._verify_evidence_primacy(
@@ -315,7 +331,9 @@ async def integrate_node(state: AgentState) -> AgentState:
         state["speculative_alternatives"] = []
         return state
 
-    logger.info(f"integrate_node: Primacy verified ({primacy_details.get('verified_count', 0)} evidence IDs)")
+    logger.info(
+        f"integrate_node: Primacy verified ({primacy_details.get('verified_count', 0)} evidence IDs)"
+    )
 
     # Phase 16.6: Build and persist run capsule (only after primacy proves evidence)
     run_capsule = None
@@ -360,10 +378,14 @@ async def integrate_node(state: AgentState) -> AgentState:
         # Attempt TypeDB persistence (graceful degradation)
         try:
             from src.db.typedb_client import TypeDBConnection
+
             db = TypeDBConnection()
             if not db._mock_mode:
                 evidence_snapshot_json = _json.dumps(sorted(evidence_ids), separators=(",", ":"))
-                mutation_snapshot_json = _json.dumps(sorted(gov.get("mutation_ids") or []), separators=(",", ":"))
+                mutation_snapshot_json = _json.dumps(
+                    sorted(gov.get("mutation_ids") or []), separators=(",", ":")
+                )
+
                 def _esc(s):
                     return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
 
@@ -373,6 +395,7 @@ async def integrate_node(state: AgentState) -> AgentState:
                         has tenant-id "{_esc(tenant_id)}";
                 '''
                 from src.db.capabilities import WriteCap
+
                 try:
                     db.query_insert(ensure_tenant_q, cap=WriteCap._mint())
                 except Exception:
@@ -406,13 +429,13 @@ async def integrate_node(state: AgentState) -> AgentState:
                         $prop isa proposition, has entity-id "{_esc(claim_id)}";
                     insert
                         $mut isa mutation-event,
-                            has mutation-id "{_esc(event.get('mutation_id', ''))}",
-                            has session-id "{_esc(event.get('session_id', session_id))}",
-                            has intent-id "{_esc(event.get('intent_id', ''))}",
-                            has proposal-id "{_esc(event.get('proposal_id', ''))}",
+                            has mutation-id "{_esc(event.get("mutation_id", ""))}",
+                            has session-id "{_esc(event.get("session_id", session_id))}",
+                            has intent-id "{_esc(event.get("intent_id", ""))}",
+                            has proposal-id "{_esc(event.get("proposal_id", ""))}",
                             has claim-id "{_esc(claim_id)}",
-                            has mutation-type "{_esc(event.get('mutation_type', 'unknown'))}",
-                            has to-status "{_esc(event.get('to_status', ''))}";
+                            has mutation-type "{_esc(event.get("mutation_type", "unknown"))}",
+                            has to-status "{_esc(event.get("to_status", ""))}";
                         (mutation-event: $mut, capsule: $cap) isa asserted-by;
                         (mutation-event: $mut, proposition: $prop) isa affects;
                     """
@@ -426,6 +449,7 @@ async def integrate_node(state: AgentState) -> AgentState:
         logger.warning(f"integrate_node: Capsule creation failed: {e}")
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
     context.graph_context["governance"] = gov  # Phase 16.4: inject for citations
@@ -477,6 +501,7 @@ async def steward_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.STEWARD.value
 
     from src.agents.base_agent import AgentContext
+
     context = AgentContext()
     context.graph_context = state.get("graph_context", {})
 
@@ -490,6 +515,7 @@ async def steward_node(state: AgentState) -> AgentState:
 # Conditional Edge Functions
 # =============================================================================
 
+
 def check_needs_more_validation(state: AgentState) -> Literal["validate", "critique"]:
     """Check if more validation experiments are needed."""
     evidence = state.get("evidence", [])
@@ -500,7 +526,9 @@ def check_needs_more_validation(state: AgentState) -> Literal["validate", "criti
     return "critique"
 
 
-def check_needs_experimental_design(state: AgentState) -> Literal["experimental_design", "epistemic_gate"]:
+def check_needs_experimental_design(
+    state: AgentState,
+) -> Literal["experimental_design", "epistemic_gate"]:
     """Check if experimental design is needed."""
     uncertainty = state.get("scientific_uncertainty", {})
     avg = uncertainty.get("average", 0.5)
@@ -528,10 +556,11 @@ def check_high_impact(state: AgentState) -> Literal["impact_gate", "steward"]:
 # Graph Builder
 # =============================================================================
 
+
 def build_v21_workflow() -> StateGraph:
     """
     Build the v2.1 LangGraph workflow.
-    
+
     13-Step Pipeline:
         1. User Input
         2. Clarify
@@ -614,13 +643,13 @@ async def run_v21_query(
 ) -> AgentState:
     """
     Run a query through the v2.1 workflow.
-    
+
     Args:
         query: User's hypothesis to investigate
         thread_id: Thread ID for checkpointing
         session_id: Optional session ID override
         tenant_id: Optional tenant ID for deterministic attribution
-        
+
     Returns:
         Final agent state with dual outputs
     """

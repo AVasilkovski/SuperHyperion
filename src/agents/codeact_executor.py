@@ -18,28 +18,29 @@ logger = logging.getLogger(__name__)
 
 # Dangerous patterns to block
 BLOCKED_PATTERNS = [
-    r'\bos\.system\b',
-    r'\bsubprocess\b',
-    r'\b__import__\b',
-    r'\beval\b',
-    r'\bexec\b',
+    r"\bos\.system\b",
+    r"\bsubprocess\b",
+    r"\b__import__\b",
+    r"\beval\b",
+    r"\bexec\b",
     r'\bopen\s*\([^)]*[\'"][wa]',  # open() with write/append mode
-    r'\bshutil\.rmtree\b',
-    r'\bos\.remove\b',
-    r'\bos\.unlink\b',
-    r'\bos\.rmdir\b',
-    r'\bpathlib.*\.unlink\b',
-    r'\bpathlib.*\.rmdir\b',
-    r'\brequests\.(get|post|put|delete|patch)\b',  # Block network requests
-    r'\bhttpx\b',
-    r'\burllib\b',
-    r'\bsocket\b',
+    r"\bshutil\.rmtree\b",
+    r"\bos\.remove\b",
+    r"\bos\.unlink\b",
+    r"\bos\.rmdir\b",
+    r"\bpathlib.*\.unlink\b",
+    r"\bpathlib.*\.rmdir\b",
+    r"\brequests\.(get|post|put|delete|patch)\b",  # Block network requests
+    r"\bhttpx\b",
+    r"\burllib\b",
+    r"\bsocket\b",
 ]
 
 
 @dataclass
 class ExecutionResult:
     """Result from code execution."""
+
     success: bool
     stdout: str
     stderr: str
@@ -51,7 +52,7 @@ class ExecutionResult:
 class CodeActExecutor:
     """
     Secure Python code executor using Jupyter kernel.
-    
+
     Implements the CodeAct paradigm:
     - Agents write Python code as their action
     - Code is validated for safety
@@ -124,7 +125,7 @@ print("CodeAct sandbox initialized")
     def validate_code(self, code: str) -> Tuple[bool, Optional[str]]:
         """
         Validate code for safety before execution.
-        
+
         Returns:
             Tuple of (is_safe, error_message)
         """
@@ -153,23 +154,23 @@ print("CodeAct sandbox initialized")
         while True:
             try:
                 msg = self._kc.get_iopub_msg(timeout=timeout)
-                msg_type = msg['msg_type']
-                content = msg['content']
+                msg_type = msg["msg_type"]
+                content = msg["content"]
 
-                if msg_type == 'stream':
-                    if content['name'] == 'stdout':
-                        stdout_parts.append(content['text'])
-                    elif content['name'] == 'stderr':
-                        stderr_parts.append(content['text'])
+                if msg_type == "stream":
+                    if content["name"] == "stdout":
+                        stdout_parts.append(content["text"])
+                    elif content["name"] == "stderr":
+                        stderr_parts.append(content["text"])
 
-                elif msg_type == 'execute_result':
-                    result = content['data'].get('text/plain', '')
+                elif msg_type == "execute_result":
+                    result = content["data"].get("text/plain", "")
 
-                elif msg_type == 'error':
-                    error = '\n'.join(content['traceback'])
+                elif msg_type == "error":
+                    error = "\n".join(content["traceback"])
 
-                elif msg_type == 'status':
-                    if content['execution_state'] == 'idle':
+                elif msg_type == "status":
+                    if content["execution_state"] == "idle":
                         break
 
             except Exception as e:
@@ -178,8 +179,8 @@ print("CodeAct sandbox initialized")
 
         return ExecutionResult(
             success=error is None,
-            stdout=''.join(stdout_parts),
-            stderr=''.join(stderr_parts),
+            stdout="".join(stdout_parts),
+            stderr="".join(stderr_parts),
             result=result,
             error=error,
             execution_count=self._execution_count,
@@ -188,11 +189,11 @@ print("CodeAct sandbox initialized")
     def execute(self, code: str, timeout: int = 30) -> ExecutionResult:
         """
         Execute Python code safely.
-        
+
         Args:
             code: Python code to execute
             timeout: Maximum execution time in seconds
-            
+
         Returns:
             ExecutionResult with stdout, stderr, and any errors
         """

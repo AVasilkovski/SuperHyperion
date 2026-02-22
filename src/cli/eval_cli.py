@@ -161,21 +161,22 @@ def _compute_summary(results: List[dict]) -> dict:
         "hold_codes": hold_codes,
     }
 
+
 def _export_telemetry(summary: dict):
     """EPI-17.1: Export evaluation telemetry to CI artifacts."""
     import os
     from datetime import datetime
-    
+
     artifact_dir = "ci_artifacts"
     os.makedirs(artifact_dir, exist_ok=True)
     telemetry_file = os.path.join(artifact_dir, "telemetry_trends.json")
-    
+
     telemetry_data = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "metrics": summary,
-        "git_commit": os.environ.get("GITHUB_SHA", "unknown")
+        "git_commit": os.environ.get("GITHUB_SHA", "unknown"),
     }
-    
+
     # Append to existing file or create new
     trends = []
     if os.path.exists(telemetry_file):
@@ -183,14 +184,16 @@ def _export_telemetry(summary: dict):
             with open(telemetry_file, "r") as f:
                 trends = json_lib.load(f)
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not read existing telemetry trends: {e}[/yellow]")
-            
+            console.print(
+                f"[yellow]Warning: Could not read existing telemetry trends: {e}[/yellow]"
+            )
+
     trends.append(telemetry_data)
-    
+
     # Keep only last 100 entries for manageable artifact size
     if len(trends) > 100:
         trends = trends[-100:]
-        
+
     try:
         with open(telemetry_file, "w") as f:
             json_lib.dump(trends, f, indent=2)
@@ -199,12 +202,12 @@ def _export_telemetry(summary: dict):
         console.print(f"[yellow]Warning: Failed to export telemetry: {e}[/yellow]")
 
 
-
 @eval_app.command("run")
 def run_eval(
     suite: str = typer.Option(
         "smoke",
-        "--suite", "-s",
+        "--suite",
+        "-s",
         help="Evaluation suite to run (smoke)",
     ),
     n: int = typer.Option(
@@ -221,7 +224,8 @@ def run_eval(
     ),
     output_file: str = typer.Option(
         None,
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Write JSONL results to file",
     ),
 ):
@@ -245,7 +249,7 @@ def run_eval(
         task = progress.add_task("Running evaluations...", total=len(queries))
 
         for i, query in enumerate(queries):
-            progress.update(task, description=f"[{i+1}/{len(queries)}] {query[:50]}...")
+            progress.update(task, description=f"[{i + 1}/{len(queries)}] {query[:50]}...")
 
             result = asyncio.run(_run_single_eval(query, i))
             results.append(result)
@@ -258,7 +262,7 @@ def run_eval(
 
     # Compute summary
     summary = _compute_summary(results)
-    
+
     # EPI-17.1 Telemetry Export
     _export_telemetry(summary)
 
@@ -308,14 +312,14 @@ def run_eval(
     console.print(run_table)
 
     # Summary panel
-    summary_text = f"""[bold]Total Runs:[/bold] {summary['total_runs']}
-[bold]Pass Rate:[/bold] {summary['pass_rate']:.1%}
-[bold]Hold Rate:[/bold] {summary['hold_rate']:.1%}
-[bold]Error Rate:[/bold] {summary['error_rate']:.1%}
-[bold]Capsule Rate:[/bold] {summary['capsule_rate']:.1%}
-[bold]Avg Evidence/Run:[/bold] {summary['avg_evidence_count']}
-[bold]Avg Claims/Run:[/bold] {summary['avg_claim_count']}
-[bold]Avg Latency:[/bold] {summary['avg_latency_ms']:.0f}ms ({summary['min_latency_ms']}–{summary['max_latency_ms']}ms)"""
+    summary_text = f"""[bold]Total Runs:[/bold] {summary["total_runs"]}
+[bold]Pass Rate:[/bold] {summary["pass_rate"]:.1%}
+[bold]Hold Rate:[/bold] {summary["hold_rate"]:.1%}
+[bold]Error Rate:[/bold] {summary["error_rate"]:.1%}
+[bold]Capsule Rate:[/bold] {summary["capsule_rate"]:.1%}
+[bold]Avg Evidence/Run:[/bold] {summary["avg_evidence_count"]}
+[bold]Avg Claims/Run:[/bold] {summary["avg_claim_count"]}
+[bold]Avg Latency:[/bold] {summary["avg_latency_ms"]:.0f}ms ({summary["min_latency_ms"]}–{summary["max_latency_ms"]}ms)"""
 
     if summary["hold_codes"]:
         summary_text += "\n\n[bold]Hold Codes:[/bold]"

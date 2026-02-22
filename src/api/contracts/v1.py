@@ -18,6 +18,7 @@ class RoleEnum(str, Enum):
 
 class RunRequestV1(BaseModel):
     """Request payload for triggering a governed run."""
+
     model_config = ConfigDict(extra="forbid")
 
     query: str
@@ -29,6 +30,7 @@ class RunRequestV1(BaseModel):
 
 class RunResponseV1(BaseModel):
     """Response payload enclosing the result of a governed run."""
+
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["v1"] = "v1"
@@ -37,6 +39,7 @@ class RunResponseV1(BaseModel):
 
 class CapsuleListItemV1(BaseModel):
     """A minimal reference to a capsule for listing."""
+
     model_config = ConfigDict(extra="forbid")
 
     capsule_id: str
@@ -50,6 +53,7 @@ class CapsuleListItemV1(BaseModel):
 
 class CapsuleListV1(BaseModel):
     """Paginated collection of capsules."""
+
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["v1"] = "v1"
@@ -60,6 +64,7 @@ class CapsuleListV1(BaseModel):
 
 class AuditExportV1(BaseModel):
     """Cryptographic audit export for a specific capsule."""
+
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["v1"] = "v1"

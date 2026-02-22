@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class HITLDecision:
     """A human decision on a pending item."""
+
     action: Literal["approve", "downgrade", "reject", "request_evidence"]
     rationale: str
     approver_id: str
@@ -33,6 +34,7 @@ class HITLDecision:
 @dataclass
 class HITLPendingItem:
     """An item pending human decision."""
+
     item_id: str
     item_type: str  # "epistemic_transition", "high_impact_write", etc.
     claim_id: str
@@ -60,7 +62,7 @@ class HITLPendingItem:
 class HITLGate(ABC):
     """
     Base class for human-in-the-loop checkpoints.
-    
+
     Global rule (non-negotiable):
         Any write that changes belief status, source reputation,
         or contradiction resolution requires a human checkpoint
@@ -80,22 +82,18 @@ class HITLGate(ABC):
     async def await_decision(
         self,
         pending: HITLPendingItem,
-        timeout_seconds: int = 86400  # 24 hours default
+        timeout_seconds: int = 86400,  # 24 hours default
     ) -> Optional[HITLDecision]:
         """
         Wait for human decision.
-        
+
         In production, this would poll a database or wait for webhook.
         For now, returns None (decision pending).
         """
         logger.info(f"HITL gate triggered: {pending.item_id}")
         return None
 
-    def process_decision(
-        self,
-        pending: HITLPendingItem,
-        decision: HITLDecision
-    ) -> Dict[str, Any]:
+    def process_decision(self, pending: HITLPendingItem, decision: HITLDecision) -> Dict[str, Any]:
         """Process a human decision."""
         pending.decision = decision
 
@@ -106,8 +104,6 @@ class HITLGate(ABC):
             "rationale": decision.rationale,
         }
 
-        logger.info(
-            f"HITL decision processed: {pending.item_id} -> {decision.action}"
-        )
+        logger.info(f"HITL decision processed: {pending.item_id} -> {decision.action}")
 
         return result

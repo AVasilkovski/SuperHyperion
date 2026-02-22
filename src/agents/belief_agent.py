@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BeliefState:
     """Represents a hypothesis belief state."""
+
     hypothesis_id: str
     alpha: float  # Beta distribution alpha
-    beta: float   # Beta distribution beta
+    beta: float  # Beta distribution beta
     expected_value: float
     entropy: float
     belief_state: str  # "proposed", "verified", "refuted", "debated"
@@ -30,7 +31,7 @@ class BeliefState:
 class BeliefMaintenanceAgent(BaseAgent):
     """
     Agent responsible for maintaining belief consistency in the knowledge graph.
-    
+
     Functions:
     - Monitor hypothesis nodes for updates
     - Perform Bayesian belief updates when new evidence arrives
@@ -50,19 +51,16 @@ class BeliefMaintenanceAgent(BaseAgent):
         for hyp in hypotheses:
             # Calculate current belief state
             belief = self._calculate_belief(hyp)
-            context.dialectical_entropy = max(
-                context.dialectical_entropy,
-                belief.entropy
-            )
+            context.dialectical_entropy = max(context.dialectical_entropy, belief.entropy)
 
             # Check for contradictions
             contradictions = self._find_contradictions(hyp)
             if contradictions:
                 logger.warning(f"Contradictions found for {hyp['id']}: {contradictions}")
-                context.graph_context['contradictions'] = contradictions
+                context.graph_context["contradictions"] = contradictions
 
             # Update belief state in graph
-            self._update_belief_state(hyp['id'], belief)
+            self._update_belief_state(hyp["id"], belief)
 
         return context
 
@@ -87,8 +85,8 @@ class BeliefMaintenanceAgent(BaseAgent):
 
     def _calculate_belief(self, hypothesis: Dict) -> BeliefState:
         """Calculate belief metrics for a hypothesis."""
-        alpha = hypothesis.get('beta_alpha', 1.0)
-        beta = hypothesis.get('beta_beta', 1.0)
+        alpha = hypothesis.get("beta_alpha", 1.0)
+        beta = hypothesis.get("beta_beta", 1.0)
 
         # Expected value of Beta distribution
         expected = alpha / (alpha + beta)
@@ -97,7 +95,7 @@ class BeliefMaintenanceAgent(BaseAgent):
         # Using approximation for Beta distribution entropy
         total = alpha + beta
         if total > 2:
-            variance = (alpha * beta) / ((total ** 2) * (total + 1))
+            variance = (alpha * beta) / ((total**2) * (total + 1))
             # Normalize to 0-1 range
             entropy = min(1.0, 4 * variance)  # Max variance is 0.25 at alpha=beta=1
         else:
@@ -114,7 +112,7 @@ class BeliefMaintenanceAgent(BaseAgent):
             state = "proposed"
 
         return BeliefState(
-            hypothesis_id=hypothesis.get('id', 'unknown'),
+            hypothesis_id=hypothesis.get("id", "unknown"),
             alpha=alpha,
             beta=beta,
             expected_value=expected,
@@ -165,14 +163,11 @@ class BeliefMaintenanceAgent(BaseAgent):
             logger.error(f"Failed to update belief state: {e}")
 
     def update_belief(
-        self,
-        hypothesis_id: str,
-        evidence_supports: bool,
-        evidence_weight: float = 1.0
+        self, hypothesis_id: str, evidence_supports: bool, evidence_weight: float = 1.0
     ):
         """
         Update belief based on new evidence (Bayesian update).
-        
+
         Args:
             hypothesis_id: ID of the hypothesis
             evidence_supports: True if evidence supports, False if refutes
@@ -196,8 +191,8 @@ class BeliefMaintenanceAgent(BaseAgent):
                 return
 
             current = results[0]
-            alpha = current.get('beta_alpha', 1.0)
-            beta = current.get('beta_beta', 1.0)
+            alpha = current.get("beta_alpha", 1.0)
+            beta = current.get("beta_beta", 1.0)
 
             # Bayesian update
             if evidence_supports:
@@ -239,9 +234,7 @@ class BeliefMaintenanceAgent(BaseAgent):
                 await self.run(context)
 
                 if context.dialectical_entropy > config.entropy_threshold:
-                    logger.warning(
-                        f"High entropy detected: {context.dialectical_entropy:.3f}"
-                    )
+                    logger.warning(f"High entropy detected: {context.dialectical_entropy:.3f}")
 
             except Exception as e:
                 logger.error(f"Belief maintenance error: {e}")

@@ -28,19 +28,21 @@ logger = logging.getLogger(__name__)
 
 class ScopeStatus(str, Enum):
     """Scope lifecycle states."""
-    DRAFT = "draft"           # Mutable, iterative
-    REVIEW = "review"         # Pending human approval
-    LOCKED = "locked"         # Immutable, signed
-    EXPIRED = "expired"       # Terminal, safe failure
+
+    DRAFT = "draft"  # Mutable, iterative
+    REVIEW = "review"  # Pending human approval
+    LOCKED = "locked"  # Immutable, signed
+    EXPIRED = "expired"  # Terminal, safe failure
 
 
 @dataclass
 class ScopeDraft:
     """
     Mutable scope draft (pre-commitment).
-    
+
     Can be versioned and iterated until human approves.
     """
+
     draft_id: str
     session_id: str
     hypothesis_h_prime: str
@@ -75,10 +77,11 @@ class ScopeDraft:
 class ScopeLock:
     """
     Immutable signed scope artifact (commitment point).
-    
+
     INVARIANT: Once created, cannot be modified.
     INVARIANT: All grounded artifacts must reference scope_lock_id.
     """
+
     lock_id: str
     session_id: str
     hypothesis_h_prime: str
@@ -123,14 +126,14 @@ class ScopeLock:
 class ScopeLockGate(HITLGate):
     """
     HITL Boundary 1: Scope Lock Gate.
-    
+
     Triggered after decomposition, before experimentation.
-    
+
     Human approves:
         - Clarified hypothesis H'
         - Atomic claims with claim_ids
         - Scope constraints and boundaries
-    
+
     INVARIANT: Experimentation cannot proceed without scope_lock_id.
     """
 
@@ -237,7 +240,7 @@ class ScopeLockGate(HITLGate):
     def validate_scope_lock(self, scope_lock_id: str) -> bool:
         """
         Validate that a scope lock exists and is still valid.
-        
+
         INVARIANT: VerifyAgent refuses to proceed without valid scope_lock_id.
         """
         return self._is_lock_valid(scope_lock_id)

@@ -59,9 +59,9 @@ def list_capsules_for_tenant(
 
     # NOTE: In TypeDB 3.x querying, explicit disjunction might require specific syntax.
     # If TypeQL 'or' is not supported exactly like this in all drivers, the fallback
-    # is to fetch a slightly larger window and sort/filter in Python. 
+    # is to fetch a slightly larger window and sort/filter in Python.
     # For robust MVP, we will rely on TypeQL if supported, else rely on sorting.
-    
+
     query = f"""
     match
         $t isa tenant, has tenant-id "{tenant_id}";
@@ -80,35 +80,37 @@ def list_capsules_for_tenant(
     """
 
     db = TypeDBConnection()
-    
+
     if getattr(db, "_mock_mode", False):
-         return [], None
+        return [], None
 
     try:
         # We enforce TransactionType.READ to guarantee no side-effects
         from typedb.driver import TransactionType
-        
+
         with db.transaction(TransactionType.READ) as tx:
             raw_rows = db._to_rows(db._tx_execute(tx, query))
-            
+
             # Application-level stable sort (created-at DESC, capsule-id DESC)
             # In case the TypeDB engine does not natively order the fetch output
             results = []
             for r in raw_rows:
-                # the fetch syntax might return dicts like: 
+                # the fetch syntax might return dicts like:
                 # r = {'capsule-id': ['capsule-123'], 'created-at': ['2026-...'], ...}
                 # Normalize keys into flat values
                 normalized = {}
                 for k, v in r.items():
                     k_clean = k.replace("-", "_")
                     normalized[k_clean] = v[0] if isinstance(v, list) and v else v
-                
+
                 # Make sure mandatory fields exist
-                if 'capsule_id' in normalized and 'created_at' in normalized:
+                if "capsule_id" in normalized and "created_at" in normalized:
                     results.append(normalized)
 
-            results.sort(key=lambda x: (x.get("created_at", ""), x.get("capsule_id", "")), reverse=True)
-            
+            results.sort(
+                key=lambda x: (x.get("created_at", ""), x.get("capsule_id", "")), reverse=True
+            )
+
             # Note: We must also filter cursor manually if TypeQL `or` is tricky.
             if cursor:
                 cursor_data = _decode_cursor(cursor)
@@ -129,9 +131,7 @@ def list_capsules_for_tenant(
             next_cursor_str = None
             if has_next and page_items:
                 last_item = page_items[-1]
-                next_cursor_str = _encode_cursor(
-                    last_item["capsule_id"], last_item["created_at"]
-                )
+                next_cursor_str = _encode_cursor(last_item["capsule_id"], last_item["created_at"])
 
             return page_items, next_cursor_str
 
@@ -157,25 +157,25 @@ def fetch_capsule_by_id_scoped(tenant_id: str, capsule_id: str) -> Optional[Dict
     """
 
     db = TypeDBConnection()
-    
+
     if getattr(db, "_mock_mode", False):
-         return None
+        return None
 
     try:
         from typedb.driver import TransactionType
-        
+
         with db.transaction(TransactionType.READ) as tx:
             raw_rows = db._to_rows(db._tx_execute(tx, query))
-            
+
             if not raw_rows:
                 return None
-                
+
             r = raw_rows[0]
             normalized = {}
             for k, v in r.items():
                 k_clean = k.replace("-", "_")
                 normalized[k_clean] = v[0] if isinstance(v, list) and v else v
-                
+
             return normalized
 
     except Exception as e:

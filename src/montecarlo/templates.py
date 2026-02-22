@@ -25,28 +25,32 @@ logger = logging.getLogger(__name__)
 # Template Parameter Models (Pydantic with bounds)
 # =============================================================================
 
+
 class BootstrapCIParams(BaseModel):
     """Bootstrap confidence interval parameters."""
+
     model_config = ConfigDict(extra="forbid")
     data: List[float] = Field(..., min_length=2, max_length=5000)
     n_bootstrap: int = Field(default=2000, ge=100, le=5000)
     confidence_level: float = Field(default=0.95, ge=0.80, le=0.99)
-    seed: Optional[int] = Field(default=None, ge=0, le=2**31-1)
+    seed: Optional[int] = Field(default=None, ge=0, le=2**31 - 1)
 
 
 class BayesianUpdateParams(BaseModel):
     """Bayesian posterior estimation parameters."""
+
     model_config = ConfigDict(extra="forbid")
     observations: List[float] = Field(..., min_length=1, max_length=5000)
     prior_mean: float = Field(default=0.0, ge=-1e6, le=1e6)
     prior_std: float = Field(default=1.0, gt=0, le=1e6)
     likelihood_std: float = Field(default=1.0, gt=0, le=1e6)
     n_samples: int = Field(default=2000, ge=100, le=5000)
-    seed: Optional[int] = Field(default=None, ge=0, le=2**31-1)
+    seed: Optional[int] = Field(default=None, ge=0, le=2**31 - 1)
 
 
 class ThresholdCheckParams(BaseModel):
     """Check if values exceed threshold."""
+
     model_config = ConfigDict(extra="forbid")
     values: List[float] = Field(..., min_length=1, max_length=5000)
     threshold: float
@@ -55,6 +59,7 @@ class ThresholdCheckParams(BaseModel):
 
 class NumericConsistencyParams(BaseModel):
     """Check claimed value against observations."""
+
     model_config = ConfigDict(extra="forbid")
     claimed_value: float
     observed_values: List[float] = Field(..., min_length=1, max_length=5000)
@@ -63,17 +68,19 @@ class NumericConsistencyParams(BaseModel):
 
 class SensitivitySuiteParams(BaseModel):
     """Sensitivity analysis parameters."""
+
     model_config = ConfigDict(extra="forbid")
     base_result: float
     base_ci_low: float
     base_ci_high: float
     prior_widening_factor: float = Field(default=2.0, ge=1.1, le=10.0)
     n_perturbations: int = Field(default=100, ge=10, le=1000)
-    seed: Optional[int] = Field(default=None, ge=0, le=2**31-1)
+    seed: Optional[int] = Field(default=None, ge=0, le=2**31 - 1)
 
 
 class ContradictionDetectParams(BaseModel):
     """Detect contradictions in evidence."""
+
     model_config = ConfigDict(extra="forbid")
     evidence_items: List[Dict[str, Any]] = Field(..., max_length=100)
     claim_id: str
@@ -81,6 +88,7 @@ class ContradictionDetectParams(BaseModel):
 
 class CitationCheckParams(BaseModel):
     """Check citation presence."""
+
     model_config = ConfigDict(extra="forbid")
     claim_id: str
     evidence_bundle: List[Dict[str, Any]] = Field(..., max_length=100)
@@ -88,6 +96,7 @@ class CitationCheckParams(BaseModel):
 
 class EffectDirectionParams(BaseModel):
     """Check effect direction."""
+
     model_config = ConfigDict(extra="forbid")
     observations: List[float] = Field(..., min_length=2, max_length=5000)
     expected_direction: Literal["positive", "negative", "zero"]
@@ -95,6 +104,7 @@ class EffectDirectionParams(BaseModel):
 
 class CodeActParams(BaseModel):
     """Placeholder for ad-hoc CodeAct experiment parameters."""
+
     model_config = ConfigDict(extra="forbid")
     claim_id: str
     code_hash: str
@@ -104,6 +114,7 @@ class CodeActParams(BaseModel):
 # =============================================================================
 # Template Output Models
 # =============================================================================
+
 
 class BootstrapCIOutput(BaseModel):
     method: str = "bootstrap_ci"
@@ -185,6 +196,7 @@ class CodeActOutput(BaseModel):
 # Base Template Class
 # =============================================================================
 
+
 def sha256_json(data: Any) -> str:
     """
     Stable hash of JSON-serializable data.
@@ -195,6 +207,7 @@ def sha256_json(data: Any) -> str:
         return hashlib.sha256(s.encode("utf-8")).hexdigest()
     except Exception:
         return "hash-error"
+
 
 class Template(ABC):
     """Base class for callable templates."""
@@ -229,6 +242,7 @@ class Template(ABC):
 # =============================================================================
 # Concrete Template Implementations
 # =============================================================================
+
 
 class BootstrapCITemplate(Template):
     template_id = "bootstrap_ci"
@@ -278,11 +292,13 @@ class BayesianUpdateTemplate(Template):
         n_obs = len(observations)
         obs_mean = np.mean(observations)
 
-        prior_var = params.prior_std ** 2
-        likelihood_var = params.likelihood_std ** 2
+        prior_var = params.prior_std**2
+        likelihood_var = params.likelihood_std**2
 
         posterior_var = 1.0 / (1.0 / prior_var + n_obs / likelihood_var)
-        posterior_mean = posterior_var * (params.prior_mean / prior_var + n_obs * obs_mean / likelihood_var)
+        posterior_mean = posterior_var * (
+            params.prior_mean / prior_var + n_obs * obs_mean / likelihood_var
+        )
         posterior_std = np.sqrt(posterior_var)
 
         samples = np.random.normal(posterior_mean, posterior_std, params.n_samples)
@@ -334,7 +350,9 @@ class NumericConsistencyTemplate(Template):
     OutputModel = NumericConsistencyOutput
     deterministic = True
 
-    def run(self, params: NumericConsistencyParams, context: Optional[Dict] = None) -> Dict[str, Any]:
+    def run(
+        self, params: NumericConsistencyParams, context: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         context = context or {}
         observed = np.array(params.observed_values)
         observed_mean = float(np.mean(observed))
@@ -368,7 +386,7 @@ class SensitivitySuiteTemplate(Template):
             noise = np.random.normal(0, params.prior_widening_factor * 0.1)
             perturbed = params.base_result + noise
             width = (params.base_ci_high - params.base_ci_low) * params.prior_widening_factor
-            perturbed_supports = (perturbed - width/2) > 0 or (perturbed + width/2) < 0
+            perturbed_supports = (perturbed - width / 2) > 0 or (perturbed + width / 2) < 0
 
             if base_supports != perturbed_supports:
                 flip_count += 1
@@ -392,7 +410,9 @@ class ContradictionDetectTemplate(Template):
     OutputModel = ContradictionDetectOutput
     deterministic = True
 
-    def run(self, params: ContradictionDetectParams, context: Optional[Dict] = None) -> Dict[str, Any]:
+    def run(
+        self, params: ContradictionDetectParams, context: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         context = context or {}
         contradictions = []
 
@@ -402,11 +422,13 @@ class ContradictionDetectTemplate(Template):
 
         for s in supporting:
             for r in refuting:
-                contradictions.append({
-                    "supporting_id": s.get("id", "unknown"),
-                    "refuting_id": r.get("id", "unknown"),
-                    "claim_id": params.claim_id,
-                })
+                contradictions.append(
+                    {
+                        "supporting_id": s.get("id", "unknown"),
+                        "refuting_id": r.get("id", "unknown"),
+                        "claim_id": params.claim_id,
+                    }
+                )
 
         return {
             "method": "contradiction_detect",
@@ -428,7 +450,10 @@ class CitationCheckTemplate(Template):
         sources = []
 
         for item in params.evidence_bundle:
-            if item.get("claim_id") == params.claim_id or item.get("hypothesis_id") == params.claim_id:
+            if (
+                item.get("claim_id") == params.claim_id
+                or item.get("hypothesis_id") == params.claim_id
+            ):
                 source = item.get("source", item.get("source_id", ""))
                 if source:
                     sources.append(source)
@@ -473,6 +498,7 @@ class EffectDirectionTemplate(Template):
 
 class CodeActTemplate(Template):
     """Template for ad-hoc code execution via CodeAct."""
+
     template_id = "codeact_v1"
     description = "Ad-hoc code execution for validation experiments"
     ParamModel = CodeActParams
@@ -486,7 +512,7 @@ class CodeActTemplate(Template):
             "method": "codeact_v1",
             "success": True,
             "stdout": "Executed via ValidatorAgent",
-            "return_code": 0
+            "return_code": 0,
         }
 
 
@@ -494,12 +520,14 @@ class CodeActTemplate(Template):
 # Template Registry
 # =============================================================================
 
+
 @dataclass
 class TemplateExecution:
     """Record of a template execution for auditing."""
+
     execution_id: str
     template_qid: str  # Canonical Qualified ID
-    template_id: str   # Derived/Legacy ID
+    template_id: str  # Derived/Legacy ID
     claim_id: str
     params: Dict[str, Any]
     result: Dict[str, Any]
@@ -536,14 +564,15 @@ class TemplateRegistry:
     def get(self, template_id: str) -> Template:
         """Get a template by ID."""
         if template_id not in self._templates:
-            raise KeyError(f"Unknown template: {template_id}. Available: {list(self._templates.keys())}")
+            raise KeyError(
+                f"Unknown template: {template_id}. Available: {list(self._templates.keys())}"
+            )
         return self._templates[template_id]
 
     def list_templates(self) -> List[Dict[str, str]]:
         """List available templates."""
         return [
-            {"id": t.template_id, "description": t.description}
-            for t in self._templates.values()
+            {"id": t.template_id, "description": t.description} for t in self._templates.values()
         ]
 
     def run_template(
@@ -552,11 +581,11 @@ class TemplateRegistry:
         params: Dict[str, Any],
         context: Optional[Dict] = None,
         caller_role: str = "verify",
-        template_qid: Optional[str] = None, # Explicit QID if avail
+        template_qid: Optional[str] = None,  # Explicit QID if avail
     ) -> TemplateExecution:
         """
         Run a template with validated parameters.
-        
+
         Returns a TemplateExecution record for auditing.
         """
         # Canonicalization Logic
@@ -567,13 +596,15 @@ class TemplateRegistry:
         # 1. Prefer explicit QID argument
         if template_qid:
             if "@" not in template_qid:
-                 return TemplateExecution(
+                return TemplateExecution(
                     template_qid=template_qid,
                     template_id=template_id,
                     success=False,
-                    result={"error": f"UNQUALIFIED_TEMPLATE_QID: Provided qid '{template_qid}' is defective."},
-                    execution_id=""
-                 )
+                    result={
+                        "error": f"UNQUALIFIED_TEMPLATE_QID: Provided qid '{template_qid}' is defective."
+                    },
+                    execution_id="",
+                )
             real_qid = template_qid
             real_tid = template_qid.split("@")[0]
 
@@ -584,13 +615,15 @@ class TemplateRegistry:
 
         # 3. CRITICAL: Hard Fail if no qualified ID (Kill @unqualified fallback)
         else:
-             return TemplateExecution(
+            return TemplateExecution(
                 template_qid="",
                 template_id=template_id,
                 success=False,
-                result={"error": f"UNQUALIFIED_TEMPLATE_QID: template_id '{template_id}' must be qualified (name@X.Y.Z) or template_qid provided."},
-                execution_id=""
-             )
+                result={
+                    "error": f"UNQUALIFIED_TEMPLATE_QID: template_id '{template_id}' must be qualified (name@X.Y.Z) or template_qid provided."
+                },
+                execution_id="",
+            )
 
         template = self.get(real_tid)
 
@@ -642,7 +675,9 @@ class TemplateRegistry:
         runtime_ms = (time.time() - start_time) * 1000
 
         if runtime_ms > template.max_runtime_ms:
-            warnings.append(f"Exceeded max runtime: {runtime_ms:.1f}ms > {template.max_runtime_ms}ms")
+            warnings.append(
+                f"Exceeded max runtime: {runtime_ms:.1f}ms > {template.max_runtime_ms}ms"
+            )
 
         params_dict = validated_params.model_dump()
         params_hash = sha256_json(params_dict)

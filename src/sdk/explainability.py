@@ -158,7 +158,11 @@ def build_explainability_summary(
     source_refs = governance.get("source_refs") or {}
     governance_file = source_refs.get("governance_summary_file")
     if not governance_file:
-        governance_file = os.path.basename(str(governance_summary)) if isinstance(governance_summary, str) else "governance_summary.json"
+        governance_file = (
+            os.path.basename(str(governance_summary))
+            if isinstance(governance_summary, str)
+            else "governance_summary.json"
+        )
 
     replay_file = source_refs.get("replay_verdict_file")
     if replay_file is None and isinstance(replay_verdict, str):
@@ -173,11 +177,17 @@ def build_explainability_summary(
     primacy_details = details.get("primacy") or {}
     mutation_details = details.get("mutation_linkage") or {}
 
-    hash_ok = bool(hash_details.get("expected") == hash_details.get("computed")) if hash_details else False
+    hash_ok = (
+        bool(hash_details.get("expected") == hash_details.get("computed"))
+        if hash_details
+        else False
+    )
     primacy_code = str(primacy_details.get("code") or "UNKNOWN")
     primacy_ok = bool(primacy_code == "PASS")
     missing_mutations = sorted([str(x) for x in (mutation_details.get("missing") or [])])
-    mutation_ok = bool(not missing_mutations and replay is not None and replay.get("status") == "PASS")
+    mutation_ok = bool(
+        not missing_mutations and replay is not None and replay.get("status") == "PASS"
+    )
 
     persisted_ids = sorted([str(x) for x in (governance.get("persisted_evidence_ids") or [])])
     mutation_ids = sorted([str(x) for x in (governance.get("mutation_ids") or [])])

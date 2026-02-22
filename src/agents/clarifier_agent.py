@@ -38,6 +38,7 @@ Output JSON format:
 @dataclass
 class ClarifiedHypothesis:
     """Output of the clarification step."""
+
     original: str
     clarified: str
     variables: List[Dict[str, str]]
@@ -59,10 +60,10 @@ class ClarifiedHypothesis:
 class ClarifierAgent(BaseAgent):
     """
     Step 2: Clarifies user hypothesis into testable form.
-    
+
     Input: User's raw hypothesis H
     Output: Precise hypothesis H′ with identified variables
-    
+
     Example:
         H: "Protein X inhibits pathway Y"
         H′: "Protein X inhibits pathway Y under condition Z (pH=7.4, temp=37°C)"

@@ -25,6 +25,7 @@ def is_typedb_ready():
     creds = Credentials(username, password)
     try:
         with TypeDB.driver(address, creds, opts) as d:
+            # Simple check to see if we can list databases
             d.databases.all()
             return True
     except Exception:
@@ -33,9 +34,15 @@ def is_typedb_ready():
 
 def exec_write(tx, q: str) -> None:
     qs = q.strip()
-    # Tiny regression guard against passing empty or malformed strings
-    if not (qs.startswith("insert") or qs.startswith("match") or qs.startswith("define") or qs.startswith("undefine")):
+    q_lower = qs.lower()
+    
+    # Anton V requirement: prevent accidental reads in write helper
+    if q_lower.startswith("match") and not any(k in q_lower for k in ["insert", "update", "delete"]):
+        raise AssertionError(f"exec_write received a non-mutating match-only query: {qs[:50]}...")
+        
+    if not any(qs.startswith(k) for k in ["insert", "match", "define", "undefine"]):
         raise ValueError(f"exec_write query must start with insert, match, define, or undefine. Got: {qs[:20]}")
+        
     # Force exhaustion of the lazy TypeDB 3.x iterator
     for _ in tx.query(qs):
         pass
@@ -51,6 +58,7 @@ def ghost_db():
     if not is_typedb_ready():
         pytest.skip("TypeDB not reachable or not available")
 
+    # Force isolated DB in CI if requested, or fallback to scientific_knowledge
     use_isolated = os.getenv("SUPERHYPERION_TEST_ISOLATED_DB", "false").lower() == "true"
     
     if use_isolated:
@@ -81,10 +89,10 @@ def ghost_db():
             driver.databases.get(db_name).delete()
 
 
-def test_tenant_isolation_baseline(ghost_db):
+def test_tenant_ownership_relation_baseline(ghost_db):
     """
-    Acceptance test for TRUST-1.1 Tenant Isolation Baseline.
-    Asserts cross-tenant data leakage is prevented at the schema boundary.
+    PROVES: The tenant-ownership relation exists and works at the TypeDB schema level.
+    NOTE: This does NOT prove application-level isolation enforcement.
     """
     driver = ghost_db.driver
     db_name = ghost_db.database
@@ -93,9 +101,7 @@ def test_tenant_isolation_baseline(ghost_db):
     tenant_b = f"T-B-{uuid.uuid4().hex[:8]}"
     capsule_a = f"cap-A-{uuid.uuid4().hex[:8]}"
 
-    # Match-only TypeQL 3.x queries. No select/get.
-    
-    # 1. Setup Tenant A and their Capsule
+    # 1. Setup Data with Read-Your-Writes validation
     setup_q = f"""
     insert 
         $tA isa tenant, has tenant-id "{tenant_a}";
@@ -105,30 +111,25 @@ def test_tenant_isolation_baseline(ghost_db):
     """
 
     with driver.transaction(db_name, TransactionType.WRITE) as tx:
-        # Loudly fail on write if TypeDB rejects it and exhaust iterator
         exec_write(tx, setup_q)
+        
+        # Read-your-writes: verify existence before committing
+        verify_q = f'match $t isa tenant, has tenant-id "{tenant_a}";'
+        ans = exec_read(tx, verify_q)
+        assert ans, f"Write swallowed inside transaction! Tenant {tenant_a} not visible before commit."
+        
         tx.commit()
 
-    # Regression check: does it exist in the exact DB we're testing?
+    # 2. Persistence check: prove existence after commit
     with driver.transaction(db_name, TransactionType.READ) as tx:
-        q_verify = f'match $t isa tenant, has tenant-id "{tenant_a}";'
-        ans_verify = exec_read(tx, q_verify)
-        if len(ans_verify) == 0:
-            raise AssertionError(f"Write swallowed! Tenant {tenant_a} not found in DB '{db_name}'. Address: {ghost_db.address}")
+        verify_q = f'match $t isa tenant, has tenant-id "{tenant_a}";'
+        ans = exec_read(tx, verify_q)
+        if not ans:
+            raise AssertionError(f"Write swallowed after commit! Tenant {tenant_a} not found in DB '{db_name}'.")
 
-    # 2. Test Fetching with Scoping Helper
+    # 3. Join-based isolation baseline (The "Correctness" check)
     with driver.transaction(db_name, TransactionType.READ) as tx:
-        # Step A1: Can we find the Tenant?
-        q_t = f'match $t isa tenant, has tenant-id "{tenant_a}";'
-        ans_t = exec_read(tx, q_t)
-        assert len(ans_t) == 1, f"Tenant {tenant_a} not found in DB"
-
-        # Step A2: Can we find the Capsule?
-        q_c = f'match $c isa run-capsule, has capsule-id "{capsule_a}";'
-        ans_c = exec_read(tx, q_c)
-        assert len(ans_c) == 1, f"Capsule {capsule_a} not found in DB"
-
-        # Step A3: Can we find the Relation?
+        # Tenant A should see their own capsule
         q_a = f"""
         match
             $t isa tenant, has tenant-id "{tenant_a}";
@@ -136,9 +137,9 @@ def test_tenant_isolation_baseline(ghost_db):
             (owner: $t, owned: $c) isa tenant-ownership;
         """
         ans_a = exec_read(tx, q_a)
-        assert len(ans_a) == 1, "Tenant A should see their own capsule via relation"
+        assert len(ans_a) == 1, "Tenant A should see their own capsule via join"
 
-        # Query B: Tenant B requests Tenant A's capsule -> Should Fail (Return empty)
+        # Tenant B should NOT see Tenant A's capsule
         q_b = f"""
         match
             $t isa tenant, has tenant-id "{tenant_b}";
@@ -146,4 +147,68 @@ def test_tenant_isolation_baseline(ghost_db):
             (owner: $t, owned: $c) isa tenant-ownership;
         """
         ans_b = exec_read(tx, q_b)
-        assert len(ans_b) == 0, "Tenant B MUST NOT see Tenant A's capsule (isolation leak)"
+        assert len(ans_b) == 0, "Tenant B MUST NOT see Tenant A's capsule via join"
+
+
+def test_tenant_isolation_enforcement(ghost_db):
+    """
+    PROVES: The application-level read paths (typedb_reads.py) enforce tenant isolation.
+    """
+    from src.api.services import typedb_reads
+
+    # Note: TypeDBConnection in the service layer will use the default database from config.
+    # We must temporarily patch the config to point to our test database if it's isolated.
+    original_db = config.typedb.database
+    config.typedb.database = ghost_db.database
+    
+    try:
+        tenant_x = f"T-X-{uuid.uuid4().hex[:8]}"
+        tenant_y = f"T-Y-{uuid.uuid4().hex[:8]}"
+        capsule_x = f"cap-X-{uuid.uuid4().hex[:8]}"
+        
+        # 1. Insert data directly for testing
+        setup_q = f"""
+        insert 
+            $tX isa tenant, has tenant-id "{tenant_x}";
+            $tY isa tenant, has tenant-id "{tenant_y}";
+            $cX isa run-capsule, 
+                has capsule-id "{capsule_x}", 
+                has tenant-id "{tenant_x}",
+                has session-id "sess-X",
+                has query-hash "hash-X",
+                has scope-lock-id "sl-X",
+                has intent-id "int-X",
+                has proposal-id "prop-X",
+                has created-at {config.typedb.database if not config.typedb.tls_enabled else "2026-02-22T14:00:00"}; # Placeholder
+            (owner: $tX, owned: $cX) isa tenant-ownership;
+        """
+        # Fix datetime for TypeDB
+        import datetime
+        dt_now = datetime.datetime.now().isoformat()
+        setup_q = setup_q.replace('has created-at {config.typedb.database if not config.typedb.tls_enabled else "2026-02-22T14:00:00"}', f'has created-at {dt_now}')
+
+        with ghost_db.driver.transaction(ghost_db.database, TransactionType.WRITE) as tx:
+            exec_write(tx, setup_q)
+            tx.commit()
+
+        # 2. Test production read paths
+        # Tenant X should see their capsule
+        results_x, _ = typedb_reads.list_capsules_for_tenant(tenant_x)
+        assert any(r["capsule_id"] == capsule_x for r in results_x), "Tenant X should see their own capsule via service"
+
+        # Tenant Y should NOT see Tenant X's capsule
+        results_y, _ = typedb_reads.list_capsules_for_tenant(tenant_y)
+        assert not any(r["capsule_id"] == capsule_x for r in results_y), "Tenant Y MUST NOT see Tenant X's capsule via service"
+
+        # Scoped fetch by ID
+        # Tenant X fetch -> Found
+        item_x = typedb_reads.fetch_capsule_by_id_scoped(tenant_x, capsule_x)
+        assert item_x is not None
+        assert item_x["capsule_id"] == capsule_x
+
+        # Tenant Y fetch -> Not Found (Isolated)
+        item_y = typedb_reads.fetch_capsule_by_id_scoped(tenant_y, capsule_x)
+        assert item_y is None, "Tenant Y should receive None (404-equivalent) when requesting Tenant X's capsule"
+
+    finally:
+        config.typedb.database = original_db

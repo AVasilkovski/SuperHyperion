@@ -19,13 +19,14 @@ logger = logging.getLogger(__name__)
 class EpistemicClassification:
     """
     Output of epistemic classification.
-    
+
     Contains:
         status: The determined epistemic status
         justification: Human-readable explanation
         confidence: Numeric confidence (from evidence)
         missing_evidence: What would strengthen the claim
     """
+
     status: EpistemicStatus
     justification: str
     confidence: float
@@ -45,13 +46,13 @@ class EpistemicClassification:
 class EpistemicClassifierAgent(BaseAgent):
     """
     Agent that determines epistemic status based on evidence.
-    
+
     Decision rules:
         - No evidence → SPECULATIVE
-        - One experiment → SUPPORTED  
+        - One experiment → SUPPORTED
         - Replication + low variance → PROVEN
         - Contradicted → REFUTED
-        
+
     LLM assists; rules decide.
     """
 
@@ -68,13 +69,11 @@ class EpistemicClassifierAgent(BaseAgent):
             classification = self.classify_claim(
                 claim=claim,
                 evidence=context.code_results,
-                contradictions=context.graph_context.get("contradictions", [])
+                contradictions=context.graph_context.get("contradictions", []),
             )
             classifications.append(classification)
 
-        context.graph_context["classifications"] = [
-            c.to_dict() for c in classifications
-        ]
+        context.graph_context["classifications"] = [c.to_dict() for c in classifications]
         return context
 
     def classify_claim(
@@ -86,23 +85,20 @@ class EpistemicClassifierAgent(BaseAgent):
     ) -> EpistemicClassification:
         """
         Classify a single claim based on evidence.
-        
+
         Args:
             claim: The claim to classify
             evidence: List of CodeAct execution results
             contradictions: Known contradicting claims
             current_status: Current epistemic status (for HITL checks)
-            
+
         Returns:
             EpistemicClassification with status and justification
         """
         claim_id = claim.get("claim_id") or claim.get("id", "unknown")
 
         # Gather evidence for this claim
-        claim_evidence = [
-            e for e in evidence
-            if e.get("hypothesis_id") == claim_id
-        ]
+        claim_evidence = [e for e in evidence if e.get("hypothesis_id") == claim_id]
 
         # Check for contradictions
         has_contradictions = any(
@@ -111,9 +107,7 @@ class EpistemicClassifierAgent(BaseAgent):
         )
 
         # Check if refuted
-        refuted = any(
-            e.get("refutes", False) for e in claim_evidence
-        )
+        refuted = any(e.get("refutes", False) for e in claim_evidence)
 
         # Compute variance from evidence
         result_values = [
@@ -136,7 +130,7 @@ class EpistemicClassifierAgent(BaseAgent):
             experiment_count=len(claim_evidence),
             variance=variance,
             has_contradiction=has_contradictions,
-            refuted=refuted
+            refuted=refuted,
         )
 
         # Build justification
@@ -146,14 +140,12 @@ class EpistemicClassifierAgent(BaseAgent):
             evidence_count=len(claim_evidence),
             variance=variance,
             has_contradictions=has_contradictions,
-            refuted=refuted
+            refuted=refuted,
         )
 
         # Identify missing evidence
         missing = self._identify_missing_evidence(
-            status=new_status,
-            evidence_count=len(claim_evidence),
-            variance=variance
+            status=new_status, evidence_count=len(claim_evidence), variance=variance
         )
 
         # Check if HITL required
@@ -166,7 +158,7 @@ class EpistemicClassifierAgent(BaseAgent):
             justification=justification,
             confidence=1.0 - variance if variance <= 1.0 else 0.0,
             missing_evidence=missing,
-            requires_hitl=requires_hitl
+            requires_hitl=requires_hitl,
         )
 
     def _build_justification(
@@ -176,7 +168,7 @@ class EpistemicClassifierAgent(BaseAgent):
         evidence_count: int,
         variance: float,
         has_contradictions: bool,
-        refuted: bool
+        refuted: bool,
     ) -> str:
         """Build human-readable justification for the classification."""
         if refuted:
@@ -198,10 +190,7 @@ class EpistemicClassifierAgent(BaseAgent):
         return f"Claim {claim_id} status: {status.value}"
 
     def _identify_missing_evidence(
-        self,
-        status: EpistemicStatus,
-        evidence_count: int,
-        variance: float
+        self, status: EpistemicStatus, evidence_count: int, variance: float
     ) -> List[str]:
         """Identify what evidence is missing to strengthen the claim."""
         missing = []

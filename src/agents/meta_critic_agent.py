@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class MetaCriticAgent(BaseAgent):
     """
     Step 11: Audits the entire reasoning process for systemic issues.
-    
+
     Checks for:
         - Confirmation bias (only supporting evidence retrieved)
         - Mode collapse (all hypotheses converging prematurely)
@@ -76,12 +76,14 @@ class MetaCriticAgent(BaseAgent):
 
             # If we have evidence but no counterexamples, flag potential bias
             if prior_evidence and not counterexamples:
-                issues.append({
-                    "type": "confirmation_bias",
-                    "claim_id": claim_id,
-                    "severity": "medium",
-                    "description": "No counterexamples retrieved - possible confirmation bias",
-                })
+                issues.append(
+                    {
+                        "type": "confirmation_bias",
+                        "claim_id": claim_id,
+                        "severity": "medium",
+                        "description": "No counterexamples retrieved - possible confirmation bias",
+                    }
+                )
 
         return issues
 
@@ -96,12 +98,14 @@ class MetaCriticAgent(BaseAgent):
 
             # If few alternatives generated, flag mode collapse risk
             if len(alternatives) < 2:
-                issues.append({
-                    "type": "mode_collapse",
-                    "claim_id": claim_id,
-                    "severity": "low",
-                    "description": f"Only {len(alternatives)} alternative(s) generated",
-                })
+                issues.append(
+                    {
+                        "type": "mode_collapse",
+                        "claim_id": claim_id,
+                        "severity": "low",
+                        "description": f"Only {len(alternatives)} alternative(s) generated",
+                    }
+                )
 
         return issues
 
@@ -115,12 +119,14 @@ class MetaCriticAgent(BaseAgent):
             sample_size = unc.get("components", {}).get("sample_size", 0)
 
             if sample_size < 5:
-                issues.append({
-                    "type": "data_sparsity",
-                    "claim_id": claim_id,
-                    "severity": "high",
-                    "description": f"Only {sample_size} samples - insufficient for reliable inference",
-                })
+                issues.append(
+                    {
+                        "type": "data_sparsity",
+                        "claim_id": claim_id,
+                        "severity": "high",
+                        "description": f"Only {sample_size} samples - insufficient for reliable inference",
+                    }
+                )
 
         return issues
 

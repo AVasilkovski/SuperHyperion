@@ -1,8 +1,8 @@
-
 import logging
 import sys
 
 _CONFIGURED = False
+
 
 def setup_logging(level=logging.INFO):
     """
@@ -26,7 +26,7 @@ def setup_logging(level=logging.INFO):
             level=level,
             format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
             datefmt="%H:%M:%S",
-            stream=sys.stdout
+            stream=sys.stdout,
         )
     except ValueError:
         # Handled by _CONFIGURED check above, but for extra safety

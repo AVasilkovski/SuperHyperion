@@ -30,6 +30,8 @@ from src.montecarlo.versioned_registry import (  # Access explicit registry
 )
 
 logger = logging.getLogger(__name__)
+
+
 class OntologySteward(BaseAgent):
     """
     Step 13: Updates the hypergraph with vetted knowledge and full v2.2 audit trails.
@@ -38,6 +40,7 @@ class OntologySteward(BaseAgent):
     def __init__(self, confidence_threshold: float = 0.7):
         super().__init__(name="OntologySteward")
         from src.db.capabilities import WriteCap
+
         self._write_cap = WriteCap._mint()
         self.confidence_threshold = confidence_threshold
 
@@ -54,9 +57,12 @@ class OntologySteward(BaseAgent):
 
         # 1. Persist Session
         try:
-             self.insert_to_graph(q_insert_session(session_id, user_query, "running", tenant_id=tenant_id), cap=self._write_cap)
+            self.insert_to_graph(
+                q_insert_session(session_id, user_query, "running", tenant_id=tenant_id),
+                cap=self._write_cap,
+            )
         except Exception as e:
-             logger.debug(f"Session insert skipped (session_id={session_id}): {e}")
+            logger.debug(f"Session insert skipped (session_id={session_id}): {e}")
 
         # 2. Persist Traces
         traces = context.graph_context.get("traces", [])
@@ -79,7 +85,9 @@ class OntologySteward(BaseAgent):
                         "conflict": metrics.get("conflict_density", 0.0),
                     },
                     "reground_attempts": reground_attempts,
-                    "retrieval_decision": context.graph_context.get("retrieval_decision", "speculate"),
+                    "retrieval_decision": context.graph_context.get(
+                        "retrieval_decision", "speculate"
+                    ),
                     "retrieval_refinement": context.graph_context.get("retrieval_refinement"),
                     "grade": metrics.get("grade", "unknown"),
                     "reasoning": metrics.get("reasoning", ""),
@@ -99,20 +107,26 @@ class OntologySteward(BaseAgent):
                 alts = blob.get("alternatives") or []
                 for i, alt in enumerate(alts):
                     try:
-                        self.insert_to_graph(q_insert_speculative_hypothesis(
-                            session_id=session_id,
-                            claim_id=claim_id,
-                            alt_index=i,
-                            alt=alt,
-                            full_claim_blob=blob,
-                        ), cap=self._write_cap)
+                        self.insert_to_graph(
+                            q_insert_speculative_hypothesis(
+                                session_id=session_id,
+                                claim_id=claim_id,
+                                alt_index=i,
+                                alt=alt,
+                                full_claim_blob=blob,
+                            ),
+                            cap=self._write_cap,
+                        )
                         # Optional: Link to proposition if exists (best effort)
                         try:
-                            self.insert_to_graph(q_insert_speculative_hypothesis_targets_proposition(
-                                session_id, claim_id, i
-                            ), cap=self._write_cap)
+                            self.insert_to_graph(
+                                q_insert_speculative_hypothesis_targets_proposition(
+                                    session_id, claim_id, i
+                                ),
+                                cap=self._write_cap,
+                            )
                         except Exception:
-                            pass # Target proposition might not exist yet
+                            pass  # Target proposition might not exist yet
                     except Exception as e:
                         logger.error(f"Speculative hypothesis insert failed: {e}")
 
@@ -138,15 +152,28 @@ class OntologySteward(BaseAgent):
         latest_proposal_id = None
 
         for ev in evidence_list:
-            ev_data = ev.model_dump() if hasattr(ev, "model_dump") else (
-                asdict(ev) if hasattr(ev, "__dataclass_fields__") else (
-                    ev.__dict__ if hasattr(ev, "__dict__") else ev
+            ev_data = (
+                ev.model_dump()
+                if hasattr(ev, "model_dump")
+                else (
+                    asdict(ev)
+                    if hasattr(ev, "__dataclass_fields__")
+                    else (ev.__dict__ if hasattr(ev, "__dict__") else ev)
                 )
             )
             try:
-                evidence_id = self._seal_evidence_dict_before_mint(session_id, ev_data, channel="positive")
-                ev_data["evidence_id"] = evidence_id  # Phase 16.4 B2: expose for downstream citation
-                self.insert_to_graph(q_insert_validation_evidence(session_id, ev_data, evidence_id=evidence_id, intent_id=_intent_id), cap=self._write_cap)
+                evidence_id = self._seal_evidence_dict_before_mint(
+                    session_id, ev_data, channel="positive"
+                )
+                ev_data["evidence_id"] = (
+                    evidence_id  # Phase 16.4 B2: expose for downstream citation
+                )
+                self.insert_to_graph(
+                    q_insert_validation_evidence(
+                        session_id, ev_data, evidence_id=evidence_id, intent_id=_intent_id
+                    ),
+                    cap=self._write_cap,
+                )
                 persisted_evidence_ids.append(evidence_id)
             except Exception as e:
                 logger.error(f"Evidence insert failed (id={ev_data.get('execution_id')}): {e}")
@@ -155,10 +182,14 @@ class OntologySteward(BaseAgent):
         # 3c. Persist Negative Evidence Objects (Phase 16.1)
         negative_evidence_list = context.graph_context.get("negative_evidence", [])
         for neg_ev in negative_evidence_list:
-            neg_ev_data = neg_ev.model_dump() if hasattr(neg_ev, "model_dump") else (
-                asdict(neg_ev) if hasattr(neg_ev, "__dataclass_fields__") else neg_ev
+            neg_ev_data = (
+                neg_ev.model_dump()
+                if hasattr(neg_ev, "model_dump")
+                else (asdict(neg_ev) if hasattr(neg_ev, "__dataclass_fields__") else neg_ev)
             )
-            evidence_role = neg_ev_data.get("evidence_role") or neg_ev_data.get("evidence-role") or "refute"
+            evidence_role = (
+                neg_ev_data.get("evidence_role") or neg_ev_data.get("evidence-role") or "refute"
+            )
             try:
                 evidence_id = self._seal_evidence_dict_before_mint(
                     session_id, neg_ev_data, channel="negative"
@@ -199,16 +230,16 @@ class OntologySteward(BaseAgent):
         # 5. Persist Write Intents (Staged)
         intents = context.graph_context.get("write_intents", [])
         for intent in intents:
-             status = "staged"
-             approved_list = context.graph_context.get("approved_write_intents", [])
-             is_approved = any(a.get("intent_id") == intent.get("intent_id") for a in approved_list)
-             if is_approved:
-                 status = "approved"
+            status = "staged"
+            approved_list = context.graph_context.get("approved_write_intents", [])
+            is_approved = any(a.get("intent_id") == intent.get("intent_id") for a in approved_list)
+            if is_approved:
+                status = "approved"
 
-             self.insert_to_graph(
-                 q_insert_write_intent(session_id, intent, status, tenant_id=tenant_id),
-                 cap=self._write_cap,
-             )
+            self.insert_to_graph(
+                q_insert_write_intent(session_id, intent, status, tenant_id=tenant_id),
+                cap=self._write_cap,
+            )
 
         # 6. Execute Approved Intents & Log Status Events
         approved_intents = context.graph_context.get("approved_write_intents", [])
@@ -228,34 +259,39 @@ class OntologySteward(BaseAgent):
             if err_msg:
                 payload["error"] = err_msg
 
-            self.insert_to_graph(q_insert_intent_status_event(
-                intent.get("intent_id"),
-                final_status,
-                payload
-            ), cap=self._write_cap)
+            self.insert_to_graph(
+                q_insert_intent_status_event(intent.get("intent_id"), final_status, payload),
+                cap=self._write_cap,
+            )
 
             if success:
                 committed.append(intent)
 
                 payload = intent.get("payload", {}) or {}
                 claim_id = payload.get("claim_id")
-                proposed_status = payload.get("status") or payload.get("proposed_status") or payload.get("action")
+                proposed_status = (
+                    payload.get("status") or payload.get("proposed_status") or payload.get("action")
+                )
 
                 if claim_id and proposed_status:
-                    mutation_events.append({
-                        "mutation_id": make_mutation_id(
-                            session_id=session_id,
-                            intent_id=intent.get("intent_id", ""),
-                            claim_id=claim_id,
-                            proposed_status=str(proposed_status),
-                        ),
-                        "session_id": session_id,
-                        "intent_id": intent.get("intent_id", ""),
-                        "proposal_id": payload.get("proposal_id") or intent.get("proposal_id") or "",
-                        "claim_id": claim_id,
-                        "mutation_type": intent.get("intent_type", "unknown"),
-                        "to_status": str(proposed_status),
-                    })
+                    mutation_events.append(
+                        {
+                            "mutation_id": make_mutation_id(
+                                session_id=session_id,
+                                intent_id=intent.get("intent_id", ""),
+                                claim_id=claim_id,
+                                proposed_status=str(proposed_status),
+                            ),
+                            "session_id": session_id,
+                            "intent_id": intent.get("intent_id", ""),
+                            "proposal_id": payload.get("proposal_id")
+                            or intent.get("proposal_id")
+                            or "",
+                            "claim_id": claim_id,
+                            "mutation_type": intent.get("intent_type", "unknown"),
+                            "to_status": str(proposed_status),
+                        }
+                    )
             else:
                 failed.append(intent)
 
@@ -280,22 +316,28 @@ class OntologySteward(BaseAgent):
         final_status = "failed" if failed else "complete"
 
         # Delete old ended-at first for idempotency
-        if hasattr(self, 'db'):
+        if hasattr(self, "db"):
             self.db.query_delete(q_delete_session_ended_at(session_id), cap=self._write_cap)
         else:
             from src.db.typedb_client import typedb
+
             typedb.query_delete(q_delete_session_ended_at(session_id), cap=self._write_cap)
 
         self.insert_to_graph(q_set_session_ended_at(session_id), cap=self._write_cap)
 
-        if hasattr(self, 'db'):
+        if hasattr(self, "db"):
             self.db.query_delete(q_delete_session_run_status(session_id), cap=self._write_cap)
-            self.db.query_insert(q_insert_session_run_status(session_id, final_status), cap=self._write_cap)
+            self.db.query_insert(
+                q_insert_session_run_status(session_id, final_status), cap=self._write_cap
+            )
         else:
             # Fallback for compilation context
             from src.db.typedb_client import typedb
+
             typedb.query_delete(q_delete_session_run_status(session_id), cap=self._write_cap)
-            typedb.query_insert(q_insert_session_run_status(session_id, final_status), cap=self._write_cap)
+            typedb.query_insert(
+                q_insert_session_run_status(session_id, final_status), cap=self._write_cap
+            )
 
         # Summary logging
         logger.info(
@@ -314,21 +356,22 @@ class OntologySteward(BaseAgent):
 
         # Phase 16.4 B3: Expose stable governance outputs
         context.graph_context["persisted_all_evidence_ids"] = persisted_evidence_ids
-        
+
         # P1 Bug Fix: Derive governance IDs from staged proposal intents if context is missing them
         # In v2.1, _generate_and_stage_proposals stages directly via service
         from src.hitl.intent_service import write_intent_service
+
         staged_proposals = write_intent_service.list_staged(intent_type="stage_epistemic_proposal")
-        
+
         if not intents and staged_proposals:
-             # Use the staged proposals as 'latest' for governance summary
-             # P1 Bug Fix: handle dict return from service
-             first_prop = staged_proposals[-1]
-             latest_intent_id = first_prop.get("intent_id")
-             latest_proposal_id = first_prop.get("payload", {}).get("proposal_id")
+            # Use the staged proposals as 'latest' for governance summary
+            # P1 Bug Fix: handle dict return from service
+            first_prop = staged_proposals[-1]
+            latest_intent_id = first_prop.get("intent_id")
+            latest_proposal_id = first_prop.get("payload", {}).get("proposal_id")
         else:
-             latest_intent_id = intents[-1].get("intent_id") if intents else None
-             latest_proposal_id = proposals[-1].get("proposal_id") if proposals else None
+            latest_intent_id = intents[-1].get("intent_id") if intents else None
+            latest_proposal_id = proposals[-1].get("proposal_id") if proposals else None
 
         context.graph_context["latest_staged_intent_id"] = latest_intent_id
         context.graph_context["latest_staged_proposal_id"] = latest_proposal_id
@@ -362,12 +405,13 @@ class OntologySteward(BaseAgent):
                 '''
 
                 # Use base agent's DB connection directly
-                if hasattr(self, 'db'):
+                if hasattr(self, "db"):
                     self.db.query_delete(delete_q, cap=self._write_cap)
                     self.db.query_insert(insert_q, cap=self._write_cap)
                 else:
                     # Fallback to global typedb instance if self.db not set (legacy)
                     from src.db.typedb_client import typedb
+
                     typedb.query_delete(delete_q, cap=self._write_cap)
                     typedb.query_insert(insert_q, cap=self._write_cap)
 
@@ -393,7 +437,7 @@ class OntologySteward(BaseAgent):
     ):
         """
         Operator Extension: Freeze method template on first evidence.
-        
+
         Ensures metadata exists before freezing (lazy sync).
         """
         try:
@@ -421,7 +465,7 @@ class OntologySteward(BaseAgent):
                 version_str = str(spec.version)
 
             except ValueError:
-                return # Not a registered template
+                return  # Not a registered template
 
             # 2. Ensure store instance
             store = self._get_or_init_template_store()
@@ -446,7 +490,7 @@ class OntologySteward(BaseAgent):
                     spec_hash=spec.spec_hash(),
                     code_hash=current_code_hash,
                     status=TemplateStatus.ACTIVE,
-                    approved_by="bootstrap", # Auto-approved on first use for v2.2
+                    approved_by="bootstrap",  # Auto-approved on first use for v2.2
                     approved_at=None,
                 )
                 store.insert_metadata(new_meta)
@@ -462,8 +506,6 @@ class OntologySteward(BaseAgent):
 
         except Exception as e:
             logger.error(f"Failed to freeze template {template_id}: {e}")
-
-
 
     def _seal_operator_before_mint(
         self,
@@ -481,7 +523,7 @@ class OntologySteward(BaseAgent):
          - spec hash parity vs VERSIONED_REGISTRY.get_spec(qid)
          - code hash parity vs compute_code_hash_strict(VERSIONED_REGISTRY.get(qid))
          - freezes template on success (idempotent store call)
-         """
+        """
 
         if not scope_lock_id:
             raise ValueError("Seal failed: missing scope_lock_id")
@@ -501,7 +543,7 @@ class OntologySteward(BaseAgent):
         template_id, version = template_id.strip(), version.strip()
         if not template_id or not version:
             raise ValueError("Invalid template_qid format for seal")
-        
+
         store = self._get_or_init_template_store()
 
         # Fetch metadata
@@ -533,7 +575,7 @@ class OntologySteward(BaseAgent):
         # --- Code hash parity ---
         template_instance = VERSIONED_REGISTRY.get(qid)
         if template_instance is None:
-        # tests match "Seal failed: Template instance .* not found"
+            # tests match "Seal failed: Template instance .* not found"
             raise ValueError(f"Seal failed: Template instance {qid} not found")
 
         from src.montecarlo.template_metadata import compute_code_hash_strict
@@ -552,7 +594,6 @@ class OntologySteward(BaseAgent):
             actor="system",
         )
 
-
     def _seal_evidence_dict_before_mint(
         self,
         session_id: str,
@@ -560,7 +601,9 @@ class OntologySteward(BaseAgent):
         *,
         channel: str = "positive",
     ) -> str:
-        raw_exec = ev.get("execution_id") or ev.get("execution-id") or ev.get("codeact_execution_id")
+        raw_exec = (
+            ev.get("execution_id") or ev.get("execution-id") or ev.get("codeact_execution_id")
+        )
         exec_id = str(raw_exec).strip() if raw_exec is not None else ""
         claim_id = (
             ev.get("claim_id")
@@ -569,7 +612,9 @@ class OntologySteward(BaseAgent):
             or ev.get("hypothesis_id")
             or ""
         ).strip()
-        template_qid = (ev.get("template_qid") or ev.get("template-qid") or "codeact_v1@1.0.0").strip()
+        template_qid = (
+            ev.get("template_qid") or ev.get("template-qid") or "codeact_v1@1.0.0"
+        ).strip()
         scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
 
         if channel == "negative":
@@ -592,14 +637,17 @@ class OntologySteward(BaseAgent):
         driver = getattr(self, "db", None) and getattr(self.db, "driver", None)
         if not driver:
             from src.db.typedb_client import typedb
-            if getattr(typedb, '_mock_mode', False):
+
+            if getattr(typedb, "_mock_mode", False):
                 from src.montecarlo.template_store import InMemoryTemplateStore
+
                 self.template_store = InMemoryTemplateStore()
                 return self.template_store
             else:
                 driver = typedb.driver
 
         from src.montecarlo.template_store import TypeDBTemplateStore
+
         self.template_store = TypeDBTemplateStore(driver)
         return self.template_store
 
@@ -616,12 +664,14 @@ class OntologySteward(BaseAgent):
         try:
             spec = VERSIONED_REGISTRY.get_spec(qid)
             template_instance = VERSIONED_REGISTRY.get(qid)
-            
+
             # Use same store resolution as _freeze
             store = getattr(self, "template_store", None)
             if not store:
                 # This will initialize self.template_store
-                self._freeze_template_on_evidence(template_id, "bootstrap", scope_lock_id="bootstrap")
+                self._freeze_template_on_evidence(
+                    template_id, "bootstrap", scope_lock_id="bootstrap"
+                )
                 store = self.template_store
 
             # Check if after freeze-init it now exists
@@ -649,7 +699,7 @@ class OntologySteward(BaseAgent):
     def _fetch_session_evidence(self, session_id: str) -> List[Dict[str, Any]]:
         """
         Fetch all evidence for a session from TypeDB in 2 queries (base + negative).
-        
+
         Returns list of dicts with keys:
         - eid, cid, slid, conf, role (from DB variables)
         - fm, rs (for negative-evidence only)
@@ -714,12 +764,10 @@ class OntologySteward(BaseAgent):
 
         return enriched
 
-    def _to_operator_tuples(
-        self, ev_rows: List[Dict[str, Any]]
-    ) -> List[tuple]:
+    def _to_operator_tuples(self, ev_rows: List[Dict[str, Any]]) -> List[tuple]:
         """
         Convert evidence rows to (ev_dict, EvidenceRole, channel) tuples.
-        
+
         Channel inference: presence of fm/rs/failure-mode ⟹ negative
         """
 
@@ -738,9 +786,12 @@ class OntologySteward(BaseAgent):
 
             # Channel from subtype markers (fm/rs presence ⟹ negative)
             is_negative = bool(
-                r.get("fm") or r.get("rs")
-                or r.get("failure-mode") or r.get("failure_mode")
-                or r.get("refutation-strength") or r.get("refutation_strength")
+                r.get("fm")
+                or r.get("rs")
+                or r.get("failure-mode")
+                or r.get("failure_mode")
+                or r.get("refutation-strength")
+                or r.get("refutation_strength")
             )
             channel = "negative" if is_negative else "validation"
 
@@ -750,7 +801,7 @@ class OntologySteward(BaseAgent):
     def _derive_scope_lock_id(self, evidence_list: List[Dict[str, Any]]) -> Optional[str]:
         """
         Derive scope-lock from evidence using deterministic rule.
-        
+
         Rule: max confidence, tie-break on evidence entity-id ascending.
         """
         from src.epistemology.theory_change_operator import (
@@ -759,11 +810,7 @@ class OntologySteward(BaseAgent):
         )
 
         def _extract_slid(ev):
-            val = (
-                ev.get("slid")
-                or ev.get("scope_lock_id")
-                or ev.get("scope-lock-id")
-            )
+            val = ev.get("slid") or ev.get("scope_lock_id") or ev.get("scope-lock-id")
             return str(val).strip() if val else ""
 
         scored = []
@@ -785,7 +832,7 @@ class OntologySteward(BaseAgent):
     def _generate_and_stage_proposals(self, session_id: str) -> None:
         """
         Fetch session evidence, generate proposals, and stage intents.
-        
+
         Phase 16.3: Non-circular proposal generation with deterministic IDs.
         """
         from src.epistemology.theory_change_operator import (
@@ -848,7 +895,8 @@ class OntologySteward(BaseAgent):
 
             # Step 4: Build proposal (no recompute)
             proposal = generate_proposal(
-                claim_id, tuples,
+                claim_id,
+                tuples,
                 proposal_id=proposal_id,
                 precomputed=(action, metadata),
             )
@@ -876,17 +924,28 @@ class OntologySteward(BaseAgent):
         """Alias for query_graph (used by evidence fetcher)."""
         return self.query_graph(query)
 
+
 # ============================================================================
 # TypeQL Builders (v2.2 Schema)
 # ============================================================================
 
+
 def escape(s: str) -> str:
-    return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+    return (
+        (str(s) or "")
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", " ")
+        .replace("\r", " ")
+    )
+
 
 def iso_now() -> str:
     from datetime import datetime, timezone
+
     # TypeDB `datetime` attributes must be timezone-naive literals (no Z/offset).
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+
 
 def sha256_json(data: Any) -> str:
     """Compute stable hash of JSON-serializable data."""
@@ -896,6 +955,7 @@ def sha256_json(data: Any) -> str:
     except Exception:
         return "hash-error"
 
+
 def q_insert_tenant(tenant_id: str) -> str:
     return f'''
     insert $t isa tenant,
@@ -903,7 +963,10 @@ def q_insert_tenant(tenant_id: str) -> str:
       has created-at {iso_now()};
     '''
 
-def q_insert_session(session_id: str, user_query: str, status: str, tenant_id: str = "default") -> str:
+
+def q_insert_session(
+    session_id: str, user_query: str, status: str, tenant_id: str = "default"
+) -> str:
     uq = escape(user_query)
     # Check if exists first? TypeDB insert is additive.
     # If session-id is @key, duplicates will fail.
@@ -919,11 +982,13 @@ def q_insert_session(session_id: str, user_query: str, status: str, tenant_id: s
     (owner: $t, owned: $s) isa tenant-ownership;
     '''
 
+
 def q_set_session_ended_at(session_id: str) -> str:
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}";
     insert $s has ended-at {iso_now()};
     '''
+
 
 def q_delete_session_ended_at(session_id: str) -> str:
     return f'''
@@ -931,17 +996,20 @@ def q_delete_session_ended_at(session_id: str) -> str:
     delete has $t of $s;
     '''
 
+
 def q_delete_session_run_status(session_id: str) -> str:
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}", has run-status $old;
     delete has $old of $s;
     '''
 
+
 def q_insert_session_run_status(session_id: str, status: str) -> str:
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}";
     insert $s has run-status "{escape(status)}";
     '''
+
 
 def q_insert_trace(session_id: str, trace: dict) -> str:
     return f'''
@@ -957,13 +1025,14 @@ def q_insert_trace(session_id: str, trace: dict) -> str:
       (session: $s, trace: $t) isa session-has-trace;
     '''
 
+
 def q_insert_execution(session_id: str, ex: dict) -> str:
     params_hash = ex.get("params_hash") or sha256_json_strict(ex.get("params", {}))
     result_hash = ex.get("result_hash") or sha256_json_strict(ex.get("result", {}))
 
     payload = {
         "warnings": ex.get("warnings", []),
-        "result_summary": str(ex.get("result", ""))[:200]
+        "result_summary": str(ex.get("result", ""))[:200],
     }
     payload_json = json.dumps(payload, sort_keys=True)
 
@@ -972,9 +1041,9 @@ def q_insert_execution(session_id: str, ex: dict) -> str:
     insert
       $e isa template-execution,
         has execution-id "{escape(ex.get("execution_id"))}",
-        has template-id "{escape(ex.get("template_id",""))}",
-        has entity-id "{escape(ex.get("claim_id",""))}",
-        has claim-id "{escape(ex.get("claim_id",""))}",
+        has template-id "{escape(ex.get("template_id", ""))}",
+        has entity-id "{escape(ex.get("claim_id", ""))}",
+        has claim-id "{escape(ex.get("claim_id", ""))}",
         has success {str(bool(ex.get("success", False))).lower()},
         has runtime-ms {int(ex.get("runtime_ms", 0))},
         has params-hash "{params_hash}",
@@ -984,6 +1053,7 @@ def q_insert_execution(session_id: str, ex: dict) -> str:
       (session: $s, execution: $e) isa session-has-execution;
     '''
 
+
 def q_insert_proposal(session_id: str, p: dict) -> str:
     # Also link to proposition via proposal-targets-proposition IF claim exists
     claim_id = p.get("claim_id")
@@ -992,12 +1062,12 @@ def q_insert_proposal(session_id: str, p: dict) -> str:
     match $s isa run-session, has session-id "{escape(session_id)}";
     insert
       $p isa epistemic-proposal,
-        has proposed-status "{escape(p.get("proposed_status",""))}",
-        has max-allowed-status "{escape(p.get("max_allowed_status",""))}",
-        has final-proposed-status "{escape(p.get("final_proposed_status",""))}",
+        has proposed-status "{escape(p.get("proposed_status", ""))}",
+        has max-allowed-status "{escape(p.get("max_allowed_status", ""))}",
+        has final-proposed-status "{escape(p.get("final_proposed_status", ""))}",
         has confidence-score {float(p.get("confidence_score", 0.0))},
         has json "{escape(json.dumps(p, sort_keys=True))}",
-        has cap-reasons "{escape(json.dumps(p.get("cap_reasons",[]), sort_keys=True))}",
+        has cap-reasons "{escape(json.dumps(p.get("cap_reasons", []), sort_keys=True))}",
         has requires-hitl {str(bool(p.get("requires_hitl", False))).lower()},
         has created-at {iso_now()};
       (session: $s, proposal: $p) isa session-has-epistemic-proposal;
@@ -1013,19 +1083,17 @@ def q_insert_proposal(session_id: str, p: dict) -> str:
       $prop isa proposition, has entity-id "{escape(claim_id)}";
     insert
       $p isa epistemic-proposal,
-        has proposed-status "{escape(p.get("proposed_status",""))}",
-        has max-allowed-status "{escape(p.get("max_allowed_status",""))}",
-        has final-proposed-status "{escape(p.get("final_proposed_status",""))}",
+        has proposed-status "{escape(p.get("proposed_status", ""))}",
+        has max-allowed-status "{escape(p.get("max_allowed_status", ""))}",
+        has final-proposed-status "{escape(p.get("final_proposed_status", ""))}",
         has confidence-score {float(p.get("confidence_score", 0.0))},
         has json "{escape(json.dumps(p, sort_keys=True))}",
-        has cap-reasons "{escape(json.dumps(p.get("cap_reasons",[]), sort_keys=True))}",
+        has cap-reasons "{escape(json.dumps(p.get("cap_reasons", []), sort_keys=True))}",
         has requires-hitl {str(bool(p.get("requires_hitl", False))).lower()},
         has created-at {iso_now()};
       (session: $s, proposal: $p) isa session-has-epistemic-proposal;
       (proposal: $p, proposition: $prop) isa proposal-targets-proposition;
     '''
-
-
 
 
 def q_insert_write_intent(
@@ -1041,7 +1109,7 @@ def q_insert_write_intent(
     insert
       $i isa write-intent,
         has intent-id "{escape(intent.get("intent_id"))}",
-        has intent-type "{escape(intent.get("intent_type",""))}",
+        has intent-type "{escape(intent.get("intent_type", ""))}",
         has intent-status "{escape(status)}",
         has impact-score {float(intent.get("impact_score", 0.0))},
         has json "{escape(json.dumps(intent, sort_keys=True))}",
@@ -1051,7 +1119,10 @@ def q_insert_write_intent(
       (owner: $t, owned: $i) isa tenant-ownership;
     '''
 
-def q_insert_intent_status_event(intent_id: str, status: str, payload: Optional[Dict] = None) -> str:
+
+def q_insert_intent_status_event(
+    intent_id: str, status: str, payload: Optional[Dict] = None
+) -> str:
     payload = payload or {}
     return f'''
     match $i isa write-intent, has intent-id "{escape(intent_id)}";
@@ -1064,6 +1135,7 @@ def q_insert_intent_status_event(intent_id: str, status: str, payload: Optional[
       (write-intent: $i, intent-status-event: $e) isa intent-has-status-event;
     '''
 
+
 def q_insert_retrieval_assessment(session_id: str, ra: dict) -> str:
     # normalize from either shape
     metrics = ra.get("metrics") or {}
@@ -1075,8 +1147,12 @@ def q_insert_retrieval_assessment(session_id: str, ra: dict) -> str:
 
     # metrics names: coverage, provenance-score, conflict-density
     coverage = float(metrics.get("coverage", ra.get("coverage", 0.0)))
-    prov = float(metrics.get("provenance", ra.get("provenance_score", ra.get("provenance-score", 0.0))))
-    conf = float(metrics.get("conflict", ra.get("conflict_density", ra.get("conflict-density", 0.0))))
+    prov = float(
+        metrics.get("provenance", ra.get("provenance_score", ra.get("provenance-score", 0.0)))
+    )
+    conf = float(
+        metrics.get("conflict", ra.get("conflict_density", ra.get("conflict-density", 0.0)))
+    )
 
     reground_attempts = int(ra.get("reground_attempts", ra.get("reground-attempts", 0)))
     retrieval_decision = ra.get("retrieval_decision", ra.get("retrieval-decision", "speculate"))
@@ -1101,6 +1177,7 @@ def q_insert_retrieval_assessment(session_id: str, ra: dict) -> str:
       (session: $s, retrieval-assessment: $r) isa session-has-retrieval-assessment;
     '''
 
+
 def q_insert_meta_critique(session_id: str, mc: dict) -> str:
     payload = {
         "critique": mc.get("critique", ""),
@@ -1117,7 +1194,10 @@ def q_insert_meta_critique(session_id: str, mc: dict) -> str:
       (session: $s, meta-critique: $m) isa session-has-meta-critique;
     '''
 
-def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optional[str] = None, intent_id: Optional[str] = None) -> str:
+
+def q_insert_validation_evidence(
+    session_id: str, ev: dict, evidence_id: Optional[str] = None, intent_id: Optional[str] = None
+) -> str:
     # ------------------------------------------------------------------
     # Constitutional Gate (Phase 14.5)
     # ------------------------------------------------------------------
@@ -1125,7 +1205,13 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     exec_id = str(raw_exec).strip() if raw_exec is not None else ""
 
     # 1. Extract IDs first (needed for error messages)
-    claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or ev.get("hypothesis_id") or "").strip()
+    claim_id = (
+        ev.get("claim_id")
+        or ev.get("claim-id")
+        or ev.get("proposition_id")
+        or ev.get("hypothesis_id")
+        or ""
+    ).strip()
     template_qid = (ev.get("template_qid") or ev.get("template-qid") or "").strip()
     template_id = (ev.get("template_id") or ev.get("template-id") or "").strip()
     scope_lock_id = (ev.get("scope_lock_id") or ev.get("scope-lock-id") or "").strip()
@@ -1136,7 +1222,9 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
 
     # 2b. Seal parity invariants (function-boundary safety)
     if not scope_lock_id:
-        raise ValueError(f"CRITICAL: Validation evidence missing scope_lock_id! (exec_id={exec_id})")
+        raise ValueError(
+            f"CRITICAL: Validation evidence missing scope_lock_id! (exec_id={exec_id})"
+        )
     if not template_qid:
         raise ValueError(f"CRITICAL: Validation evidence missing template_qid! (exec_id={exec_id})")
 
@@ -1209,15 +1297,25 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
 
     # Prune excluded keys for JSON payload
     exclude = {
-        "claim_id", "claim-id", "proposition_id",
-        "execution_id", "template_id", "template_qid", "scope_lock_id",
-        "success", "confidence_score", "confidence", "content", "json"
+        "claim_id",
+        "claim-id",
+        "proposition_id",
+        "execution_id",
+        "template_id",
+        "template_qid",
+        "scope_lock_id",
+        "success",
+        "confidence_score",
+        "confidence",
+        "content",
+        "json",
     }
     base_json = ev.get("json") if isinstance(ev.get("json"), dict) else {}
     extra_fields = {k: v for k, v in ev.items() if k not in exclude}
-    
+
     # Standardize payload for JSON serialization
     from dataclasses import asdict, is_dataclass
+
     def _to_json_ready(obj):
         if is_dataclass(obj):
             return asdict(obj)
@@ -1234,7 +1332,9 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     if not evidence_id:
         evidence_id = make_evidence_id(session_id, claim_id, exec_id, template_qid)
 
-    intent_clause = f',\n        has authorized-by-intent-id "{escape(intent_id)}"' if intent_id else ''
+    intent_clause = (
+        f',\n        has authorized-by-intent-id "{escape(intent_id)}"' if intent_id else ""
+    )
 
     return f'''
     match $s isa run-session, has session-id "{escape(session_id)}";
@@ -1255,6 +1355,7 @@ def q_insert_validation_evidence(session_id: str, ev: dict, evidence_id: Optiona
     (evidence: $v, proposition: $p) isa evidence-for-proposition,
         has evidence-role "support";
     '''
+
 
 def q_insert_speculative_hypothesis(
     session_id: str,
@@ -1281,7 +1382,7 @@ def q_insert_speculative_hypothesis(
       $h isa speculative-hypothesis,
         has entity-id "{escape(hid)}",
         has claim-id "{escape(claim_id)}",
-        has content "{escape(str(alt.get("hypothesis","") or "speculative alternative"))}",
+        has content "{escape(str(alt.get("hypothesis", "") or "speculative alternative"))}",
         has belief-state "{escape(belief_state)}",
         has epistemic-status "speculative",
         has confidence-score {float(alt.get("confidence", 0.0))},
@@ -1289,6 +1390,7 @@ def q_insert_speculative_hypothesis(
         has created-at {iso_now()};
       (session: $s, hypothesis: $h) isa session-has-speculative-hypothesis;
     '''
+
 
 def q_insert_speculative_hypothesis_targets_proposition(
     session_id: str,
@@ -1303,6 +1405,8 @@ def q_insert_speculative_hypothesis_targets_proposition(
     insert
       (hypothesis: $h, proposition: $p) isa speculative-hypothesis-targets-proposition;
     '''
+
+
 # Note: make_evidence_id and make_negative_evidence_id are now imported from src.governance.fingerprinting
 
 
@@ -1314,16 +1418,16 @@ def q_insert_negative_evidence(
 ) -> str:
     """
     Build TypeQL query to insert negative evidence (Phase 16.1).
-    
+
     Negative evidence represents failed validations, refutations,
     or methodological failures. Uses the same fingerprint protocol
     as validation-evidence but with a different prefix (nev-).
-    
+
     CRITICAL SEMANTICS:
     - success=true means "execution succeeded" (template ran validly)
     - evidence-role="refute" means "claim was refuted"
     - This preserves backward compatibility with success-only filters
-    
+
     Phase 16.2 safeguards:
     - negative-evidence cannot have role=support (channel discipline)
     - replicate role IS allowed (represents replication failure/null effect)
@@ -1331,7 +1435,13 @@ def q_insert_negative_evidence(
     - role validation is strict (typos raise errors immediately)
     """
     # Extract required fields
-    claim_id = (ev.get("claim_id") or ev.get("claim-id") or ev.get("proposition_id") or ev.get("hypothesis_id") or "").strip()
+    claim_id = (
+        ev.get("claim_id")
+        or ev.get("claim-id")
+        or ev.get("proposition_id")
+        or ev.get("hypothesis_id")
+        or ""
+    ).strip()
     raw_exec = ev.get("execution_id") or ev.get("execution-id") or ev.get("codeact_execution_id")
     exec_id = str(raw_exec).strip() if raw_exec is not None else ""
     template_qid = (ev.get("template_qid") or ev.get("template-qid") or "codeact-v1@1.0").strip()
@@ -1368,7 +1478,9 @@ def q_insert_negative_evidence(
     failure_mode_value = failure_mode_enum.value
 
     # Phase 16.2: Clamp numeric fields to [0,1]
-    refutation_strength_raw = float(ev.get("refutation_strength") or ev.get("refutation-strength") or 0.5)
+    refutation_strength_raw = float(
+        ev.get("refutation_strength") or ev.get("refutation-strength") or 0.5
+    )
     refutation_strength = clamp_probability(refutation_strength_raw, "refutation_strength")
 
     conf_raw = float(ev.get("confidence_score") or ev.get("confidence-score") or 0.5)
@@ -1380,10 +1492,21 @@ def q_insert_negative_evidence(
 
     # Prune excluded keys for JSON payload (same as validation-evidence)
     exclude = {
-        "claim_id", "claim-id", "proposition_id",
-        "execution_id", "template_id", "template_qid", "scope_lock_id",
-        "success", "confidence_score", "confidence", "failure_mode", "failure-mode",
-        "refutation_strength", "refutation-strength", "json"
+        "claim_id",
+        "claim-id",
+        "proposition_id",
+        "execution_id",
+        "template_id",
+        "template_qid",
+        "scope_lock_id",
+        "success",
+        "confidence_score",
+        "confidence",
+        "failure_mode",
+        "failure-mode",
+        "refutation_strength",
+        "refutation-strength",
+        "json",
     }
     base_json = ev.get("json") if isinstance(ev.get("json"), dict) else {}
     extra_fields = {k: v for k, v in ev.items() if k not in exclude}

@@ -28,9 +28,12 @@ STATUS_RANK = {
 @dataclass
 class WriteIntent:
     """Staged write intent (executed only by OntologySteward)."""
+
     intent_id: str
-    intent_type: str  # "create_claim" | "update_status" | "link_hypothesis" | "supports" | "refutes"
-    lane: str       # "grounded" | "speculative"
+    intent_type: (
+        str  # "create_claim" | "update_status" | "link_hypothesis" | "supports" | "refutes"
+    )
+    lane: str  # "grounded" | "speculative"
     payload: Dict[str, Any]
     impact_score: Optional[float] = None
     provenance: Dict[str, Any] = field(default_factory=dict)
@@ -52,9 +55,10 @@ class WriteIntent:
 class EpistemicUpdateProposal:
     """
     Proposal for epistemic status update.
-    
+
     Contains both the raw proposal and the capped version.
     """
+
     claim_id: str
     current_status: str
     proposed_status: str
@@ -84,13 +88,13 @@ class EpistemicUpdateProposal:
 class ProposeAgent(BaseAgent):
     """
     v2.2 Step: Produces epistemic status proposals with cap enforcement.
-    
+
     Responsibilities:
         - Read verification_report, fragility_report, contradictions, meta_critique
         - Compute proposed status changes
         - ENFORCE CAPS based on fragility/meta_critique/contradictions
         - Generate staged write_intents
-        
+
     Does NOT:
         - Execute writes
         - Bypass HITL gates
@@ -175,7 +179,9 @@ class ProposeAgent(BaseAgent):
         context.graph_context["epistemic_update_proposal"] = [p.to_dict() for p in proposals]
         context.graph_context["write_intents"] = [w.to_dict() for w in write_intents]
 
-        logger.info(f"Proposed {len(proposals)} status updates, {sum(1 for p in proposals if p.requires_hitl)} require HITL")
+        logger.info(
+            f"Proposed {len(proposals)} status updates, {sum(1 for p in proposals if p.requires_hitl)} require HITL"
+        )
 
         return context
 
@@ -231,7 +237,7 @@ class ProposeAgent(BaseAgent):
     ) -> tuple:
         """
         Compute maximum allowed status based on caps.
-        
+
         CRITICAL: This enforces fragility/meta_critique caps.
         """
         max_status = "PROVEN"
@@ -241,7 +247,9 @@ class ProposeAgent(BaseAgent):
         fragile_claims = fragility_report.get("fragile_claims", [])
         if claim_id in fragile_claims or fragility_report.get("fragile", False):
             max_status = self._min_status(max_status, "SUPPORTED")
-            cap_reasons.append("Fragile: sensitivity analysis shows conclusion may flip under perturbation")
+            cap_reasons.append(
+                "Fragile: sensitivity analysis shows conclusion may flip under perturbation"
+            )
 
         # 2) MetaCritic cap
         severity = meta_critique.get("severity", "low")
@@ -252,7 +260,9 @@ class ProposeAgent(BaseAgent):
         # 3) Contradiction cap
         if contradictions.get("unresolved_count", 0) > 0:
             max_status = self._min_status(max_status, "UNRESOLVED")
-            cap_reasons.append(f"Unresolved contradictions: {contradictions.get('unresolved_count')}")
+            cap_reasons.append(
+                f"Unresolved contradictions: {contradictions.get('unresolved_count')}"
+            )
 
         return max_status, cap_reasons
 

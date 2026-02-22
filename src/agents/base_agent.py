@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentContext:
     """Context passed between agent operations."""
+
     messages: List[Dict[str, str]] = field(default_factory=list)
     graph_context: Dict[str, Any] = field(default_factory=dict)
     code_results: List[Dict[str, Any]] = field(default_factory=list)
@@ -30,7 +31,7 @@ class AgentContext:
 class BaseAgent(ABC):
     """
     Base class for all SuperHyperion agents.
-    
+
     Provides:
     - TypeDB connection for knowledge graph operations
     - Ollama client for LLM inference
@@ -66,10 +67,10 @@ class BaseAgent(ABC):
     async def run(self, context: AgentContext) -> AgentContext:
         """
         Execute the agent's main logic.
-        
+
         Args:
             context: Current agent context with messages and graph state
-            
+
         Returns:
             Updated context after agent execution
         """
@@ -109,10 +110,11 @@ class BaseAgent(ABC):
     def calculate_entropy(self, probabilities: List[float]) -> float:
         """
         Calculate dialectical entropy from probability distribution.
-        
+
         H(p) = -sum(p_i * log(p_i))
         """
         import math
+
         entropy = 0.0
         for p in probabilities:
             if p > 0:

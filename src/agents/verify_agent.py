@@ -23,10 +23,11 @@ from src.montecarlo.versioned_registry import VERSIONED_REGISTRY
 
 logger = logging.getLogger(__name__)
 
+
 class VerifyAgent(BaseAgent):
     """
     v2.2 Verify Node: The Scientist.
-    
+
     Orchestrates:
     - Experiment Design (LLM -> ExperimentSpec)
     - Execution (CodeAct -> TemplateRegistry)
@@ -58,7 +59,7 @@ class VerifyAgent(BaseAgent):
 
         # Process each claim through the MC pipeline
         for claim in claims:
-             await self.run_mc_pipeline(claim, context)
+            await self.run_mc_pipeline(claim, context)
 
         # Aggregate reports (optional, for debugging/summary)
         self._aggregate_reports(context)
@@ -94,17 +95,18 @@ class VerifyAgent(BaseAgent):
                 # Fill missing fields with defaults if template is simple
                 raw_res = execution.result
                 mc_result = MCResult(
-                    estimate=float(raw_res.get("estimate", raw_res.get("mean_value", raw_res.get("value", 0.0)))),
-                    ci_95=(
-                        float(raw_res.get("ci_low", 0.0)),
-                        float(raw_res.get("ci_high", 0.0))
+                    estimate=float(
+                        raw_res.get(
+                            "estimate", raw_res.get("mean_value", raw_res.get("value", 0.0))
+                        )
                     ),
+                    ci_95=(float(raw_res.get("ci_low", 0.0)), float(raw_res.get("ci_high", 0.0))),
                     variance=float(raw_res.get("variance", 0.0)),
                     diagnostics=raw_res.get("diagnostics", {}),
                     sensitivity=raw_res.get("sensitivity", {}),
                     supports_claim=self._determine_support(spec, raw_res),
                     is_fragile=raw_res.get("fragile", False),
-                    notes=raw_res.get("summary", "")
+                    notes=raw_res.get("summary", ""),
                 )
             except Exception as e:
                 logger.error(f"Failed to parse MCResult for {claim_id}: {e}")
@@ -144,11 +146,13 @@ class VerifyAgent(BaseAgent):
                             "provenance": {
                                 "template": spec.template_id,
                                 "params": execution.params,
-                                "epistemic_context": epi.to_canonical_dict()
-                            }
+                                "epistemic_context": epi.to_canonical_dict(),
+                            },
                         }
                         context.graph_context["negative_evidence"].append(neg_evidence)
-                        logger.info(f"Emitted NEGATIVE evidence for {spec.claim_id} (role={epi.negative_role_on_fail})")
+                        logger.info(
+                            f"Emitted NEGATIVE evidence for {spec.claim_id} (role={epi.negative_role_on_fail})"
+                        )
 
                         # Return early? Or emit both?
                         # Contract: If refuting, we do NOT emit positive evidence.
@@ -163,30 +167,31 @@ class VerifyAgent(BaseAgent):
                 template_qid=execution.template_qid,  # Phase 14.5: Qualified ID
                 scope_lock_id=spec.scope_lock_id,  # Phase 14.5: Scope lock
                 test_description=f"Template {spec.template_id}: {spec.hypothesis}",
-
                 # Numeric Core
                 estimate=mc_result.estimate,
                 ci_95=mc_result.ci_95,
                 variance=mc_result.variance,
-
                 # Diagnostics & Fragility
                 diagnostics=mc_result.diagnostics,
                 sensitivity=mc_result.sensitivity,
                 supports_claim=mc_result.supports_claim,
                 is_fragile=mc_result.is_fragile,
                 feynman=feynman,
-
                 # Legacy / Audit
                 result=execution.result,
                 metrics=self._extract_metrics(execution.result),
                 assumptions=list(spec.assumptions.keys()) if spec.assumptions else [],
                 provenance={"template": spec.template_id, "params": execution.params},
-                warnings=execution.warnings + ([f"CRITICAL: Budget exceeded {execution.runtime_ms}ms > {self.max_budget_ms}ms"] if execution.runtime_ms > self.max_budget_ms else []),
-                success=True
+                warnings=execution.warnings
+                + (
+                    [f"CRITICAL: Budget exceeded {execution.runtime_ms}ms > {self.max_budget_ms}ms"]
+                    if execution.runtime_ms > self.max_budget_ms
+                    else []
+                ),
+                success=True,
             )
 
             # 4) PACK EVIDENCE
-
 
             # Store raw Evidence object (Steward handles serialization)
             context.graph_context["evidence"].append(evidence)
@@ -205,15 +210,17 @@ class VerifyAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Pipeline crashed for {claim_id}: {e}", exc_info=True)
 
-    async def _design_experiment_spec(self, claim: Dict[str, Any], context: AgentContext) -> Optional[ExperimentSpec]:
+    async def _design_experiment_spec(
+        self, claim: Dict[str, Any], context: AgentContext
+    ) -> Optional[ExperimentSpec]:
         """
         LLM designs the experiment specification, informed by speculative hints.
-        
+
         The hints from the Brainstorm → MC Design bridge inform:
         - Template selection (e.g., sensitivity_suite if edge cases provided)
         - Parameter ranges (sensitivity axes become params)
         - Prior suggestions (from analogies)
-        
+
         INVARIANT: Hints are used for DESIGN, never echoed into the spec.
         The resulting ExperimentSpec is a clean grounded artifact.
         """
@@ -233,6 +240,7 @@ class VerifyAgent(BaseAgent):
                 # Fallback for dict-style hints
                 import hashlib
                 import json as json_mod
+
                 hint_digest = hashlib.sha256(
                     json_mod.dumps(hints, sort_keys=True, default=str).encode()
                 ).hexdigest()[:16]
@@ -258,9 +266,9 @@ class VerifyAgent(BaseAgent):
             if any([mechanisms, sensitivity_axes, falsification, priors]):
                 hint_section = f"""
 SPECULATIVE CONTEXT (use to inform design, do NOT echo in output):
-- Candidate mechanisms to discriminate: {mechanisms[:3] if mechanisms else 'None'}
-- Sensitivity axes to probe: {sensitivity_axes[:3] if sensitivity_axes else 'None'}
-- Falsification criteria: {falsification[:2] if falsification else 'None'}
+- Candidate mechanisms to discriminate: {mechanisms[:3] if mechanisms else "None"}
+- Sensitivity axes to probe: {sensitivity_axes[:3] if sensitivity_axes else "None"}
+- Falsification criteria: {falsification[:2] if falsification else "None"}
 - Prior suggestions from analogies: {len(priors)} available
 """
 
@@ -283,11 +291,7 @@ Do NOT include speculative content in the output.
             # Fallback/Heuristic for reliability in this implementation step
             # Use hint-aware template selection
             template_id = "numeric_consistency"  # default
-            params = {
-                "claimed_value": 0.5,
-                "observed_values": [0.4, 0.5, 0.6],
-                "tolerance": 0.2
-            }
+            params = {"claimed_value": 0.5, "observed_values": [0.4, 0.5, 0.6], "tolerance": 0.2}
 
             # Hint-aware template selection
             if hints:
@@ -302,7 +306,9 @@ Do NOT include speculative content in the output.
                         "sensitivity_axes": sensitivity_axes[:3],  # Limit to 3
                         "variation_range": 0.2,
                     }
-                    logger.info(f"Selected sensitivity_suite for {claim_id} due to {len(sensitivity_axes)} sensitivity axes")
+                    logger.info(
+                        f"Selected sensitivity_suite for {claim_id} due to {len(sensitivity_axes)} sensitivity axes"
+                    )
 
             return ExperimentSpec(
                 claim_id=claim_id,
@@ -310,31 +316,33 @@ Do NOT include speculative content in the output.
                 template_id=template_id,
                 scope_lock_id=context.graph_context.get("scope_lock_id", f"scope-{claim_id}"),
                 params=params,
-                assumptions={"independence_assumed": True}
+                assumptions={"independence_assumed": True},
             )
         except Exception as e:
             logger.error(f"Design failed for {claim_id}: {e}")
             return None
 
-    def _codeact_execute_template(self, spec: ExperimentSpec, context: AgentContext) -> TemplateExecution:
+    def _codeact_execute_template(
+        self, spec: ExperimentSpec, context: AgentContext
+    ) -> TemplateExecution:
         """Execute via Registry (CodeAct boundary). Registry enforces param validation."""
         extra_context = {
             "session_id": context.graph_context.get("session_id", "sess-unknown"),
-            "claim_id": spec.claim_id
+            "claim_id": spec.claim_id,
         }
 
         # 1. Get Template Definition (Existence Check)
         try:
             self.registry.get(spec.template_id)
         except KeyError:
-             return self._failed_execution(spec, "Unknown template ID")
+            return self._failed_execution(spec, "Unknown template ID")
 
         # 2. Execute via Registry (Single Validation Path)
         return self.registry.run_template(
             template_id=spec.template_id,
             params=spec.params,
             context=extra_context,
-            caller_role="verify"
+            caller_role="verify",
         )
 
     def _failed_execution(self, spec: ExperimentSpec, error: str) -> TemplateExecution:
@@ -349,10 +357,12 @@ Do NOT include speculative content in the output.
             runtime_ms=0,
             warnings=[error],
             params_hash=sha256_json(spec.params),
-            result_hash=sha256_json(result)
+            result_hash=sha256_json(result),
         )
 
-    def _feynman_checks(self, spec: ExperimentSpec, r: MCResult, ex: TemplateExecution) -> Dict[str, Any]:
+    def _feynman_checks(
+        self, spec: ExperimentSpec, r: MCResult, ex: TemplateExecution
+    ) -> Dict[str, Any]:
         """Deterministic Feynman Heuristics."""
         checks = {}
 
@@ -362,16 +372,13 @@ Do NOT include speculative content in the output.
         toy_ok = r.diagnostics.get("toy_ok")
 
         if toy_ok is None:
-             toy_pass = not is_mc # Fail if MC and missing
-             toy_reason = "Missing toy_ok diagnostic" if is_mc else "opt-out"
+            toy_pass = not is_mc  # Fail if MC and missing
+            toy_reason = "Missing toy_ok diagnostic" if is_mc else "opt-out"
         else:
-             toy_pass = bool(toy_ok)
-             toy_reason = "toy_ok=True" if toy_pass else "toy_ok=False"
+            toy_pass = bool(toy_ok)
+            toy_reason = "toy_ok=True" if toy_pass else "toy_ok=False"
 
-        checks["toy_model"] = {
-            "pass": toy_pass,
-            "reason": toy_reason
-        }
+        checks["toy_model"] = {"pass": toy_pass, "reason": toy_reason}
 
         # 2) Extremes: Check validity bounds (e.g., probability in [0,1])
         # Simple heuristic: variance shouldn't be negative, probabilities in [0,1]
@@ -381,37 +388,31 @@ Do NOT include speculative content in the output.
             extremes_pass = False
             reason = "Negative variance detected"
 
-        checks["extremes"] = {
-            "pass": extremes_pass,
-            "reason": reason
-        }
+        checks["extremes"] = {"pass": extremes_pass, "reason": reason}
 
         # 3) Dimensions: Unit consistency (if provided)
         if spec.units and "estimate" in spec.units:
             checks["dimensions"] = {
                 "pass": True,
-                "reason": f"Unit {spec.units['estimate']} accepted"
+                "reason": f"Unit {spec.units['estimate']} accepted",
             }
         else:
-             checks["dimensions"] = {
-                "pass": False, # Marking false to encourage unit usage, or True if optional
-                "reason": "No units provided"
+            checks["dimensions"] = {
+                "pass": False,  # Marking false to encourage unit usage, or True if optional
+                "reason": "No units provided",
             }
 
         # 4) Independence: Check for red flags in diagnostics
         indep_flag = r.diagnostics.get("independence_red_flag", False)
         checks["independence"] = {
             "pass": not indep_flag,
-            "reason": "Flag raised" if indep_flag else "No dependence flags"
+            "reason": "Flag raised" if indep_flag else "No dependence flags",
         }
 
         # 5) Diagnostics: ESS > 400 (if applicable)
         ess = r.diagnostics.get("ess")
         if ess is not None:
-            checks["diagnostics"] = {
-                "pass": ess >= 400,
-                "reason": f"ESS={ess}"
-            }
+            checks["diagnostics"] = {"pass": ess >= 400, "reason": f"ESS={ess}"}
         else:
             # STRICT: Fail if MC template & missing ESS
             if is_mc:
@@ -423,10 +424,10 @@ Do NOT include speculative content in the output.
         if ex.runtime_ms > self.max_budget_ms:
             checks["budget"] = {
                 "pass": False,
-                "reason": f"Runtime {ex.runtime_ms}ms > {self.max_budget_ms}ms"
+                "reason": f"Runtime {ex.runtime_ms}ms > {self.max_budget_ms}ms",
             }
         else:
-             checks["budget"] = {"pass": True, "reason": "Within budget"}
+            checks["budget"] = {"pass": True, "reason": "Within budget"}
 
         # 7) Missing CI for MC templates (New Audit Rule)
         if is_mc:
@@ -434,12 +435,12 @@ Do NOT include speculative content in the output.
             # Or if result dictionary was missing them
             # We check r.ci_95 which is populated from result
             if r.ci_95 == (0.0, 0.0) and r.variance == 0.0:
-                 checks["completeness"] = {
-                     "pass": False,
-                     "reason": "Missing CI/Variance for MC template"
-                 }
+                checks["completeness"] = {
+                    "pass": False,
+                    "reason": "Missing CI/Variance for MC template",
+                }
             else:
-                 checks["completeness"] = {"pass": True, "reason": "CI present"}
+                checks["completeness"] = {"pass": True, "reason": "CI present"}
 
         # 6) Sensitivity: Did prior widening flip the result?
         sens = r.sensitivity or {}
@@ -448,7 +449,7 @@ Do NOT include speculative content in the output.
 
         checks["sensitivity"] = {
             "pass": not (prior_flip or noise_flip),
-            "reason": f"PriorFlip={prior_flip}, NoiseFlip={noise_flip}"
+            "reason": f"PriorFlip={prior_flip}, NoiseFlip={noise_flip}",
         }
 
         all_pass = all(c["pass"] for c in checks.values())
@@ -468,9 +469,9 @@ Do NOT include speculative content in the output.
             null_val = raw.get("null_value", 0.0)
             low = raw.get("ci_low", 0.0)
             high = raw.get("ci_high", 0.0)
-            return not (low <= null_val <= high) # Reject null hypothesis
+            return not (low <= null_val <= high)  # Reject null hypothesis
 
-        return True # Default optimistic
+        return True  # Default optimistic
 
     def _compute_negative_strength(self, epi, result: MCResult) -> float:
         """Compute strength of negative evidence [0,1]."""
@@ -523,6 +524,7 @@ Do NOT include speculative content in the output.
             return e.model_dump()
         try:
             from dataclasses import asdict, is_dataclass
+
             if is_dataclass(e):
                 return asdict(e)
         except Exception:
@@ -534,6 +536,7 @@ Do NOT include speculative content in the output.
     def _aggregate_reports(self, context: AgentContext):
         # ... logic to build verify report ...
         pass
+
 
 # Global instance
 verify_agent = VerifyAgent()

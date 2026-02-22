@@ -260,6 +260,7 @@ CODEACT_V1_SPEC = TemplateSpec(
 # Build Versioned Registry
 # =============================================================================
 
+
 def build_versioned_registry() -> VersionedTemplateRegistry:
     """Build the versioned template registry with all known templates."""
     registry = VersionedTemplateRegistry()
@@ -294,13 +295,13 @@ VERSIONED_REGISTRY = build_versioned_registry()
 def get_template(qualified_id: str) -> Template:
     """
     Get a template by qualified ID.
-    
+
     Args:
         qualified_id: e.g. "bootstrap_ci@1.0.0"
-    
+
     Returns:
         Template instance
-    
+
     Raises:
         ValueError if not found
     """
@@ -313,13 +314,13 @@ def get_template(qualified_id: str) -> Template:
 def get_latest_template(template_id: str) -> Template:
     """
     Get the latest version of a template.
-    
+
     Args:
         template_id: e.g. "bootstrap_ci"
-    
+
     Returns:
         Template instance
-    
+
     Raises:
         ValueError if not found
     """

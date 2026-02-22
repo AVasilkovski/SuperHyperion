@@ -1,4 +1,3 @@
-
 import hashlib
 import json
 import logging
@@ -30,12 +29,14 @@ LEGACY_TEMPLATE_TO_QID = {
 # Speculative → Grounded Bridge Types
 # =============================================================================
 
+
 class PriorSuggestion(BaseModel):
     """
     A single prior suggestion derived from an analogy.
-    
+
     Tight typing prevents garbage from sneaking in.
     """
+
     domain: str
     parallel: str
     suggested_prior_range: Optional[Tuple[float, float]] = None
@@ -44,16 +45,17 @@ class PriorSuggestion(BaseModel):
 class ExperimentHints(BaseModel):
     """
     Design hints derived from speculative outputs.
-    
+
     INVARIANTS:
     - This is a CONTEXT-ONLY object. It MUST NOT be persisted to TypeDB.
     - It MUST NOT be embedded in Evidence payloads.
     - The Steward guard will reject any payload containing epistemic_status="speculative".
-    
+
     This is the formal bridge between the speculative lane (hypothesis generation)
     and the grounded lane (experiment design). It converts "ideas about the world"
     into "constraints for tests about the world".
     """
+
     claim_id: str
 
     # From alternatives: mechanisms to discriminate
@@ -81,7 +83,7 @@ class ExperimentHints(BaseModel):
     def digest(self) -> str:
         """
         Compute a stable hash of the hints for audit trail logging.
-        
+
         This allows reproducibility ("same hints → same digest") without
         persisting raw speculative content in grounded artifacts.
         """
@@ -119,10 +121,11 @@ SPECULATIVE_RESIDUE_FIELDS = {
 class ExperimentSpec(BaseModel):
     """
     LLM-generated specification for a Monte Carlo experiment.
-    
+
     INVARIANT: No speculative residue allowed. This is a grounded artifact.
     INVARIANT: Must have scope_lock_id for grounded lineage.
     """
+
     claim_id: str
     scope_lock_id: str  # REQUIRED for grounded execution (Constitutional Invariant)
     hypothesis: str
@@ -136,9 +139,9 @@ class ExperimentSpec(BaseModel):
     params: Dict[str, Any] = Field(default_factory=dict)
 
     # Feynman hooks
-    units: Optional[Dict[str, str]] = None          # e.g., {"estimate": "mg/dL"}
-    assumptions: Optional[Dict[str, Any]] = None    # e.g., {"independence_assumed": True}
-    analytic_sanity: Optional[Dict[str, Any]] = None # optional baseline formula / bounds
+    units: Optional[Dict[str, str]] = None  # e.g., {"estimate": "mg/dL"}
+    assumptions: Optional[Dict[str, Any]] = None  # e.g., {"independence_assumed": True}
+    analytic_sanity: Optional[Dict[str, Any]] = None  # optional baseline formula / bounds
 
     model_config = {"extra": "forbid"}  # Reject unknown fields
 
@@ -147,14 +150,14 @@ class ExperimentSpec(BaseModel):
     def validate_constitutional_invariants(cls, data: Any) -> Any:
         """
         Single Constitutional Gate for ExperimentSpec.
-        
+
         ORDERING CRITICAL:
         1. Reject Speculative Residue (Fast Tripwire)
         2. Normalize & Canonicalize (Whitespace hygiene)
         3. Enforce Invariants (QID, Scope Lock)
         """
         if not isinstance(data, dict):
-             return data
+            return data
 
         # ---------------------------------------------------------
         # 1. Speculative Residue Check (Fail Fast)
@@ -168,11 +171,13 @@ class ExperimentSpec(BaseModel):
                         return f"{path}.{field}" if path else field
                 for key, value in obj.items():
                     result = contains_speculative(value, f"{path}.{key}" if path else key)
-                    if result: return result
+                    if result:
+                        return result
             elif isinstance(obj, list):
                 for i, item in enumerate(obj):
                     result = contains_speculative(item, f"{path}[{i}]")
-                    if result: return result
+                    if result:
+                        return result
             return None
 
         # Top-level check
@@ -193,22 +198,29 @@ class ExperimentSpec(BaseModel):
         tid = data.get("template_id") or data.get("template-id")
         sid = data.get("scope_lock_id") or data.get("scope-lock-id")
 
-        if isinstance(qid, str): qid = qid.strip() or None
-        if isinstance(tid, str): tid = tid.strip() or None
-        if isinstance(sid, str): sid = sid.strip() or None
+        if isinstance(qid, str):
+            qid = qid.strip() or None
+        if isinstance(tid, str):
+            tid = tid.strip() or None
+        if isinstance(sid, str):
+            sid = sid.strip() or None
 
         # Normalize Legacy ID -> QID
         if not qid:
             if tid and tid in LEGACY_TEMPLATE_TO_QID:
                 qid = LEGACY_TEMPLATE_TO_QID[tid]
-                logger.warning(f"LEGACY_TEMPLATE_ID_USED: Mapped '{tid}' to '{qid}'. Update generator!")
+                logger.warning(
+                    f"LEGACY_TEMPLATE_ID_USED: Mapped '{tid}' to '{qid}'. Update generator!"
+                )
             elif tid:
-                 # If tid present but not in map, we let it pass to regex check below which will fail
-                 pass
+                # If tid present but not in map, we let it pass to regex check below which will fail
+                pass
 
         # Write back normalized values
-        if qid: data["template_qid"] = qid
-        if sid: data["scope_lock_id"] = sid
+        if qid:
+            data["template_qid"] = qid
+        if sid:
+            data["scope_lock_id"] = sid
 
         # ---------------------------------------------------------
         # 3. Constitutional Invariants
@@ -216,14 +228,18 @@ class ExperimentSpec(BaseModel):
 
         # A. Template Identity
         if not qid:
-             raise ValueError(f"Missing or invalid template_qid. Legacy id '{tid}' not in pinned map.")
+            raise ValueError(
+                f"Missing or invalid template_qid. Legacy id '{tid}' not in pinned map."
+            )
 
         if not QID_RE.match(qid):
-             raise ValueError(f"Invalid template_qid format: {qid} (expected name@X.Y.Z)")
+            raise ValueError(f"Invalid template_qid format: {qid} (expected name@X.Y.Z)")
 
         # B. Scope Lock
         if not sid:
-            raise ValueError("Constitutional Error: scope_lock_id is REQUIRED for grounded execution.")
+            raise ValueError(
+                "Constitutional Error: scope_lock_id is REQUIRED for grounded execution."
+            )
 
         return data
 
@@ -232,12 +248,12 @@ class MCResult(BaseModel):
     """
     Structured output from a CodeAct execution of a template.
     """
+
     estimate: float
     ci_95: Tuple[float, float]
     variance: float
-    diagnostics: Dict[str, Any]          # ESS, convergence metrics, warnings
-    sensitivity: Dict[str, Any]          # prior_widened, noise_model_change, stability flags
+    diagnostics: Dict[str, Any]  # ESS, convergence metrics, warnings
+    sensitivity: Dict[str, Any]  # prior_widened, noise_model_change, stability flags
     supports_claim: bool
     is_fragile: bool
     notes: Optional[str] = None
-

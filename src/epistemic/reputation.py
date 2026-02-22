@@ -16,16 +16,17 @@ logger = logging.getLogger(__name__)
 class SourceReputation:
     """
     Reputation model for a source (author, publication, or agent).
-    
+
     Uses Beta(α, β) distribution:
         - α: successful contributions (true claims, replicated results)
         - β: failures (retractions, refutations, failed replications)
-        
+
     Expected reputation = α / (α + β)
     """
+
     entity_id: str
     alpha: float = 1.0  # Prior: 1 success
-    beta: float = 1.0   # Prior: 1 failure
+    beta: float = 1.0  # Prior: 1 failure
 
     @property
     def expected_value(self) -> float:
@@ -36,7 +37,7 @@ class SourceReputation:
     def variance(self) -> float:
         """Variance of the Beta distribution."""
         total = self.alpha + self.beta
-        return (self.alpha * self.beta) / (total ** 2 * (total + 1))
+        return (self.alpha * self.beta) / (total**2 * (total + 1))
 
     @property
     def confidence(self) -> float:
@@ -46,7 +47,7 @@ class SourceReputation:
     def update(self, positive: bool, weight: float = 1.0) -> None:
         """
         Bayesian update based on new evidence.
-        
+
         Args:
             positive: True if source was correct, False if wrong
             weight: Strength of the evidence (default 1.0)
@@ -59,7 +60,7 @@ class SourceReputation:
     def prior_weight(self) -> float:
         """
         Get prior weight for Bayesian updates.
-        
+
         Used when combining with evidence:
             posterior = prior_weight * prior + evidence_weight * evidence
         """
@@ -69,12 +70,12 @@ class SourceReputation:
 class SourceReputationModel:
     """
     Manages reputation for all sources in the system.
-    
+
     Updated when:
         - Papers are retracted
         - Claims are refuted
         - Experiments fail replication
-    
+
     Feeds Bayesian priors, not direct answers.
     """
 
@@ -88,21 +89,17 @@ class SourceReputationModel:
         return self._reputations[entity_id]
 
     def update_reputation(
-        self,
-        entity_id: str,
-        positive: bool,
-        weight: float = 1.0,
-        reason: str = ""
+        self, entity_id: str, positive: bool, weight: float = 1.0, reason: str = ""
     ) -> SourceReputation:
         """
         Update reputation based on new evidence.
-        
+
         Args:
             entity_id: ID of the source entity
             positive: True if source was correct, False if wrong
             weight: Strength of the evidence
             reason: Explanation for the update (for audit)
-            
+
         Returns:
             Updated SourceReputation
         """
@@ -125,7 +122,7 @@ class SourceReputationModel:
             entity_id=source_id,
             positive=False,
             weight=3.0,  # Retractions are serious
-            reason=f"Retraction of {publication_doi}"
+            reason=f"Retraction of {publication_doi}",
         )
 
     def on_refutation(self, source_id: str, claim_id: str) -> None:
@@ -134,7 +131,7 @@ class SourceReputationModel:
             entity_id=source_id,
             positive=False,
             weight=1.5,
-            reason=f"Refutation of claim {claim_id}"
+            reason=f"Refutation of claim {claim_id}",
         )
 
     def on_replication_success(self, source_id: str, claim_id: str) -> None:
@@ -143,7 +140,7 @@ class SourceReputationModel:
             entity_id=source_id,
             positive=True,
             weight=2.0,
-            reason=f"Successful replication of {claim_id}"
+            reason=f"Successful replication of {claim_id}",
         )
 
     def on_replication_failure(self, source_id: str, claim_id: str) -> None:
@@ -152,13 +149,13 @@ class SourceReputationModel:
             entity_id=source_id,
             positive=False,
             weight=2.0,
-            reason=f"Failed replication of {claim_id}"
+            reason=f"Failed replication of {claim_id}",
         )
 
     def get_prior_weight(self, entity_id: str) -> float:
         """
         Get prior weight for a source to use in Bayesian updates.
-        
+
         Returns 0.5 if source unknown (neutral prior).
         """
         if entity_id not in self._reputations:

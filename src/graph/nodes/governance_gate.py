@@ -14,6 +14,7 @@ Contract (Phase 16.5 upgrade):
       5. Scope lock coherence (if both sides carry scope_lock_id)
     Otherwise HOLD with a machine-parsable hold_code + human hold_reason.
 """
+
 from __future__ import annotations
 
 import logging
@@ -60,6 +61,7 @@ def _run_coherence_checks(
 
     # Check 4: Evidence set equality (multiset comparison for duplicates)
     from collections import Counter
+
     intent_counts = Counter(intent_evidence_ids)
     state_counts = Counter(persisted_ids)
     if intent_counts != state_counts:
@@ -67,7 +69,9 @@ def _run_coherence_checks(
         # (intent_counts - state_counts) gives IDs appearing more in intent
         diff_intent = intent_counts - state_counts
         diff_state = state_counts - intent_counts
-        detail = f"diff_intent={list(diff_intent.elements())}; diff_state={list(diff_state.elements())}"
+        detail = (
+            f"diff_intent={list(diff_intent.elements())}; diff_state={list(diff_state.elements())}"
+        )
         return (
             "EVIDENCE_SET_MISMATCH",
             f"Evidence multiset mismatch: {detail}",
@@ -107,7 +111,7 @@ async def governance_gate_node(state: AgentState) -> AgentState:
     error = gc.get("proposal_generation_error")
     mutation_ids = gc.get("mutation_ids", []) or []
     committed_intents = gc.get("committed_intents", []) or []
-    session_id = (gc.get("session_id") or state.get("session_id"))
+    session_id = gc.get("session_id") or state.get("session_id")
     tenant_id = gc.get("tenant_id") or state.get("tenant_id")
 
     # Fail fast: upstream errors or missing inputs → HOLD immediately
@@ -133,6 +137,7 @@ async def governance_gate_node(state: AgentState) -> AgentState:
         intent = None
         try:
             from src.hitl.intent_service import write_intent_service
+
             # We enforce tenant scoping at the intent read boundary.
             intent = write_intent_service.get(intent_id, tenant_id=tenant_id)
         except Exception as e:
@@ -155,20 +160,24 @@ async def governance_gate_node(state: AgentState) -> AgentState:
 
         if hold_code is None:
             status = "STAGED"
-        
 
     # Unsafe governance bypass (local dev ONLY — triple condition required)
     import os
+
     _unsafe = os.environ.get("SUPERHYPERION_UNSAFE_BYPASS_GOVERNANCE") == "true"
     _is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
-    
+
     if _unsafe and _is_ci:
-        logger.critical("SUPERHYPERION_UNSAFE_BYPASS_GOVERNANCE is strictly forbidden in CI environments. Denying bypass.")
+        logger.critical(
+            "SUPERHYPERION_UNSAFE_BYPASS_GOVERNANCE is strictly forbidden in CI environments. Denying bypass."
+        )
         _unsafe = False
-        
+
     if _unsafe and status == "HOLD":
         _local_host = os.environ.get("TYPEDB_HOST", "localhost") in (
-            "localhost", "typedb", "127.0.0.1",
+            "localhost",
+            "typedb",
+            "127.0.0.1",
         )
         _dev_env = os.environ.get("ENVIRONMENT", "dev") == "dev"
         if _local_host and _dev_env:

@@ -60,9 +60,9 @@ print(result)
 class ValidatorAgent(BaseAgent):
     """
     Step 6: Produces evidence via CodeAct execution.
-    
+
     CRITICAL: This is the BELIEF GATEKEEPER.
-    
+
     Rules:
         1. Only this agent can produce Evidence objects
         2. Only Evidence.authorizes_update() == True allows belief changes
@@ -105,9 +105,7 @@ class ValidatorAgent(BaseAgent):
         return context
 
     async def _validate_claim(
-        self,
-        claim: Dict[str, Any],
-        context: AgentContext
+        self, claim: Dict[str, Any], context: AgentContext
     ) -> Optional[Evidence]:
         """
         Execute validation experiment for a single claim.
@@ -172,9 +170,7 @@ class ValidatorAgent(BaseAgent):
             )
 
     def _generate_experiment_code(
-        self,
-        claim: Dict[str, Any],
-        context: AgentContext
+        self, claim: Dict[str, Any], context: AgentContext
     ) -> Optional[str]:
         """
         Generate Python code for the validation experiment.
@@ -186,9 +182,9 @@ class ValidatorAgent(BaseAgent):
 Generate a Python validation experiment for this scientific claim:
 
 Claim: {claim_content}
-Subject: {claim.get('subject', '')}
-Relation: {claim.get('relation', '')}  
-Object: {claim.get('object', '')}
+Subject: {claim.get("subject", "")}
+Relation: {claim.get("relation", "")}  
+Object: {claim.get("object", "")}
 
 The code should:
 1. Run a testable experiment (simulation is OK for demo)
@@ -200,30 +196,32 @@ Output ONLY the Python code, no explanation.
 
         try:
             raw_output = self.generate(prompt=prompt, temperature=0.2)
-            
+
             # Phase 16.7: Robust extraction
             code = raw_output
             if "```python" in raw_output:
                 code = raw_output.split("```python")[1].split("```")[0].strip()
             elif "```" in raw_output:
                 code = raw_output.split("```")[1].split("```")[0].strip()
-            
+
             # Simple sanitization/validation
             if "import" in code and "print" in code and "(" in code:
                 return code
             else:
-                logger.warning(f"Extracted code failed validation check. Falling back to template. Raw: {raw_output[:100]}...")
+                logger.warning(
+                    f"Extracted code failed validation check. Falling back to template. Raw: {raw_output[:100]}..."
+                )
                 return VALIDATOR_CODE_TEMPLATE.format(
                     claim_content=claim_content,
                     n=10,
-                    experiment_code="np.random.normal(loc=0.7, scale=0.1)"
+                    experiment_code="np.random.normal(loc=0.7, scale=0.1)",
                 )
         except Exception as e:
             logger.error(f"Validator generation failed: {e}")
             return VALIDATOR_CODE_TEMPLATE.format(
                 claim_content=claim_content,
                 n=10,
-                experiment_code="np.random.normal(loc=0.7, scale=0.1)"
+                experiment_code="np.random.normal(loc=0.7, scale=0.1)",
             )
 
     def _compute_uncertainty_from_result(self, result) -> ScientificUncertainty:
@@ -234,6 +232,7 @@ Output ONLY the Python code, no explanation.
         # Try to parse structured output
         try:
             import re
+
             stdout = result.stdout
 
             variance = 0.5  # Default
@@ -258,11 +257,7 @@ Output ONLY the Python code, no explanation.
         except Exception:
             return ScientificUncertainty(variance=0.5, sample_size=1)
 
-    def _extract_assumptions(
-        self,
-        claim: Dict[str, Any],
-        context: AgentContext
-    ) -> List[str]:
+    def _extract_assumptions(self, claim: Dict[str, Any], context: AgentContext) -> List[str]:
         """Extract assumptions made in the validation."""
         return [
             "Simulated experiment (not real data)",

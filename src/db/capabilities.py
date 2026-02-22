@@ -8,6 +8,7 @@ Only the OntologySteward may mint this token.
 
 class WriteCap:
     """Opaque write-capability token. Cannot be constructed directly."""
+
     _SENTINEL = object()
 
     def __init__(self, _key=None):

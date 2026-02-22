@@ -102,7 +102,9 @@ class AuditBundleExporter:
         if result.governance is not None:
             from src.sdk.explainability import build_explainability_summary
 
-            replay_payload = result.replay_verdict.model_dump() if result.replay_verdict is not None else None
+            replay_payload = (
+                result.replay_verdict.model_dump() if result.replay_verdict is not None else None
+            )
             manifest_payload = None
             if result.capsule_id is not None:
                 manifest_payload = {

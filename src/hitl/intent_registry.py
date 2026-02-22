@@ -26,23 +26,25 @@ from typing import Any, Dict, FrozenSet
 
 class ApprovalPolicy(str, Enum):
     """How an intent is routed after staging."""
-    AUTO = "auto"       # Immediately approved (low-risk)
-    HITL = "hitl"       # Requires human approval
-    DENY = "deny"       # Never allowed (blocked at stage time)
+
+    AUTO = "auto"  # Immediately approved (low-risk)
+    HITL = "hitl"  # Requires human approval
+    DENY = "deny"  # Never allowed (blocked at stage time)
 
 
 class ScopeLockPolicy(str, Enum):
     """Whether scope_lock_id is required."""
-    REQUIRED = "required"     # Must have scope_lock_id
-    OPTIONAL = "optional"     # May have scope_lock_id
-    FORBIDDEN = "forbidden"   # Must NOT have scope_lock_id
+
+    REQUIRED = "required"  # Must have scope_lock_id
+    OPTIONAL = "optional"  # May have scope_lock_id
+    FORBIDDEN = "forbidden"  # Must NOT have scope_lock_id
 
 
 @dataclass(frozen=True)
 class IntentSpec:
     """
     Declared contract for an intent type.
-    
+
     Attributes:
         intent_type: Canonical name (e.g., "create_proposition")
         allowed_fields: All valid payload fields (superset). Does NOT include "lane".
@@ -53,6 +55,7 @@ class IntentSpec:
         approval_by_lane: Per-lane approval routing
         description: Human-readable description
     """
+
     intent_type: str
     allowed_fields: FrozenSet[str]
     required_fields: FrozenSet[str]
@@ -80,50 +83,53 @@ class IntentSpec:
 # =============================================================================
 
 INTENT_REGISTRY: Dict[str, IntentSpec] = {
-
     # -------------------------------------------------------------------------
     # Low-Risk Primitives (AUTO in both lanes)
     # -------------------------------------------------------------------------
-
     "metrics_update": IntentSpec(
         intent_type="metrics_update",
         allowed_fields=frozenset({"metrics", "session_id", "timestamp"}),
         required_fields=frozenset({"metrics"}),
         required_id_fields=frozenset(),
         allowed_lanes=frozenset({"grounded", "speculative"}),
-        scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+        scope_lock_by_lane={
+            "grounded": ScopeLockPolicy.OPTIONAL,
+            "speculative": ScopeLockPolicy.OPTIONAL,
+        },
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},
         description="Append telemetry/metrics (non-mutating)",
     ),
-
     "cache_write": IntentSpec(
         intent_type="cache_write",
         allowed_fields=frozenset({"key", "value", "ttl_seconds"}),
         required_fields=frozenset({"key", "value"}),
         required_id_fields=frozenset(),
         allowed_lanes=frozenset({"grounded", "speculative"}),
-        scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+        scope_lock_by_lane={
+            "grounded": ScopeLockPolicy.OPTIONAL,
+            "speculative": ScopeLockPolicy.OPTIONAL,
+        },
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},
         description="Write to ephemeral cache (non-durable)",
     ),
-
     "trace_append": IntentSpec(
         intent_type="trace_append",
         allowed_fields=frozenset({"trace_id", "event", "metadata"}),
         required_fields=frozenset({"trace_id", "event"}),
         required_id_fields=frozenset(),
         allowed_lanes=frozenset({"grounded", "speculative"}),
-        scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+        scope_lock_by_lane={
+            "grounded": ScopeLockPolicy.OPTIONAL,
+            "speculative": ScopeLockPolicy.OPTIONAL,
+        },
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},
         description="Append to execution trace (audit-only)",
     ),
-
     # -------------------------------------------------------------------------
     # Claim/Proposition Creation
     # - create_claim: DENY in grounded (use create_proposition), AUTO in speculative
     # - create_proposition: grounded only, HITL
     # -------------------------------------------------------------------------
-
     "create_claim": IntentSpec(
         intent_type="create_claim",
         allowed_fields=frozenset({"claim_id", "content", "hypothesis_id"}),
@@ -134,7 +140,6 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"speculative": ApprovalPolicy.AUTO},
         description="Create a speculative claim (grounded uses create_proposition)",
     ),
-
     "create_proposition": IntentSpec(
         intent_type="create_proposition",
         allowed_fields=frozenset({"claim_id", "content", "belief_state", "epistemic_status"}),
@@ -145,11 +150,9 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Create a grounded proposition (ontology mutation)",
     ),
-
     # -------------------------------------------------------------------------
     # Epistemic Status Updates (HITL for grounded)
     # -------------------------------------------------------------------------
-
     "update_epistemic_status": IntentSpec(
         intent_type="update_epistemic_status",
         allowed_fields=frozenset({"claim_id", "new_status", "rationale", "evidence_ids"}),
@@ -160,7 +163,6 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Update epistemic status of a proposition",
     ),
-
     "refute_claim": IntentSpec(
         intent_type="refute_claim",
         allowed_fields=frozenset({"claim_id", "refutation_evidence", "rationale"}),
@@ -171,14 +173,14 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Refute a proposition based on negative evidence",
     ),
-
     # -------------------------------------------------------------------------
     # Phase 16.2: Theory Change Operator Intents
     # -------------------------------------------------------------------------
-
     "revise_proposition": IntentSpec(
         intent_type="revise_proposition",
-        allowed_fields=frozenset({"claim_id", "new_belief_state", "evidence_summary", "conflict_score"}),
+        allowed_fields=frozenset(
+            {"claim_id", "new_belief_state", "evidence_summary", "conflict_score"}
+        ),
         required_fields=frozenset({"claim_id", "new_belief_state", "evidence_summary"}),
         required_id_fields=frozenset({"claim_id"}),
         allowed_lanes=frozenset({"grounded"}),
@@ -186,7 +188,6 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Revise belief state based on aggregated evidence (16.2)",
     ),
-
     "fork_proposition": IntentSpec(
         intent_type="fork_proposition",
         allowed_fields=frozenset({"parent_claim_id", "new_claim_id", "content", "fork_rationale"}),
@@ -197,7 +198,6 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Fork a proposition into competing hypotheses (16.2)",
     ),
-
     "quarantine_proposition": IntentSpec(
         intent_type="quarantine_proposition",
         allowed_fields=frozenset({"claim_id", "quarantine_reason", "undercut_evidence"}),
@@ -208,18 +208,21 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
         approval_by_lane={"grounded": ApprovalPolicy.HITL},
         description="Quarantine a proposition due to methodological undercut (16.2)",
     ),
-
     # -------------------------------------------------------------------------
     # Proposal Staging (AUTO - just records intent, no mutation)
     # -------------------------------------------------------------------------
-
     "stage_epistemic_proposal": IntentSpec(
         intent_type="stage_epistemic_proposal",
-        allowed_fields=frozenset({"action", "claim_id", "evidence_ids", "conflict_score", "rationale"}),
+        allowed_fields=frozenset(
+            {"action", "claim_id", "evidence_ids", "conflict_score", "rationale"}
+        ),
         required_fields=frozenset({"action", "claim_id"}),
         required_id_fields=frozenset({"claim_id"}),
         allowed_lanes=frozenset({"grounded", "speculative"}),
-        scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+        scope_lock_by_lane={
+            "grounded": ScopeLockPolicy.OPTIONAL,
+            "speculative": ScopeLockPolicy.OPTIONAL,
+        },
         approval_by_lane={"grounded": ApprovalPolicy.AUTO, "speculative": ApprovalPolicy.AUTO},
         description="Stage a theory change proposal for later review (16.2)",
     ),
@@ -230,10 +233,11 @@ INTENT_REGISTRY: Dict[str, IntentSpec] = {
 # Registry Access Functions
 # =============================================================================
 
+
 def get_intent_spec(intent_type: str) -> IntentSpec:
     """
     Get the spec for an intent type.
-    
+
     Raises:
         ValueError: If intent type is not in registry
     """
@@ -260,9 +264,9 @@ def validate_intent_payload(
 ) -> None:
     """
     Validate an intent payload against its spec.
-    
+
     INVARIANT: lane is envelope metadata, NOT a payload field.
-    
+
     Raises:
         ValueError: If validation fails
     """

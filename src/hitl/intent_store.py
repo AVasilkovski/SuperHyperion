@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 # Store Protocol (Interface)
 # =============================================================================
 
+
 class IntentStore(ABC):
     """
     Abstract store for write-intents and status events.
-    
+
     Two implementations:
     - InMemoryIntentStore: For unit tests
     - TypeDBIntentStore: For production
@@ -104,7 +105,7 @@ class IntentStore(ABC):
     ) -> None:
         """
         Append a status event. NEVER modify or delete events.
-        
+
         Constitutional: Events are append-only audit trail.
         """
         pass
@@ -124,10 +125,11 @@ class IntentStore(ABC):
 # In-Memory Implementation (Testing)
 # =============================================================================
 
+
 class InMemoryIntentStore(IntentStore):
     """
     In-memory store for unit testing.
-    
+
     Thread-safe for single-threaded tests only.
     """
 
@@ -187,7 +189,8 @@ class InMemoryIntentStore(IntentStore):
     def list_expirable_intents(self, cutoff: datetime) -> List[Dict[str, Any]]:
         terminal = {"rejected", "cancelled", "expired", "executed", "failed"}
         return [
-            i for i in self._intents.values()
+            i
+            for i in self._intents.values()
             if i.get("expires_at") and i["expires_at"] < cutoff and i["status"] not in terminal
         ]
 
@@ -208,19 +211,21 @@ class InMemoryIntentStore(IntentStore):
         if intent_id not in self._events:
             self._events[intent_id] = []
 
-        self._events[intent_id].append({
-            "event_id": event_id,
-            "intent_id": intent_id,
-            "from_status": from_status,
-            "to_status": to_status,
-            "actor_type": actor_type,
-            "actor_id": actor_id,
-            "created_at": created_at,
-            "rationale": rationale,
-            "defer_until": defer_until,
-            "execution_id": execution_id,
-            "error": error,
-        })
+        self._events[intent_id].append(
+            {
+                "event_id": event_id,
+                "intent_id": intent_id,
+                "from_status": from_status,
+                "to_status": to_status,
+                "actor_type": actor_type,
+                "actor_id": actor_id,
+                "created_at": created_at,
+                "rationale": rationale,
+                "defer_until": defer_until,
+                "execution_id": execution_id,
+                "error": error,
+            }
+        )
 
     def get_events(self, intent_id: str) -> List[Dict[str, Any]]:
         events = self._events.get(intent_id, [])
@@ -235,6 +240,7 @@ class InMemoryIntentStore(IntentStore):
 # TypeDB Implementation (Production)
 # =============================================================================
 
+
 def _escape(s: str) -> str:
     """Escape string for TypeQL."""
     if s is None:
@@ -245,7 +251,7 @@ def _escape(s: str) -> str:
 class TypeDBIntentStore(IntentStore):
     """
     TypeDB-backed store for production.
-    
+
     INVARIANTS:
     - Events are append-only (insert only, never delete/update)
     - Intent status updates use delete+insert pattern for attributes
@@ -254,7 +260,7 @@ class TypeDBIntentStore(IntentStore):
     def __init__(self, driver, database: str = "scientific_knowledge"):
         """
         Initialize with TypeDB driver.
-        
+
         Args:
             driver: TypeDB driver instance
             database: Database name
@@ -281,9 +287,9 @@ class TypeDBIntentStore(IntentStore):
                 row = {}
                 for var in concept_map.variables():
                     concept = concept_map.get(var)
-                    if hasattr(concept, 'get_value'):
+                    if hasattr(concept, "get_value"):
                         row[var] = concept.get_value()
-                    elif hasattr(concept, 'get_iid'):
+                    elif hasattr(concept, "get_iid"):
                         row[var] = concept.get_iid()
                 results.append(row)
         return results
@@ -316,11 +322,13 @@ class TypeDBIntentStore(IntentStore):
                 has created-at {created_str}'''
 
         if expires_at:
-            query += f',\n                has expires-at {expires_at.isoformat()}'
+            query += f",\n                has expires-at {expires_at.isoformat()}"
         if scope_lock_id:
             query += f',\n                has scope-lock-id "{_escape(scope_lock_id)}"'
         if supersedes_intent_id:
-            query += f',\n                has supersedes-intent-id "{_escape(supersedes_intent_id)}"'
+            query += (
+                f',\n                has supersedes-intent-id "{_escape(supersedes_intent_id)}"'
+            )
         if proposal_id:
             query += f',\n                has proposal-id "{_escape(proposal_id)}"'
 
@@ -430,7 +438,7 @@ class TypeDBIntentStore(IntentStore):
 
     def list_expirable_intents(self, cutoff: datetime) -> List[Dict[str, Any]]:
         cutoff_str = cutoff.isoformat()
-        query = f'''
+        query = f"""
             match $i isa write-intent,
                   has intent-id $id,
                   has intent-status $status,
@@ -442,7 +450,7 @@ class TypeDBIntentStore(IntentStore):
             not {{ $status = "executed"; }};
             not {{ $status = "failed"; }};
             select $id, $status, $exp;
-        '''
+        """
 
         results = self._read_query(query)
         return [
@@ -470,12 +478,18 @@ class TypeDBIntentStore(IntentStore):
     ) -> None:
         """
         Append event. NEVER delete or update events.
-        
+
         Constitutional: Events are append-only audit trail.
         """
-        extra_json = json.dumps({
-            "error": error,
-        }) if error else "{}"
+        extra_json = (
+            json.dumps(
+                {
+                    "error": error,
+                }
+            )
+            if error
+            else "{}"
+        )
 
         query = f'''
             insert $e isa intent-status-event,
@@ -490,7 +504,7 @@ class TypeDBIntentStore(IntentStore):
         if rationale:
             query += f',\n                has rationale "{_escape(rationale)}"'
         if defer_until:
-            query += f',\n                has defer-until {defer_until.isoformat()}'
+            query += f",\n                has defer-until {defer_until.isoformat()}"
         if execution_id:
             query += f',\n                has execution-id "{_escape(execution_id)}"'
         if error:
@@ -499,7 +513,9 @@ class TypeDBIntentStore(IntentStore):
         query += ";"
 
         self._write_query(query)
-        logger.info(f"Appended event {event_id} for intent {intent_id}: {from_status} → {to_status}")
+        logger.info(
+            f"Appended event {event_id} for intent {intent_id}: {from_status} → {to_status}"
+        )
 
     def get_events(self, intent_id: str) -> List[Dict[str, Any]]:
         query = f'''

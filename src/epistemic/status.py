@@ -10,7 +10,7 @@ from enum import Enum
 class EpistemicStatus(str, Enum):
     """
     Epistemic status of a claim in the knowledge graph.
-    
+
     Decision rules:
         SPECULATIVE: No evidence yet
         SUPPORTED: One experiment confirms
@@ -18,6 +18,7 @@ class EpistemicStatus(str, Enum):
         UNRESOLVED: Conflicting evidence
         REFUTED: Contradicted by evidence
     """
+
     PROVEN = "proven"
     SUPPORTED = "supported"
     UNRESOLVED = "unresolved"
@@ -35,7 +36,7 @@ class EpistemicStatus(str, Enum):
     ) -> "EpistemicStatus":
         """
         Determine epistemic status based on evidence.
-        
+
         Decision rules (in order of precedence):
             1. Refuted by strong counter-evidence → REFUTED
             2. Has unresolved contradiction → UNRESOLVED
@@ -57,17 +58,16 @@ class EpistemicStatus(str, Enum):
 
 
 # Transitions that require human approval (HITL)
-HITL_REQUIRED_TRANSITIONS = frozenset([
-    (EpistemicStatus.SPECULATIVE, EpistemicStatus.SUPPORTED),
-    (EpistemicStatus.SUPPORTED, EpistemicStatus.PROVEN),
-    (EpistemicStatus.UNRESOLVED, EpistemicStatus.REFUTED),
-    (EpistemicStatus.SUPPORTED, EpistemicStatus.REFUTED),
-])
+HITL_REQUIRED_TRANSITIONS = frozenset(
+    [
+        (EpistemicStatus.SPECULATIVE, EpistemicStatus.SUPPORTED),
+        (EpistemicStatus.SUPPORTED, EpistemicStatus.PROVEN),
+        (EpistemicStatus.UNRESOLVED, EpistemicStatus.REFUTED),
+        (EpistemicStatus.SUPPORTED, EpistemicStatus.REFUTED),
+    ]
+)
 
 
-def requires_hitl_approval(
-    current: EpistemicStatus,
-    proposed: EpistemicStatus
-) -> bool:
+def requires_hitl_approval(current: EpistemicStatus, proposed: EpistemicStatus) -> bool:
     """Check if a status transition requires human approval."""
     return (current, proposed) in HITL_REQUIRED_TRANSITIONS

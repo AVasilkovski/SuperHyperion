@@ -30,7 +30,8 @@ st.set_page_config(
 )
 
 # Custom CSS
-st.markdown("""
+st.markdown(
+    """
 <style>
     .glass-box {
         background: rgba(255, 255, 255, 0.05);
@@ -83,7 +84,9 @@ st.markdown("""
         width: 100%;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ============================================
@@ -103,6 +106,7 @@ if "pending_hypotheses" not in st.session_state:
 # ============================================
 # API Helper Functions
 # ============================================
+
 
 def submit_query(query: str) -> Optional[str]:
     """Submit a query to the API and return job_id."""
@@ -151,6 +155,7 @@ def get_recent_jobs() -> List[Dict]:
 # UI Components
 # ============================================
 
+
 def render_glass_box():
     """Render the Glass Box execution trace in sidebar."""
     st.sidebar.markdown("## 🔍 Glass Box")
@@ -165,13 +170,15 @@ def render_glass_box():
         content = trace.get("content", "")
 
         if trace_type == "thought":
-            with st.sidebar.expander(f"💭 Thought {i+1}", expanded=i >= len(st.session_state.execution_trace) - 2):
+            with st.sidebar.expander(
+                f"💭 Thought {i + 1}", expanded=i >= len(st.session_state.execution_trace) - 2
+            ):
                 st.markdown(content[:500])
         elif trace_type == "code":
-            with st.sidebar.expander(f"🐍 Code {i+1}", expanded=False):
+            with st.sidebar.expander(f"🐍 Code {i + 1}", expanded=False):
                 st.code(content, language="python")
         elif trace_type == "result":
-            with st.sidebar.expander(f"📊 Result {i+1}", expanded=True):
+            with st.sidebar.expander(f"📊 Result {i + 1}", expanded=True):
                 st.text(content[:300])
         elif trace_type == "critique":
             with st.sidebar.expander("⚖️ Critique", expanded=True):
@@ -193,13 +200,16 @@ def render_entropy_gauge(entropy: float):
         css_class = "entropy-low"
         label = "Low Uncertainty"
 
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div style="margin: 10px 0;">
         <strong>Dialectical Entropy:</strong> 
         <span class="{css_class}">{entropy:.3f}</span>
         <span style="color: #888;">({label})</span>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     st.progress(min(entropy, 1.0))
 
@@ -214,15 +224,18 @@ def render_hitl_panel():
 
     for i, hyp in enumerate(st.session_state.pending_hypotheses):
         with st.container():
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div class="glass-box">
-                <strong>Hypothesis:</strong> {hyp.get('claim', 'Unknown')}
+                <strong>Hypothesis:</strong> {hyp.get("claim", "Unknown")}
                 <br>
-                <strong>Confidence:</strong> {hyp.get('confidence', 0):.2%}
+                <strong>Confidence:</strong> {hyp.get("confidence", 0):.2%}
                 <br>
-                <strong>Evidence:</strong> {hyp.get('evidence', 'None provided')}
+                <strong>Evidence:</strong> {hyp.get("evidence", "None provided")}
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -265,30 +278,40 @@ def render_graph_explorer():
 def render_chat_message(role: str, content: str):
     """Render a chat message."""
     if role == "user":
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div style="background: #1e3a5f; padding: 15px; border-radius: 10px; margin: 10px 0;">
             <strong>🧑‍🔬 You:</strong><br>{content}
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
     elif role == "assistant":
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div style="background: #0d1b2a; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 3px solid #4a9eff;">
             <strong>🤖 SuperHyperion:</strong><br>{content}
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
     elif role == "code":
         st.code(content, language="python")
     elif role == "result":
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div class="result-block">
             <strong>📊 Result:</strong><br><pre>{content}</pre>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
 
 # ============================================
 # Main App Layout
 # ============================================
+
 
 def main():
     # Header
@@ -367,17 +390,21 @@ def main():
 
                             # Add response
                             response_text = result.get("response", "No response generated")
-                            st.session_state.messages.append({
-                                "role": "assistant",
-                                "content": response_text,
-                            })
+                            st.session_state.messages.append(
+                                {
+                                    "role": "assistant",
+                                    "content": response_text,
+                                }
+                            )
 
                             # Update execution trace
                             for msg in result.get("messages", []):
-                                st.session_state.execution_trace.append({
-                                    "type": msg.get("role", "thought"),
-                                    "content": msg.get("content", ""),
-                                })
+                                st.session_state.execution_trace.append(
+                                    {
+                                        "type": msg.get("role", "thought"),
+                                        "content": msg.get("content", ""),
+                                    }
+                                )
 
                             # Show entropy
                             entropy = result.get("dialectical_entropy", 0)
@@ -404,13 +431,16 @@ def main():
 
     # Footer
     st.divider()
-    st.markdown("""
+    st.markdown(
+        """
     <div style="text-align: center; color: #666; font-size: 12px;">
         SuperHyperion v0.1.0 | 
         Glass-Box Reasoning over Black-Box Generation |
         <a href="https://github.com/AVasilkovski/SuperHyperion">GitHub</a>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 if __name__ == "__main__":

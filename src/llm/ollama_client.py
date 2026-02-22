@@ -15,6 +15,7 @@ from src.config import config
 @dataclass
 class LLMResponse:
     """Response from LLM generation."""
+
     content: str
     model: str
     total_duration: Optional[int] = None
@@ -53,7 +54,7 @@ class OllamaClient:
             "stream": False,
             "options": {
                 "temperature": temperature,
-            }
+            },
         }
 
         if system:
@@ -92,7 +93,7 @@ class OllamaClient:
             "stream": False,
             "options": {
                 "temperature": temperature,
-            }
+            },
         }
 
         response = self._client.post(

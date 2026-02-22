@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class HITLAuditEvent:
     """An immutable audit event."""
+
     event_id: str
     timestamp: datetime
     event_type: str  # "decision", "gate_triggered", "override"
@@ -45,7 +46,7 @@ class HITLAuditEvent:
 class HITLAuditLog:
     """
     Immutable audit log for all HITL decisions.
-    
+
     Properties:
         - Append-only (no modifications)
         - Timestamped
@@ -59,10 +60,7 @@ class HITLAuditLog:
         self.log_path = log_path
 
     def log_decision(
-        self,
-        claim_id: str,
-        decision: HITLDecision,
-        gate_type: str = "unknown"
+        self, claim_id: str, decision: HITLDecision, gate_type: str = "unknown"
     ) -> str:
         """Log a human decision."""
         self._event_counter += 1
@@ -84,12 +82,7 @@ class HITLAuditLog:
         self._append_event(event)
         return event_id
 
-    def log_gate_triggered(
-        self,
-        claim_id: str,
-        gate_type: str,
-        trigger_reason: str
-    ) -> str:
+    def log_gate_triggered(self, claim_id: str, gate_type: str, trigger_reason: str) -> str:
         """Log when a gate is triggered."""
         self._event_counter += 1
         event_id = f"evt_{self._event_counter:06d}"
@@ -134,10 +127,7 @@ class HITLAuditLog:
 
     def get_decisions_by_actor(self, actor_id: str) -> List[HITLAuditEvent]:
         """Get all decisions made by a specific actor."""
-        return [
-            e for e in self._events
-            if e.actor_id == actor_id and e.event_type == "decision"
-        ]
+        return [e for e in self._events if e.actor_id == actor_id and e.event_type == "decision"]
 
     def count_by_action(self) -> Dict[str, int]:
         """Count events by action type."""

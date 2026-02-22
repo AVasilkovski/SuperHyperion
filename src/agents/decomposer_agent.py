@@ -48,6 +48,7 @@ Be specific. Break complex claims into simpler parts.
 @dataclass
 class AtomicClaim:
     """An atomic, independently verifiable claim."""
+
     claim_id: str
     content: str
     subject: str
@@ -69,10 +70,10 @@ class AtomicClaim:
 class DecomposerAgent(BaseAgent):
     """
     Step 3: Decomposes hypothesis into atomic claims.
-    
+
     Input: Clarified hypothesis H′
     Output: List of atomic claims C1...Cn
-    
+
     Example:
         H′: "Protein X inhibits pathway Y under condition Z"
         C1: "Protein X affects pathway Y"
@@ -106,7 +107,7 @@ class DecomposerAgent(BaseAgent):
             parsed = json.loads(response)
             for claim_data in parsed.get("atomic_claims", []):
                 claim = AtomicClaim(
-                    claim_id=claim_data.get("claim_id", f"C{len(claims)+1}"),
+                    claim_id=claim_data.get("claim_id", f"C{len(claims) + 1}"),
                     content=claim_data.get("content", ""),
                     subject=claim_data.get("subject", ""),
                     relation=claim_data.get("relation", ""),
@@ -116,14 +117,16 @@ class DecomposerAgent(BaseAgent):
                 claims.append(claim)
         except json.JSONDecodeError:
             # Fallback: create single claim from hypothesis
-            claims = [AtomicClaim(
-                claim_id="C1",
-                content=hypothesis,
-                subject="",
-                relation="",
-                object="",
-                conditions={},
-            )]
+            claims = [
+                AtomicClaim(
+                    claim_id="C1",
+                    content=hypothesis,
+                    subject="",
+                    relation="",
+                    object="",
+                    conditions={},
+                )
+            ]
 
         # Store in context (uses v2.1 atomic_claims field)
         context.graph_context["atomic_claims"] = [c.to_dict() for c in claims]

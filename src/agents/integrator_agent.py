@@ -42,7 +42,7 @@ class IntegratorAgent(BaseAgent):
         governance = context.graph_context.get("governance", {})
         evidence_ids = governance.get("persisted_evidence_ids", [])
         expected_scope = context.graph_context.get("expected_scope_lock_id")
-        
+
         # Determine expected claims for primacy check
         expected_claims = set()
         for claim in context.graph_context.get("atomic_claims", []):
@@ -55,14 +55,17 @@ class IntegratorAgent(BaseAgent):
                 session_id=session_id,
                 evidence_ids=evidence_ids,
                 expected_scope_lock_id=expected_scope,
-                expected_claim_ids=expected_claims
+                expected_claim_ids=expected_claims,
             )
-            
+
             if not passed:
                 logger.warning(f"Integrator: Primacy verification FAILED ({hold_code}): {details}")
                 context.response = f"HOLD: {details.get('hold_reason', 'Evidence primacy failure')}"
                 if "grounded_response" not in context.graph_context:
-                    context.graph_context["grounded_response"] = {"status": "HOLD", "reason": hold_code}
+                    context.graph_context["grounded_response"] = {
+                        "status": "HOLD",
+                        "reason": hold_code,
+                    }
                 else:
                     context.graph_context["grounded_response"]["status"] = "HOLD"
                 return context
@@ -79,9 +82,7 @@ class IntegratorAgent(BaseAgent):
 
         # Also set the final response
         context.response = self._format_final_response(
-            grounded_answer,
-            speculative_alternatives,
-            context
+            grounded_answer, speculative_alternatives, context
         )
 
         logger.info("Synthesized dual outputs")
@@ -125,6 +126,7 @@ class IntegratorAgent(BaseAgent):
 
         # Phase 16.5: Mock mode bypass (for showcase/CI without TypeDB)
         from src.db.typedb_client import typedb
+
         if getattr(typedb, "_mock_mode", False):
             logger.debug("Integrator: [MOCK] Skipping primacy check (ledger unavailable)")
             return True, None, {"mock": True}
@@ -159,12 +161,16 @@ class IntegratorAgent(BaseAgent):
         # ── Check 1: Completeness ──
         missing = input_set - returned_ids
         if missing:
-            return False, "EVIDENCE_MISSING_FROM_LEDGER", {
-                "hold_reason": f"{len(missing)} evidence ID(s) not found in ledger for session {session_id}",
-                "missing": sorted(missing),
-                "expected_count": len(input_set),
-                "returned_count": len(returned_ids),
-            }
+            return (
+                False,
+                "EVIDENCE_MISSING_FROM_LEDGER",
+                {
+                    "hold_reason": f"{len(missing)} evidence ID(s) not found in ledger for session {session_id}",
+                    "missing": sorted(missing),
+                    "expected_count": len(input_set),
+                    "returned_count": len(returned_ids),
+                },
+            )
 
         # ── Check 2: Session ownership ──
         # Already enforced by the match clause (session-has-evidence join).
@@ -178,11 +184,15 @@ class IntegratorAgent(BaseAgent):
                 if scope != expected_scope_lock_id
             }
             if mismatched_scopes:
-                return False, "EVIDENCE_SCOPE_MISMATCH", {
-                    "hold_reason": f"{len(mismatched_scopes)} evidence ID(s) have wrong scope-lock-id",
-                    "expected_scope": expected_scope_lock_id,
-                    "mismatched": mismatched_scopes,
-                }
+                return (
+                    False,
+                    "EVIDENCE_SCOPE_MISMATCH",
+                    {
+                        "hold_reason": f"{len(mismatched_scopes)} evidence ID(s) have wrong scope-lock-id",
+                        "expected_scope": expected_scope_lock_id,
+                        "mismatched": mismatched_scopes,
+                    },
+                )
 
         # ── Check 4: Claim alignment ──
         if expected_claim_ids:
@@ -192,17 +202,25 @@ class IntegratorAgent(BaseAgent):
                 if claim not in expected_claim_ids
             }
             if mismatched_claims:
-                return False, "EVIDENCE_CLAIM_MISMATCH", {
-                    "hold_reason": f"{len(mismatched_claims)} evidence ID(s) cite unexpected claims",
-                    "expected_claims": sorted(expected_claim_ids),
-                    "mismatched": mismatched_claims,
-                }
+                return (
+                    False,
+                    "EVIDENCE_CLAIM_MISMATCH",
+                    {
+                        "hold_reason": f"{len(mismatched_claims)} evidence ID(s) cite unexpected claims",
+                        "expected_claims": sorted(expected_claim_ids),
+                        "mismatched": mismatched_claims,
+                    },
+                )
 
         # All checks passed
-        return True, None, {
-            "verified_count": len(returned_ids),
-            "session_id": session_id,
-        }
+        return (
+            True,
+            None,
+            {
+                "verified_count": len(returned_ids),
+                "session_id": session_id,
+            },
+        )
 
     def _fetch_evidence_by_ids(
         self,
@@ -219,13 +237,16 @@ class IntegratorAgent(BaseAgent):
 
         # Escape function (same as ontology_steward)
         def _esc(s: str) -> str:
-            return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+            return (
+                (str(s) or "")
+                .replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\n", " ")
+                .replace("\r", " ")
+            )
 
         # Build OR-disjunction clauses
-        or_clauses = " or ".join(
-            f'{{ $id == "{_esc(eid)}"; }}'
-            for eid in evidence_ids
-        )
+        or_clauses = " or ".join(f'{{ $id == "{_esc(eid)}"; }}' for eid in evidence_ids)
 
         query = f'''
         match
@@ -264,7 +285,8 @@ class IntegratorAgent(BaseAgent):
 
             # Phase 16.4 C1: Match evidence by claim_id OR hypothesis_id
             claim_evidence = [
-                e for e in evidence
+                e
+                for e in evidence
                 if (e.get("claim_id") == claim_id or e.get("hypothesis_id") == claim_id)
                 and e.get("success", False)
             ]
@@ -273,26 +295,24 @@ class IntegratorAgent(BaseAgent):
             claim_uncertainty = uncertainty.get(claim_id, {})
 
             # Get classification
-            claim_class = next(
-                (c for c in classifications if c.get("claim_id") == claim_id),
-                {}
-            )
+            claim_class = next((c for c in classifications if c.get("claim_id") == claim_id), {})
 
             # Only include claims with evidence
             if claim_evidence:
                 # Phase 16.4 C1: Per-claim evidence IDs (minted by steward B2)
                 claim_evidence_ids = [
-                    e.get("evidence_id") for e in claim_evidence
-                    if e.get("evidence_id")
+                    e.get("evidence_id") for e in claim_evidence if e.get("evidence_id")
                 ]
-                grounded_claims.append({
-                    "claim_id": claim_id,
-                    "content": claim.get("content", ""),
-                    "status": claim_class.get("status", "speculative"),
-                    "confidence": 1.0 - claim_uncertainty.get("total", 0.5),
-                    "evidence_count": len(claim_evidence),
-                    "evidence_ids": claim_evidence_ids,
-                })
+                grounded_claims.append(
+                    {
+                        "claim_id": claim_id,
+                        "content": claim.get("content", ""),
+                        "status": claim_class.get("status", "speculative"),
+                        "confidence": 1.0 - claim_uncertainty.get("total", 0.5),
+                        "evidence_count": len(claim_evidence),
+                        "evidence_ids": claim_evidence_ids,
+                    }
+                )
 
         return {
             "claims": grounded_claims,
@@ -315,14 +335,16 @@ class IntegratorAgent(BaseAgent):
 
         for claim_id, spec in speculative.items():
             for alt in spec.get("alternatives", []):
-                alternatives.append({
-                    "related_claim": claim_id,
-                    "hypothesis": alt.get("hypothesis", ""),
-                    "mechanism": alt.get("mechanism", ""),
-                    "testable_prediction": alt.get("testable_prediction", ""),
-                    "why_explore": "Alternative mechanism worth testing",
-                    "why_might_be_wrong": "Speculative - no evidence yet",
-                })
+                alternatives.append(
+                    {
+                        "related_claim": claim_id,
+                        "hypothesis": alt.get("hypothesis", ""),
+                        "mechanism": alt.get("mechanism", ""),
+                        "testable_prediction": alt.get("testable_prediction", ""),
+                        "why_explore": "Alternative mechanism worth testing",
+                        "why_might_be_wrong": "Speculative - no evidence yet",
+                    }
+                )
 
         return alternatives
 
@@ -368,10 +390,7 @@ class IntegratorAgent(BaseAgent):
         return limits
 
     def _format_final_response(
-        self,
-        grounded: Dict,
-        speculative: List[Dict],
-        context: AgentContext
+        self, grounded: Dict, speculative: List[Dict], context: AgentContext
     ) -> str:
         """Format the final dual-output response."""
         parts = []

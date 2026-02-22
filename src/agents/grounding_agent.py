@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 class GroundingAgent(BaseAgent):
     """
     Step 4: Constraint-anchored grounding from the knowledge graph.
-    
+
     NOT shallow retrieval. Must return:
         - Domain axioms (physical laws, invariants)
         - Prior evidence (supporting/refuting)
         - Counterexamples (known violations)
         - Boundary conditions (when claim applies)
-    
+
     This agent operates in the GROUNDED lane.
     """
 

@@ -36,16 +36,19 @@ console = Console()
 # List Command
 # =============================================================================
 
+
 @intent_app.command("list")
 def list_intents(
     status: Optional[str] = typer.Option(
         None,
-        "--status", "-s",
+        "--status",
+        "-s",
         help="Filter by status (staged, awaiting_hitl, approved, rejected, etc.)",
     ),
     limit: int = typer.Option(
         50,
-        "--limit", "-l",
+        "--limit",
+        "-l",
         help="Maximum number of intents to show",
     ),
     json: bool = typer.Option(
@@ -106,12 +109,14 @@ def list_intents(
 # Show Command
 # =============================================================================
 
+
 @intent_app.command("show")
 def show_intent(
     intent_id: str = typer.Argument(..., help="Intent ID to show"),
     history: bool = typer.Option(
         False,
-        "--history", "-h",
+        "--history",
+        "-h",
         help="Include event history",
     ),
     json: bool = typer.Option(
@@ -184,17 +189,20 @@ def show_intent(
 # Approve Command
 # =============================================================================
 
+
 @intent_app.command("approve")
 def approve_intent(
     intent_id: str = typer.Argument(..., help="Intent ID to approve"),
     by: str = typer.Option(
         ...,
-        "--by", "-b",
+        "--by",
+        "-b",
         help="Approver ID (required)",
     ),
     why: str = typer.Option(
         ...,
-        "--why", "-w",
+        "--why",
+        "-w",
         help="Rationale for approval (required)",
     ),
 ):
@@ -217,17 +225,20 @@ def approve_intent(
 # Reject Command
 # =============================================================================
 
+
 @intent_app.command("reject")
 def reject_intent(
     intent_id: str = typer.Argument(..., help="Intent ID to reject"),
     by: str = typer.Option(
         ...,
-        "--by", "-b",
+        "--by",
+        "-b",
         help="Rejector ID (required)",
     ),
     why: str = typer.Option(
         ...,
-        "--why", "-w",
+        "--why",
+        "-w",
         help="Rationale for rejection (required)",
     ),
 ):
@@ -250,22 +261,26 @@ def reject_intent(
 # Defer Command
 # =============================================================================
 
+
 @intent_app.command("defer")
 def defer_intent(
     intent_id: str = typer.Argument(..., help="Intent ID to defer"),
     by: str = typer.Option(
         ...,
-        "--by", "-b",
+        "--by",
+        "-b",
         help="Deferrer ID (required)",
     ),
     until: str = typer.Option(
         ...,
-        "--until", "-u",
+        "--until",
+        "-u",
         help="ISO datetime to defer until (required, e.g. 2026-02-01T10:00:00Z)",
     ),
     why: str = typer.Option(
         ...,
-        "--why", "-w",
+        "--why",
+        "-w",
         help="Rationale for deferral (required)",
     ),
 ):
@@ -295,17 +310,20 @@ def defer_intent(
 # Cancel Command
 # =============================================================================
 
+
 @intent_app.command("cancel")
 def cancel_intent(
     intent_id: str = typer.Argument(..., help="Intent ID to cancel"),
     by: str = typer.Option(
         ...,
-        "--by", "-b",
+        "--by",
+        "-b",
         help="Canceller ID (required)",
     ),
     why: str = typer.Option(
         ...,
-        "--why", "-w",
+        "--why",
+        "-w",
         help="Rationale for cancellation (required)",
     ),
 ):
@@ -327,6 +345,7 @@ def cancel_intent(
 # =============================================================================
 # Expire-Stale Command
 # =============================================================================
+
 
 @intent_app.command("expire-stale")
 def expire_stale(

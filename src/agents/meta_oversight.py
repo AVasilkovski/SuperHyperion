@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GuardPressure:
     """Guard pressure metrics (computed, not summarized)."""
+
     speculative_rejections: int = 0
     speculative_rejection_sources: List[str] = field(default_factory=list)
     missing_claim_id_failures: int = 0
@@ -40,6 +41,7 @@ class GuardPressure:
 @dataclass
 class DriftIndicators:
     """Drift indicator metrics."""
+
     top_conflict_claims: List[Dict[str, Any]] = field(default_factory=list)
     speculate_retrieval_trend: float = 0.0  # % of decisions = "speculate"
     epistemic_caps_triggered: int = 0
@@ -57,6 +59,7 @@ class DriftIndicators:
 @dataclass
 class FragilityMetrics:
     """Fragility and sensitivity metrics."""
+
     flip_count: int = 0
     flipped_claims: List[Dict[str, Any]] = field(default_factory=list)
     high_sensitivity_axes: List[str] = field(default_factory=list)
@@ -72,6 +75,7 @@ class FragilityMetrics:
 @dataclass
 class AuthorityQueue:
     """Authority queue metrics."""
+
     pending_write_intents: int = 0
     pending_intent_ids: List[str] = field(default_factory=list)
     expired_scope_locks: int = 0
@@ -91,6 +95,7 @@ class AuthorityQueue:
 @dataclass
 class Alert:
     """Single alert (threshold breach)."""
+
     alert_id: str
     severity: str  # "warning", "critical"
     category: str  # "guard", "fragility", "drift", "authority"
@@ -111,10 +116,11 @@ class Alert:
 class MetaOversightReport:
     """
     Daily meta-oversight report.
-    
+
     Passive artifact + alert overlay.
     Persisted for audit, rendered for humans.
     """
+
     report_id: str
     report_date: date
     guard_pressure: GuardPressure
@@ -205,7 +211,7 @@ class MetaOversightReport:
 class MetaOversightAgent:
     """
     Daily meta-oversight agent.
-    
+
     READ-ONLY access to TypeDB.
     Computes deterministic metrics only.
     No LLM summarization of computed values.
@@ -214,7 +220,7 @@ class MetaOversightAgent:
     def __init__(self, db_client=None):
         """
         Initialize with read-only DB client.
-        
+
         Args:
             db_client: TypeDB client with read-only permissions
         """
@@ -227,7 +233,7 @@ class MetaOversightAgent:
     ) -> MetaOversightReport:
         """
         Generate daily oversight report.
-        
+
         All metrics are computed, not summarized.
         """
         report_date = report_date or date.today()
@@ -285,41 +291,51 @@ class MetaOversightAgent:
         # Guard pressure alerts
         if report.guard_pressure.speculative_rejections > 5:
             self._alert_counter += 1
-            alerts.append(Alert(
-                alert_id=f"alert_{self._alert_counter:04d}",
-                severity="warning" if report.guard_pressure.speculative_rejections <= 10 else "critical",
-                category="guard",
-                message=f"{report.guard_pressure.speculative_rejections} speculative injection attempts blocked",
-            ))
+            alerts.append(
+                Alert(
+                    alert_id=f"alert_{self._alert_counter:04d}",
+                    severity="warning"
+                    if report.guard_pressure.speculative_rejections <= 10
+                    else "critical",
+                    category="guard",
+                    message=f"{report.guard_pressure.speculative_rejections} speculative injection attempts blocked",
+                )
+            )
 
         # Fragility alerts
         if report.fragility.flip_count > 3:
             self._alert_counter += 1
-            alerts.append(Alert(
-                alert_id=f"alert_{self._alert_counter:04d}",
-                severity="warning",
-                category="fragility",
-                message=f"{report.fragility.flip_count} claims flipped under perturbation",
-            ))
+            alerts.append(
+                Alert(
+                    alert_id=f"alert_{self._alert_counter:04d}",
+                    severity="warning",
+                    category="fragility",
+                    message=f"{report.fragility.flip_count} claims flipped under perturbation",
+                )
+            )
 
         # Authority queue alerts
         if report.authority_queue.pending_write_intents > 10:
             self._alert_counter += 1
-            alerts.append(Alert(
-                alert_id=f"alert_{self._alert_counter:04d}",
-                severity="warning",
-                category="authority",
-                message=f"{report.authority_queue.pending_write_intents} write-intents awaiting approval",
-            ))
+            alerts.append(
+                Alert(
+                    alert_id=f"alert_{self._alert_counter:04d}",
+                    severity="warning",
+                    category="authority",
+                    message=f"{report.authority_queue.pending_write_intents} write-intents awaiting approval",
+                )
+            )
 
         if report.authority_queue.expired_scope_locks > 0:
             self._alert_counter += 1
-            alerts.append(Alert(
-                alert_id=f"alert_{self._alert_counter:04d}",
-                severity="critical",
-                category="authority",
-                message=f"{report.authority_queue.expired_scope_locks} scope locks expired without action",
-            ))
+            alerts.append(
+                Alert(
+                    alert_id=f"alert_{self._alert_counter:04d}",
+                    severity="critical",
+                    category="authority",
+                    message=f"{report.authority_queue.expired_scope_locks} scope locks expired without action",
+                )
+            )
 
         return alerts
 

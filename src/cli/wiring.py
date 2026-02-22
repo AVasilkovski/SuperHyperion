@@ -17,7 +17,7 @@ from src.hitl.intent_store import InMemoryIntentStore, IntentStore, TypeDBIntent
 def get_intent_store() -> IntentStore:
     """
     Get the appropriate IntentStore based on environment.
-    
+
     Returns:
         TypeDBIntentStore for production
         InMemoryIntentStore if SUPERHYPERION_TEST_MODE=1
@@ -38,10 +38,12 @@ def get_intent_store() -> IntentStore:
     except ImportError:
         # TypeDB driver not installed, fall back to in-memory
         import logging
+
         logging.warning("TypeDB driver not available, using InMemoryIntentStore")
         return InMemoryIntentStore()
     except Exception as e:
         import logging
+
         logging.warning(f"Failed to connect to TypeDB: {e}, using InMemoryIntentStore")
         return InMemoryIntentStore()
 
@@ -49,10 +51,10 @@ def get_intent_store() -> IntentStore:
 def get_intent_service(store: Optional[IntentStore] = None) -> WriteIntentService:
     """
     Get WriteIntentService with the appropriate store.
-    
+
     Args:
         store: Optional store to inject (for testing)
-    
+
     Returns:
         WriteIntentService instance
     """

@@ -51,12 +51,12 @@ They only inform what tests to run.
 class SpeculativeAgent(BaseAgent):
     """
     Step 5: Generates alternative hypotheses and models.
-    
+
     Operates in SPECULATIVE lane:
         - Outputs are NEVER treated as truth
         - Outputs are NEVER stored as ground knowledge
         - Outputs are inputs to experiment design ONLY
-    
+
     This is the creative, exploratory lane.
     """
 
@@ -98,10 +98,10 @@ class SpeculativeAgent(BaseAgent):
     ) -> Dict[str, ExperimentHints]:
         """
         Extract design-relevant hints from speculative outputs.
-        
+
         This is the formal bridge between the speculative lane and grounded lane.
         These hints are CONTEXT-ONLY and must never be persisted to TypeDB.
-        
+
         The hints object always carries epistemic_status="speculative" so that
         the Steward guard will catch any accidental leakage into evidence payloads.
         """
@@ -122,10 +122,7 @@ class SpeculativeAgent(BaseAgent):
             ]
 
             # Edge cases become sensitivity axes
-            sensitivity_axes = [
-                str(ec) for ec in blob.get("edge_cases", [])
-                if ec
-            ]
+            sensitivity_axes = [str(ec) for ec in blob.get("edge_cases", []) if ec]
 
             # Analogies become prior suggestions (tightly typed)
             prior_suggestions = [
@@ -151,9 +148,7 @@ class SpeculativeAgent(BaseAgent):
             )
 
             # Log the digest for audit trail (not the raw content)
-            logger.debug(
-                f"Extracted hints for {claim_id}: digest={hints[claim_id].digest()}"
-            )
+            logger.debug(f"Extracted hints for {claim_id}: digest={hints[claim_id].digest()}")
 
         return hints
 
@@ -167,9 +162,9 @@ class SpeculativeAgent(BaseAgent):
         prompt = f"""
 Claim ID: {claim_id}
 Claim Content: {claim_content}
-Subject: {claim.get('subject', '')}
-Relation: {claim.get('relation', '')}
-Object: {claim.get('object', '')}
+Subject: {claim.get("subject", "")}
+Relation: {claim.get("relation", "")}
+Object: {claim.get("object", "")}
 
 Generate alternative hypotheses and models.
 """
@@ -200,4 +195,3 @@ Generate alternative hypotheses and models.
 
 # Global instance
 speculative_agent = SpeculativeAgent()
-

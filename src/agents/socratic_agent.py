@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Argument:
     """An argument in a Socratic debate."""
+
     agent_id: str
     position: str  # "thesis" or "antithesis"
     content: str
@@ -30,6 +31,7 @@ class Argument:
 @dataclass
 class DebateState:
     """State of a Socratic debate session."""
+
     proposition: str
     proposition_id: str
     arguments: List[Argument] = field(default_factory=list)
@@ -43,7 +45,7 @@ class DebateState:
 class SocraticDebateAgent(BaseAgent):
     """
     Agent that moderates Socratic debates between conflicting hypotheses.
-    
+
     Implements v2.1 specification:
     - Instantiates debate when entropy > 0.4
     - Monitors argument quality via semantic distance
@@ -61,8 +63,8 @@ class SocraticDebateAgent(BaseAgent):
         high_entropy = self._find_high_entropy_propositions()
 
         for prop in high_entropy:
-            if prop['id'] not in self._active_debates:
-                await self.initiate_debate(prop['id'], prop['content'])
+            if prop["id"] not in self._active_debates:
+                await self.initiate_debate(prop["id"], prop["content"])
 
         # Continue active debates
         for debate_id in list(self._active_debates.keys()):
@@ -117,12 +119,14 @@ Present a strong argument with evidence. Be specific and cite potential sources.
 """
         thesis_content = self.generate(thesis_prompt, temperature=0.5)
 
-        debate.arguments.append(Argument(
-            agent_id="thesis-agent",
-            position="thesis",
-            content=thesis_content,
-            confidence=0.6,
-        ))
+        debate.arguments.append(
+            Argument(
+                agent_id="thesis-agent",
+                position="thesis",
+                content=thesis_content,
+                confidence=0.6,
+            )
+        )
 
         # Generate antithesis (opposing argument)
         antithesis_prompt = f"""
@@ -133,12 +137,14 @@ Present a strong counter-argument with evidence. Be specific and cite potential 
 """
         antithesis_content = self.generate(antithesis_prompt, temperature=0.5)
 
-        debate.arguments.append(Argument(
-            agent_id="antithesis-agent",
-            position="antithesis",
-            content=antithesis_content,
-            confidence=0.6,
-        ))
+        debate.arguments.append(
+            Argument(
+                agent_id="antithesis-agent",
+                position="antithesis",
+                content=antithesis_content,
+                confidence=0.6,
+            )
+        )
 
     async def _conduct_round(self, debate: DebateState):
         """Conduct one round of debate."""
@@ -170,9 +176,7 @@ Present a strong counter-argument with evidence. Be specific and cite potential 
         await self._generate_rebuttals(debate)
 
     def _calculate_debate_entropy(
-        self,
-        thesis_args: List[Argument],
-        antithesis_args: List[Argument]
+        self, thesis_args: List[Argument], antithesis_args: List[Argument]
     ) -> float:
         """Calculate dialectical entropy from argument distribution."""
         if not thesis_args and not antithesis_args:
@@ -190,6 +194,7 @@ Present a strong counter-argument with evidence. Be specific and cite potential 
 
         # Shannon entropy
         import math
+
         if p <= 0 or p >= 1:
             return 0.0
 
@@ -240,17 +245,21 @@ Be constructive and specific.
 """
         guidance = self.generate(intervention_prompt, system="You are a fair debate moderator.")
 
-        debate.arguments.append(Argument(
-            agent_id="moderator",
-            position="guidance",
-            content=guidance,
-            confidence=1.0,
-        ))
+        debate.arguments.append(
+            Argument(
+                agent_id="moderator",
+                position="guidance",
+                content=guidance,
+                confidence=1.0,
+            )
+        )
 
     async def _generate_rebuttals(self, debate: DebateState):
         """Generate rebuttals from both sides."""
         last_thesis = next((a for a in reversed(debate.arguments) if a.position == "thesis"), None)
-        last_antithesis = next((a for a in reversed(debate.arguments) if a.position == "antithesis"), None)
+        last_antithesis = next(
+            (a for a in reversed(debate.arguments) if a.position == "antithesis"), None
+        )
 
         if last_antithesis:
             # Thesis rebuts antithesis
@@ -262,12 +271,14 @@ Counter-argument: {last_antithesis.content[:500]}
 Provide a rebuttal with new evidence or reasoning.
 """
             rebuttal = self.generate(rebuttal_prompt, temperature=0.5)
-            debate.arguments.append(Argument(
-                agent_id="thesis-agent",
-                position="thesis",
-                content=rebuttal,
-                confidence=0.5 + 0.1 * debate.round_count,
-            ))
+            debate.arguments.append(
+                Argument(
+                    agent_id="thesis-agent",
+                    position="thesis",
+                    content=rebuttal,
+                    confidence=0.5 + 0.1 * debate.round_count,
+                )
+            )
 
         if last_thesis:
             # Antithesis rebuts thesis
@@ -279,12 +290,14 @@ Argument: {last_thesis.content[:500]}
 Provide a counter-argument with new evidence or reasoning.
 """
             rebuttal = self.generate(rebuttal_prompt, temperature=0.5)
-            debate.arguments.append(Argument(
-                agent_id="antithesis-agent",
-                position="antithesis",
-                content=rebuttal,
-                confidence=0.5 + 0.1 * debate.round_count,
-            ))
+            debate.arguments.append(
+                Argument(
+                    agent_id="antithesis-agent",
+                    position="antithesis",
+                    content=rebuttal,
+                    confidence=0.5 + 0.1 * debate.round_count,
+                )
+            )
 
     async def _resolve_debate(self, debate: DebateState):
         """Resolve debate when entropy is low enough."""
@@ -292,7 +305,9 @@ Provide a counter-argument with new evidence or reasoning.
 
         # Determine winner
         thesis_weight = sum(a.confidence for a in debate.arguments if a.position == "thesis")
-        antithesis_weight = sum(a.confidence for a in debate.arguments if a.position == "antithesis")
+        antithesis_weight = sum(
+            a.confidence for a in debate.arguments if a.position == "antithesis"
+        )
 
         if thesis_weight > antithesis_weight:
             debate.resolution = "verified"
@@ -334,12 +349,14 @@ Provide a balanced conclusion with confidence level (0-1).
         debate.resolution = "debated"  # Inconclusive
         debate.consensus_reached = True
 
-        debate.arguments.append(Argument(
-            agent_id="synthesizer",
-            position="synthesis",
-            content=synthesis,
-            confidence=0.5,
-        ))
+        debate.arguments.append(
+            Argument(
+                agent_id="synthesizer",
+                position="synthesis",
+                content=synthesis,
+                confidence=0.5,
+            )
+        )
 
     def get_active_debates(self) -> Dict[str, DebateState]:
         """Get all active debate sessions."""

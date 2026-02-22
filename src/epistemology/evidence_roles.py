@@ -6,7 +6,7 @@ These roles determine how evidence affects belief updates.
 
 Evidence Roles:
 - support: Evidence that confirms/supports the proposition
-- refute: Evidence that contradicts/refutes the proposition  
+- refute: Evidence that contradicts/refutes the proposition
 - undercut: Evidence that attacks the method/assumptions (not the claim itself)
 - replicate: Evidence from a replication attempt (success or failure)
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class EvidenceRole(str, Enum):
     """Typed evidence roles for epistemic semantics."""
+
     SUPPORT = "support"
     REFUTE = "refute"
     UNDERCUT = "undercut"
@@ -35,6 +36,7 @@ class EvidenceRole(str, Enum):
 
 class FailureMode(str, Enum):
     """Typed failure modes for negative evidence."""
+
     NULL_EFFECT = "null_effect"
     SIGN_FLIP = "sign_flip"
     VIOLATED_ASSUMPTION = "violated_assumption"
@@ -44,13 +46,13 @@ class FailureMode(str, Enum):
 def validate_evidence_role(role: Optional[str]) -> Optional[EvidenceRole]:
     """
     Validate and normalize an evidence role string.
-    
+
     Args:
         role: String role value or None
-        
+
     Returns:
         EvidenceRole enum value or None if input is None
-        
+
     Raises:
         ValueError: If role is not a valid evidence role
     """
@@ -62,22 +64,19 @@ def validate_evidence_role(role: Optional[str]) -> Optional[EvidenceRole]:
         return EvidenceRole(role_lower)
     except ValueError:
         valid_roles = [r.value for r in EvidenceRole]
-        raise ValueError(
-            f"Invalid evidence role '{role}'. "
-            f"Valid roles are: {valid_roles}"
-        )
+        raise ValueError(f"Invalid evidence role '{role}'. Valid roles are: {valid_roles}")
 
 
 def validate_failure_mode(mode: Optional[str]) -> Optional[FailureMode]:
     """
     Validate and normalize a failure mode string.
-    
+
     Args:
         mode: String failure mode value or None
-        
+
     Returns:
         FailureMode enum value or None if input is None
-        
+
     Raises:
         ValueError: If mode is not a valid failure mode
     """
@@ -89,27 +88,26 @@ def validate_failure_mode(mode: Optional[str]) -> Optional[FailureMode]:
         return FailureMode(mode_lower)
     except ValueError:
         valid_modes = [m.value for m in FailureMode]
-        raise ValueError(
-            f"Invalid failure mode '{mode}'. "
-            f"Valid modes are: {valid_modes}"
-        )
+        raise ValueError(f"Invalid failure mode '{mode}'. Valid modes are: {valid_modes}")
 
 
-def require_evidence_role(role: Optional[str], default: EvidenceRole, *, strict: bool = True) -> EvidenceRole:
+def require_evidence_role(
+    role: Optional[str], default: EvidenceRole, *, strict: bool = True
+) -> EvidenceRole:
     """
     Validate and normalize evidence role with a required default (Phase 16.2-ready).
-    
+
     This is stricter than validate_evidence_role: it never returns None,
     always falling back to the provided default.
-    
+
     Args:
         role: String role value or None
         default: Default EvidenceRole to use if role is None or invalid
         strict: If True, raise on invalid values; if False, warn and use default
-        
+
     Returns:
         EvidenceRole enum value (never None)
-        
+
     Raises:
         ValueError: If role is invalid and strict=True
     """
@@ -122,30 +120,25 @@ def require_evidence_role(role: Optional[str], default: EvidenceRole, *, strict:
     except ValueError:
         if strict:
             valid_roles = [r.value for r in EvidenceRole]
-            raise ValueError(
-                f"Invalid evidence role '{role}'. "
-                f"Valid roles are: {valid_roles}"
-            )
+            raise ValueError(f"Invalid evidence role '{role}'. Valid roles are: {valid_roles}")
         else:
-            logger.warning(
-                f"Invalid evidence_role={role!r}; defaulting to {default.value}"
-            )
+            logger.warning(f"Invalid evidence_role={role!r}; defaulting to {default.value}")
             return default
 
 
 def clamp_probability(value: float, name: str = "value") -> float:
     """
     Clamp a probability/strength value to [0, 1] (Phase 16.2-ready).
-    
+
     Prevents garbage values (including NaN/inf) from drifting into TypeDB.
-    
+
     Args:
         value: Numeric value to clamp
         name: Name of the value (for logging)
-        
+
     Returns:
         Clamped value in [0, 1]
-        
+
     Raises:
         ValueError: If value is NaN or infinite
     """
@@ -162,15 +155,15 @@ def clamp_probability(value: float, name: str = "value") -> float:
 def evidence_role_affects_belief(role: EvidenceRole) -> dict:
     """
     Describe how an evidence role affects belief updates.
-    
+
     Returns a dict with:
     - direction: +1 (increases confidence), -1 (decreases), 0 (neutral), None (depends on context)
     - requires_hitl: Whether this role typically requires HITL review
     - can_prove: Whether this role can upgrade status to 'proven'
-    
+
     Args:
         role: The evidence role to analyze
-        
+
     Returns:
         Dict describing the role's epistemic effects
     """

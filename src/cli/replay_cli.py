@@ -31,7 +31,7 @@ def _fetch_capsule(capsule_id: str, tenant_id: str | None = None) -> dict | None
     try:
         from src.db.typedb_client import TypeDBConnection
         from src.trust.tenant_scope import scope_prefix
-        
+
         db = TypeDBConnection()
         if db._mock_mode:
             console.print("[yellow]⚠ TypeDB unavailable (mock mode)[/yellow]")
@@ -39,9 +39,9 @@ def _fetch_capsule(capsule_id: str, tenant_id: str | None = None) -> dict | None
 
         def _esc(s):
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
-            
+
         tenant_scope = scope_prefix(tenant_id, target_var="cap") if tenant_id else ""
-            
+
         query_with_mutations = f'''
         match
             $cap isa run-capsule,
@@ -104,10 +104,13 @@ def _fetch_capsule(capsule_id: str, tenant_id: str | None = None) -> dict | None
 def _recompute_capsule_hash(capsule_id: str, manifest: dict, manifest_version: str = "v2") -> str:
     """Recompute capsule manifest hash for integrity check."""
     from src.governance.fingerprinting import make_capsule_manifest_hash
+
     return make_capsule_manifest_hash(capsule_id, manifest, manifest_version)
 
 
-def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str], tenant_id: str | None = None) -> tuple[bool, dict]:
+def _verify_mutation_linkage(
+    capsule_id: str, mutation_ids: list[str], tenant_id: str | None = None
+) -> tuple[bool, dict]:
     """Verify all manifest mutation_ids are linked to this capsule in the ledger."""
     if not mutation_ids:
         return True, {"verified_count": 0, "missing": []}
@@ -118,7 +121,11 @@ def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str], tenant_id
 
         db = TypeDBConnection()
         if db._mock_mode:
-            return True, {"verified_count": 0, "missing": list(mutation_ids), "skipped": "mock_mode"}
+            return True, {
+                "verified_count": 0,
+                "missing": list(mutation_ids),
+                "skipped": "mock_mode",
+            }
 
         def _esc(s):
             return (str(s) or "").replace("\\", "\\\\").replace('"', '\\"')
@@ -126,12 +133,12 @@ def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str], tenant_id
         tenant_scope = scope_prefix(tenant_id, target_var="cap") if tenant_id else ""
 
         seen = set()
-        
+
         # Batch using `or` condition for all mutation_ids, chunked up to 50
         missing = set(mutation_ids)
         chunk_size = 50
         for i in range(0, len(mutation_ids), chunk_size):
-            chunk = mutation_ids[i:i + chunk_size]
+            chunk = mutation_ids[i : i + chunk_size]
             or_conditions = " or ".join([f'{{ $mid == "{_esc(m)}"; }}' for m in chunk])
             query = f'''
             match
@@ -156,7 +163,8 @@ def _verify_mutation_linkage(capsule_id: str, mutation_ids: list[str], tenant_id
 def verify_run(
     run_id: str = typer.Option(
         ...,
-        "--run-id", "-r",
+        "--run-id",
+        "-r",
         help="Run capsule ID to verify",
     ),
     json: bool = typer.Option(
@@ -174,6 +182,7 @@ def verify_run(
     console.print(f"\n[bold]Replaying run:[/bold] {run_id}\n")
 
     from src.trust.tenant_scope import enforce_scope
+
     if tenant_id:
         enforce_scope(tenant_id)
 
@@ -189,7 +198,7 @@ def verify_run(
     # 2. Integrity check: recompute hash
     # G1 backward compat: explicit manifest version checks
     manifest_version = "v2" if capsule.get("_has_mutation_snapshot") else "v1"
-    
+
     manifest = {
         "session_id": capsule["session_id"],
         "query_hash": capsule["query_hash"],
@@ -200,7 +209,7 @@ def verify_run(
     }
     if manifest_version == "v2":
         manifest["mutation_ids"] = sorted(capsule.get("mutation_ids") or [])
-    
+
     recomputed_hash = _recompute_capsule_hash(run_id, manifest, manifest_version)
     hash_match = recomputed_hash == capsule["capsule_hash"]
 
@@ -221,16 +230,22 @@ def verify_run(
     )
 
     if primacy_ok:
-        console.print(f"  [green]✓[/green] Ledger primacy: PASS ({primacy_details.get('verified_count', 0)} evidence IDs)")
+        console.print(
+            f"  [green]✓[/green] Ledger primacy: PASS ({primacy_details.get('verified_count', 0)} evidence IDs)"
+        )
     else:
         console.print(f"  [red]✗[/red] Ledger primacy: FAIL [{primacy_code}]")
         if primacy_details.get("hold_reason"):
             console.print(f"    {primacy_details['hold_reason']}")
 
     # 4. Mutation linkage verification (Phase 16.8)
-    mutation_ok, mutation_details = _verify_mutation_linkage(run_id, capsule.get("mutation_ids") or [], tenant_id=tenant_id)
+    mutation_ok, mutation_details = _verify_mutation_linkage(
+        run_id, capsule.get("mutation_ids") or [], tenant_id=tenant_id
+    )
     if mutation_ok:
-        console.print(f"  [green]✓[/green] Mutation linkage: PASS ({mutation_details.get('verified_count', 0)} linked)")
+        console.print(
+            f"  [green]✓[/green] Mutation linkage: PASS ({mutation_details.get('verified_count', 0)} linked)"
+        )
     else:
         console.print("  [red]✗[/red] Mutation linkage: FAIL")
         if mutation_details.get("missing"):
@@ -257,10 +272,12 @@ def verify_run(
 
     console.print()
     if overall:
-        console.print(Panel(
-            f"[bold green]PASS[/bold green] — Run {run_id} is reproducible and ledger-anchored.",
-            border_style="green",
-        ))
+        console.print(
+            Panel(
+                f"[bold green]PASS[/bold green] — Run {run_id} is reproducible and ledger-anchored.",
+                border_style="green",
+            )
+        )
     else:
         failures = []
         if not hash_match:
@@ -269,9 +286,11 @@ def verify_run(
             failures.append(f"ledger primacy ({primacy_code})")
         if not mutation_ok:
             failures.append("mutation linkage")
-        console.print(Panel(
-            f"[bold red]FAIL[/bold red] — {', '.join(failures)}",
-            border_style="red",
-        ))
+        console.print(
+            Panel(
+                f"[bold red]FAIL[/bold red] — {', '.join(failures)}",
+                border_style="red",
+            )
+        )
 
     raise typer.Exit(0 if overall else 1)

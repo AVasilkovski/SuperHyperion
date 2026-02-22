@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class BenchmarkAgent(BaseAgent):
     """
     Step 9: Scores claims against ground truth where available.
-    
+
     Computes:
         - Precision, recall, F1 for verifiable claims
         - Comparison with established benchmarks
@@ -45,9 +45,7 @@ class BenchmarkAgent(BaseAgent):
         return context
 
     def _evaluate_against_benchmark(
-        self,
-        claim: Dict[str, Any],
-        evidence: List[Dict]
+        self, claim: Dict[str, Any], evidence: List[Dict]
     ) -> Dict[str, Any]:
         """Evaluate a claim against known benchmarks."""
         claim_id = claim.get("claim_id", "")
@@ -63,10 +61,7 @@ class BenchmarkAgent(BaseAgent):
             }
 
         # Find relevant evidence
-        claim_evidence = [
-            e for e in evidence
-            if e.get("hypothesis_id") == claim_id
-        ]
+        claim_evidence = [e for e in evidence if e.get("hypothesis_id") == claim_id]
 
         if not claim_evidence:
             return {
@@ -94,10 +89,7 @@ class BenchmarkAgent(BaseAgent):
         return self._benchmarks.get(claim.get("relation", ""))
 
     def register_benchmark(
-        self,
-        relation: str,
-        ground_truth: Dict[str, Any],
-        required_n: int = 10
+        self, relation: str, ground_truth: Dict[str, Any], required_n: int = 10
     ) -> None:
         """Register a benchmark for a relation type."""
         self._benchmarks[relation] = {

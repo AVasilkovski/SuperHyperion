@@ -73,9 +73,7 @@ async def list_capsules(
     tenant_id = auth.tenant_id
     # Viewers can access this endpoint
 
-    items, next_cursor = list_capsules_for_tenant(
-        tenant_id=tenant_id, limit=limit, cursor=cursor
-    )
+    items, next_cursor = list_capsules_for_tenant(tenant_id=tenant_id, limit=limit, cursor=cursor)
 
     capsule_items = []
     for row in items:
@@ -101,9 +99,7 @@ async def export_audit_ledger(
     # 1. Fetch capsule scoped to tenant (returns None if not found or not owned)
     db_capsule = fetch_capsule_by_id_scoped(tenant_id, capsule_id)
     if not db_capsule:
-        raise HTTPException(
-            status_code=404, detail="Capsule not found or unavailable."
-        )
+        raise HTTPException(status_code=404, detail="Capsule not found or unavailable.")
 
     # 2. Run deterministic verification on the capsule
     from src.verification.replay_verify import verify_capsule
@@ -114,9 +110,7 @@ async def export_audit_ledger(
         verdict = verify_capsule(capsule_id, capsule_data=db_capsule, tenant_id=tenant_id)
     except Exception as e:
         logger.error(f"Replay verification failed: {e}")
-        raise HTTPException(
-            status_code=500, detail="Audit verification failed to execute."
-        )
+        raise HTTPException(status_code=500, detail="Audit verification failed to execute.")
 
     # 3. Construct the clean capsule manifest
     # We use db_capsule but make sure to only include allowed keys, e.g., the canonical manifest

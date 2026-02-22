@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 class RetrievalQualityGate(BaseAgent):
     """
     v2.2: Gates retrieval quality before speculation.
-    
+
     Computes:
         - coverage: How much of the claim is addressed by evidence
         - provenance: Are sources cited and trustworthy
         - conflict_density: Proportion of conflicting evidence
-        
+
     Routes:
         - "speculate" if quality sufficient
         - "reground" if quality insufficient (loops back to ground)
@@ -76,7 +76,9 @@ class RetrievalQualityGate(BaseAgent):
         if decision == "reground":
             context.graph_context["retrieval_refinement"] = {
                 "reason": self._get_refinement_reason(coverage, provenance, conflict_density),
-                "suggested_action": "broaden_query" if coverage < self.COVERAGE_THRESHOLD else "filter_conflicts",
+                "suggested_action": "broaden_query"
+                if coverage < self.COVERAGE_THRESHOLD
+                else "filter_conflicts",
             }
 
         logger.info(
@@ -111,7 +113,8 @@ class RetrievalQualityGate(BaseAgent):
             return 1.0
 
         cited = sum(
-            1 for ev in evidence_bundle
+            1
+            for ev in evidence_bundle
             if ev.get("source") or ev.get("source_id") or ev.get("citation")
         )
 
@@ -157,7 +160,9 @@ class RetrievalQualityGate(BaseAgent):
         if provenance < self.PROVENANCE_THRESHOLD:
             reasons.append(f"Poor provenance ({provenance:.0%} < {self.PROVENANCE_THRESHOLD:.0%})")
         if conflict_density > self.CONFLICT_DENSITY_MAX:
-            reasons.append(f"High conflicts ({conflict_density:.0%} > {self.CONFLICT_DENSITY_MAX:.0%})")
+            reasons.append(
+                f"High conflicts ({conflict_density:.0%} > {self.CONFLICT_DENSITY_MAX:.0%})"
+            )
         return "; ".join(reasons)
 
 

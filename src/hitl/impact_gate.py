@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 class HighImpactWriteCheckpoint(HITLGate):
     """
     H2 — High-Impact Write Checkpoint (before Step 13).
-    
+
     Triggered based on impact score:
         impact_score = graph_centrality * belief_confidence_delta * downstream_dependencies
-    
+
     If impact_score > threshold, require human approval.
     """
 
@@ -28,7 +28,7 @@ class HighImpactWriteCheckpoint(HITLGate):
         impact_threshold: float = 0.5,
         centrality_weight: float = 1.0,
         delta_weight: float = 1.0,
-        dependency_weight: float = 0.5
+        dependency_weight: float = 0.5,
     ):
         self.impact_threshold = impact_threshold
         self.centrality_weight = centrality_weight
@@ -43,22 +43,24 @@ class HighImpactWriteCheckpoint(HITLGate):
     def compute_impact_score(self, context: Dict[str, Any]) -> float:
         """
         Compute impact score for the proposed write.
-        
+
         impact = centrality * confidence_delta * log(1 + dependencies)
         """
         import math
 
         centrality = context.get("graph_centrality", 0.1)
         confidence_delta = abs(
-            context.get("new_confidence", 0.0) -
-            context.get("old_confidence", 0.0)
+            context.get("new_confidence", 0.0) - context.get("old_confidence", 0.0)
         )
         dependencies = context.get("downstream_dependency_count", 0)
 
         impact = (
-            self.centrality_weight * centrality *
-            self.delta_weight * confidence_delta *
-            self.dependency_weight * math.log(1 + dependencies)
+            self.centrality_weight
+            * centrality
+            * self.delta_weight
+            * confidence_delta
+            * self.dependency_weight
+            * math.log(1 + dependencies)
         )
 
         return impact
@@ -78,11 +80,7 @@ class HighImpactWriteCheckpoint(HITLGate):
             confidence=context.get("new_confidence", 0.0),
         )
 
-    def _build_impact_summary(
-        self,
-        context: Dict[str, Any],
-        impact_score: float
-    ) -> str:
+    def _build_impact_summary(self, context: Dict[str, Any], impact_score: float) -> str:
         """Build impact summary for human review."""
         parts = [
             f"Impact Score: {impact_score:.2f}",

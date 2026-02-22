@@ -275,7 +275,8 @@ class TypeDBConnection:
 
         tx_type = TransactionType.WRITE if TransactionType else "WRITE"
         with self.transaction(tx_type) as tx:
-            self._tx_execute(tx, query)
+            ans = self._tx_execute(tx, query)
+            self._to_rows(ans)  # Exhaust the iterator to execute the insert
 
     def query_delete(self, query: str, *, cap=None):
         """Execute a delete query. Requires WriteCap."""
@@ -289,7 +290,8 @@ class TypeDBConnection:
 
         tx_type = TransactionType.WRITE if TransactionType else "WRITE"
         with self.transaction(tx_type) as tx:
-            self._tx_execute(tx, query)
+            ans = self._tx_execute(tx, query)
+            self._to_rows(ans)  # Exhaust the iterator to execute the delete
 
     # ========================================================================
     # v2.1 Typed Operations

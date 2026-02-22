@@ -17,20 +17,20 @@ logger = logging.getLogger(__name__)
 class EpistemicApprovalGate(HITLGate):
     """
     H1 — Epistemic Promotion Gate (after Step 9).
-    
+
     Triggered when epistemic_status transitions:
         - SPECULATIVE → SUPPORTED
         - SUPPORTED → PROVEN
         - UNRESOLVED → REFUTED
         - Confidence crosses threshold (>0.7)
-    
+
     Human sees:
         - Claim content
         - Evidence summary
         - CodeAct outputs
         - Bayesian delta
         - Any contradictions
-    
+
     Human actions:
         ✅ Approve - Accept the transition
         ⚠️ Downgrade - Lower to previous status
@@ -96,9 +96,7 @@ class EpistemicApprovalGate(HITLGate):
             parts.append(f"⚠️ {len(contradictions)} contradiction(s) detected")
 
         # CodeAct results
-        codeact_success = sum(
-            1 for e in evidence if e.get("success", False)
-        )
+        codeact_success = sum(1 for e in evidence if e.get("success", False))
         parts.append(f"Successful experiments: {codeact_success}/{len(evidence)}")
 
         return " | ".join(parts)

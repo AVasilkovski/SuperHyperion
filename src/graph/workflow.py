@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Node Functions
 # ============================================
 
+
 def retrieve_node(state: AgentState) -> AgentState:
     """
     Retrieve relevant context from the knowledge graph.
@@ -51,10 +52,12 @@ def retrieve_node(state: AgentState) -> AgentState:
         logger.warning(f"Graph retrieval failed: {e}")
         state["entities"] = []
 
-    state["messages"].append({
-        "role": "system",
-        "content": f"Retrieved {len(state['entities'])} entities from knowledge graph."
-    })
+    state["messages"].append(
+        {
+            "role": "system",
+            "content": f"Retrieved {len(state['entities'])} entities from knowledge graph.",
+        }
+    )
 
     return state
 
@@ -69,12 +72,12 @@ def plan_node(state: AgentState) -> AgentState:
 
     # Build context
     context = f"""
-Query: {state['query']}
+Query: {state["query"]}
 
-Retrieved Entities: {len(state['entities'])}
-{state['entities'][:5] if state['entities'] else 'None'}
+Retrieved Entities: {len(state["entities"])}
+{state["entities"][:5] if state["entities"] else "None"}
 
-Previous Code Executions: {len(state['code_executions'])}
+Previous Code Executions: {len(state["code_executions"])}
 """
 
     system_prompt = """You are a scientific reasoning agent. 
@@ -89,10 +92,7 @@ Output a clear, numbered plan."""
     ).content
 
     state["plan"] = plan
-    state["messages"].append({
-        "role": "assistant",
-        "content": f"**Plan:**\n{plan}"
-    })
+    state["messages"].append({"role": "assistant", "content": f"**Plan:**\n{plan}"})
 
     return state
 
@@ -108,7 +108,7 @@ def codeact_execute_node(state: AgentState) -> AgentState:
     # Generate code based on plan
     code_prompt = f"""
 Based on this plan:
-{state['plan']}
+{state["plan"]}
 
 Write Python code to execute the next step. You have access to:
 - numpy (as np)
@@ -137,21 +137,19 @@ Print your results clearly."""
     # Execute the code
     result = execute_python(code)
 
-    state["code_executions"].append({
-        "code": code,
-        "result": result.get("output", ""),
-        "success": result.get("success", False),
-        "error": result.get("error"),
-    })
+    state["code_executions"].append(
+        {
+            "code": code,
+            "result": result.get("output", ""),
+            "success": result.get("success", False),
+            "error": result.get("error"),
+        }
+    )
 
-    state["messages"].append({
-        "role": "code",
-        "content": code
-    })
-    state["messages"].append({
-        "role": "result",
-        "content": result.get("output", result.get("error", "No output"))
-    })
+    state["messages"].append({"role": "code", "content": code})
+    state["messages"].append(
+        {"role": "result", "content": result.get("output", result.get("error", "No output"))}
+    )
 
     return state
 
@@ -165,14 +163,16 @@ def critique_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.CRITIQUE.value
 
     # Summarize what we've done
-    executions_summary = "\n".join([
-        f"Code {i+1}: {ex.get('result', 'no result')[:200]}"
-        for i, ex in enumerate(state["code_executions"][-3:])
-    ])
+    executions_summary = "\n".join(
+        [
+            f"Code {i + 1}: {ex.get('result', 'no result')[:200]}"
+            for i, ex in enumerate(state["code_executions"][-3:])
+        ]
+    )
 
     critique_prompt = f"""
-Query: {state['query']}
-Plan: {state['plan']}
+Query: {state["query"]}
+Plan: {state["plan"]}
 Results: {executions_summary}
 
 As a Socratic critic, identify:
@@ -199,16 +199,14 @@ End with: ENTROPY_SCORE: [0.0-1.0]"""
     # Extract entropy score
     try:
         import re
-        match = re.search(r'ENTROPY_SCORE:\s*([\d.]+)', critique)
+
+        match = re.search(r"ENTROPY_SCORE:\s*([\d.]+)", critique)
         if match:
             state["dialectical_entropy"] = float(match.group(1))
     except Exception:
         pass
 
-    state["messages"].append({
-        "role": "critique",
-        "content": critique
-    })
+    state["messages"].append({"role": "critique", "content": critique})
 
     return state
 
@@ -225,9 +223,9 @@ def debate_node(state: AgentState) -> AgentState:
     debate_prompt = f"""
 A debate is needed due to high uncertainty.
 
-Query: {state['query']}
-Current Position: {state['plan']}
-Critique: {state['critique']}
+Query: {state["query"]}
+Current Position: {state["plan"]}
+Critique: {state["critique"]}
 
 Present two opposing arguments:
 THESIS: [Argument supporting the current position]
@@ -245,10 +243,7 @@ Be rigorous and evidence-based."""
         temperature=0.5,
     ).content
 
-    state["messages"].append({
-        "role": "debate",
-        "content": debate
-    })
+    state["messages"].append({"role": "debate", "content": debate})
 
     # Lower entropy after debate
     state["dialectical_entropy"] *= 0.5
@@ -281,19 +276,18 @@ def synthesize_node(state: AgentState) -> AgentState:
     state["current_node"] = NodeType.SYNTHESIZE.value
 
     # Gather all evidence
-    messages_summary = "\n".join([
-        f"[{m['role']}]: {m['content'][:300]}"
-        for m in state["messages"][-10:]
-    ])
+    messages_summary = "\n".join(
+        [f"[{m['role']}]: {m['content'][:300]}" for m in state["messages"][-10:]]
+    )
 
     synth_prompt = f"""
-Synthesize a final response to: {state['query']}
+Synthesize a final response to: {state["query"]}
 
 Evidence Collected:
 {messages_summary}
 
-Dialectical Entropy: {state['dialectical_entropy']:.3f}
-Iterations: {state['iteration']}
+Dialectical Entropy: {state["dialectical_entropy"]:.3f}
+Iterations: {state["iteration"]}
 
 Provide a clear, well-reasoned response with confidence assessment.
 """
@@ -305,10 +299,7 @@ Provide a clear, well-reasoned response with confidence assessment.
     ).content
 
     state["response"] = response
-    state["messages"].append({
-        "role": "assistant",
-        "content": response
-    })
+    state["messages"].append({"role": "assistant", "content": response})
 
     return state
 
@@ -316,6 +307,7 @@ Provide a clear, well-reasoned response with confidence assessment.
 # ============================================
 # Conditional Edge Functions
 # ============================================
+
 
 def check_entropy(state: AgentState) -> Literal["debate", "synthesize", "reflect"]:
     """
@@ -355,10 +347,11 @@ def should_continue_codeact(state: AgentState) -> Literal["critique", "codeact_e
 # Graph Builder
 # ============================================
 
+
 def build_workflow() -> StateGraph:
     """
     Build the LangGraph workflow.
-    
+
     Flow:
     Retrieve -> Plan -> CodeAct -> Critique -> [Debate if entropy > 0.4] -> Synthesize
     """
@@ -385,7 +378,7 @@ def build_workflow() -> StateGraph:
         {
             "critique": "critique",
             "codeact_execute": "codeact_execute",
-        }
+        },
     )
     workflow.add_conditional_edges(
         "critique",
@@ -394,7 +387,7 @@ def build_workflow() -> StateGraph:
             "debate": "debate",
             "synthesize": "synthesize",
             "reflect": "reflect",
-        }
+        },
     )
     workflow.add_edge("debate", "reflect")
     workflow.add_edge("reflect", "plan")  # Loop back for more reasoning
@@ -412,11 +405,11 @@ app = workflow.compile(checkpointer=memory)
 async def run_query(query: str, thread_id: str = "default") -> AgentState:
     """
     Run a query through the workflow.
-    
+
     Args:
         query: User's question or claim to investigate
         thread_id: Thread ID for checkpointing
-        
+
     Returns:
         Final agent state with response
     """

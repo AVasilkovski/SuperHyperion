@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple
 @dataclass
 class UncertaintyComponents:
     """Components of scientific uncertainty."""
+
     variance: float
     sensitivity: float
     sample_size: int
@@ -23,57 +24,47 @@ class UncertaintyComponents:
     def total(self) -> float:
         """Calculate total scientific uncertainty."""
         return calculate_scientific_uncertainty(
-            self.variance,
-            self.sensitivity,
-            self.sample_size,
-            self.model_fit_error
+            self.variance, self.sensitivity, self.sample_size, self.model_fit_error
         )
 
 
 def calculate_scientific_uncertainty(
-    variance: float,
-    sensitivity_to_assumptions: float,
-    sample_size: int,
-    model_fit_error: float
+    variance: float, sensitivity_to_assumptions: float, sample_size: int, model_fit_error: float
 ) -> float:
     """
     Calculate scientific uncertainty.
-    
+
     This is NOT rhetorical disagreement between agents.
     This is empirical uncertainty from experiments.
-    
+
     Formula:
         U = (variance * sensitivity) / sqrt(n) + model_fit_error
-    
+
     Args:
         variance: Statistical variance of experimental results
         sensitivity_to_assumptions: How much results change with assumptions
         sample_size: Number of experiments/observations
         model_fit_error: Residual error from model fitting
-        
+
     Returns:
         Total scientific uncertainty (0 = certain, 1+ = highly uncertain)
     """
     if sample_size == 0:
         return 1.0  # Maximum uncertainty when no data
 
-    return (
-        (variance * sensitivity_to_assumptions) / math.sqrt(sample_size)
-        + model_fit_error
-    )
+    return (variance * sensitivity_to_assumptions) / math.sqrt(sample_size) + model_fit_error
 
 
 def compute_confidence_interval(
-    values: List[float],
-    confidence_level: float = 0.95
+    values: List[float], confidence_level: float = 0.95
 ) -> Tuple[float, float]:
     """
     Compute confidence interval from experimental results.
-    
+
     Args:
         values: List of experimental results
         confidence_level: Desired confidence level (default 0.95)
-        
+
     Returns:
         (lower_bound, upper_bound) tuple
     """
@@ -104,14 +95,14 @@ def uncertainty_from_codeact_result(
 ) -> UncertaintyComponents:
     """
     Compute uncertainty from CodeAct execution results.
-    
+
     This is the primary way to compute scientific uncertainty
     from experimental evidence.
-    
+
     Args:
         result_values: Results from repeated experiments
         assumption_variations: Results when assumptions are varied
-        
+
     Returns:
         UncertaintyComponents with all uncertainty metrics
     """
@@ -121,7 +112,7 @@ def uncertainty_from_codeact_result(
             sensitivity=1.0,
             sample_size=0,
             model_fit_error=0.0,
-            confidence_interval=(0.0, 1.0)
+            confidence_interval=(0.0, 1.0),
         )
 
     n = len(result_values)
@@ -141,5 +132,5 @@ def uncertainty_from_codeact_result(
         sensitivity=sensitivity,
         sample_size=n,
         model_fit_error=0.0,  # Set by model fitting if applicable
-        confidence_interval=ci
+        confidence_interval=ci,
     )

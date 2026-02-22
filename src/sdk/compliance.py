@@ -63,7 +63,10 @@ def build_compliance_report(
             replay_status = bundle.replay.status
             if bundle.replay.status == "PASS":
                 replay_pass += 1
-            replay_duration_ms = _parse_stage_duration(bundle.replay.details if isinstance(bundle.replay.details, dict) else {}, "duration_ms")
+            replay_duration_ms = _parse_stage_duration(
+                bundle.replay.details if isinstance(bundle.replay.details, dict) else {},
+                "duration_ms",
+            )
             if replay_duration_ms is not None:
                 replay_durations.append(replay_duration_ms)
 
@@ -72,7 +75,9 @@ def build_compliance_report(
 
         steward_duration_ms = None
         if bundle.manifest and isinstance(bundle.manifest, dict):
-            steward_duration_ms = _parse_stage_duration(bundle.manifest, "steward_write_duration_ms")
+            steward_duration_ms = _parse_stage_duration(
+                bundle.manifest, "steward_write_duration_ms"
+            )
             if steward_duration_ms is not None:
                 steward_write_durations.append(steward_duration_ms)
 
@@ -127,9 +132,15 @@ def build_compliance_report(
         },
         "latency": {
             "percentile_method": "linear_interpolation",
-            "governance_gate": _latency_stats(governance_durations, "linear_interpolation", p95_min_sample_size),
-            "replay_verification": _latency_stats(replay_durations, "linear_interpolation", p95_min_sample_size),
-            "steward_write": _latency_stats(steward_write_durations, "linear_interpolation", p95_min_sample_size),
+            "governance_gate": _latency_stats(
+                governance_durations, "linear_interpolation", p95_min_sample_size
+            ),
+            "replay_verification": _latency_stats(
+                replay_durations, "linear_interpolation", p95_min_sample_size
+            ),
+            "steward_write": _latency_stats(
+                steward_write_durations, "linear_interpolation", p95_min_sample_size
+            ),
         },
         "runs": sorted(runs, key=lambda r: (str(r["bundle_key"]), str(r["prefix"]))),
     }
@@ -143,7 +154,9 @@ def write_compliance_outputs(
     tenant_id: Optional[str] = None,
     p95_min_sample_size: int = 30,
 ) -> list[str]:
-    report = build_compliance_report(bundles_dir, tenant_id=tenant_id, p95_min_sample_size=p95_min_sample_size)
+    report = build_compliance_report(
+        bundles_dir, tenant_id=tenant_id, p95_min_sample_size=p95_min_sample_size
+    )
     if out_path.endswith(".json"):
         json_path = out_path
         os.makedirs(os.path.dirname(json_path) or ".", exist_ok=True)

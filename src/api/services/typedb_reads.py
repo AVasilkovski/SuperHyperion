@@ -153,7 +153,7 @@ def fetch_capsule_by_id_scoped(tenant_id: str, capsule_id: str) -> Optional[Dict
         $c isa run-capsule, has capsule-id "{capsule_id}";
         (owner: $t, owned: $c) isa tenant-ownership;
     fetch
-        $c: capsule-id, session-id, query-hash, scope-lock-id, intent-id, proposal-id, created-at, manifest-version;
+        $c: capsule-id, session-id, query-hash, scope-lock-id, intent-id, proposal-id, created-at;
     """
 
     db = TypeDBConnection()

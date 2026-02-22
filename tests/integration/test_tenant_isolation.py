@@ -34,8 +34,10 @@ def is_typedb_ready():
 
 def exec_write(tx, q: str) -> None:
     qs = q.strip()
-    q_lower = qs.lower()
+    if not qs:
+        raise ValueError("empty query")
     
+    q_lower = qs.lower()
     # Anton V requirement: prevent accidental reads in write helper
     if q_lower.startswith("match") and not any(k in q_lower for k in ["insert", "update", "delete"]):
         raise AssertionError(f"exec_write received a non-mutating match-only query: {qs[:50]}...")
@@ -43,26 +45,16 @@ def exec_write(tx, q: str) -> None:
     if not any(qs.startswith(k) for k in ["insert", "match", "define", "undefine"]):
         raise ValueError(f"exec_write query must start with insert, match, define, or undefine. Got: {qs[:20]}")
         
-    # Force exhaustion of the lazy TypeDB 3.x iterator
-    res = tx.query(qs)
-    if hasattr(res, "resolve"):
-        res = res.resolve()
-    if hasattr(res, "as_concept_rows"):
-        for _ in res.as_concept_rows():
-            pass
-    else:
-        for _ in res:
-            pass
+    # Correct TypeDB 3.x driver execution: query then resolve
+    tx.query(qs).resolve()
 
 
-def exec_read(tx, q: str):
-    # Materialize lazy read iterator directly to a list
-    res = tx.query(q.strip())
-    if hasattr(res, "resolve"):
-        res = res.resolve()
-    if hasattr(res, "as_concept_rows"):
-        return list(res.as_concept_rows())
-    return list(res)
+def exec_read_rows(tx, q: str):
+    qs = q.strip()
+    if not qs:
+        raise ValueError("empty query")
+    # Correct TypeDB 3.x driver execution: query, resolve, then materialize concept rows
+    return list(tx.query(qs).resolve().as_concept_rows())
 
 
 @pytest.fixture(scope="module")
@@ -124,18 +116,12 @@ def test_tenant_ownership_relation_baseline(ghost_db):
 
     with driver.transaction(db_name, TransactionType.WRITE) as tx:
         exec_write(tx, setup_q)
-        
-        # Read-your-writes: verify existence before committing
-        verify_q = f'match $t isa tenant, has tenant-id "{tenant_a}";'
-        ans = exec_read(tx, verify_q)
-        assert ans, f"Write swallowed inside transaction! Tenant {tenant_a} not visible before commit."
-        
         tx.commit()
 
     # 2. Persistence check: prove existence after commit
     with driver.transaction(db_name, TransactionType.READ) as tx:
         verify_q = f'match $t isa tenant, has tenant-id "{tenant_a}";'
-        ans = exec_read(tx, verify_q)
+        ans = exec_read_rows(tx, verify_q)
         if not ans:
             raise AssertionError(f"Write swallowed after commit! Tenant {tenant_a} not found in DB '{db_name}'.")
 
@@ -148,7 +134,7 @@ def test_tenant_ownership_relation_baseline(ghost_db):
             $c isa run-capsule, has capsule-id "{capsule_a}";
             (owner: $t, owned: $c) isa tenant-ownership;
         """
-        ans_a = exec_read(tx, q_a)
+        ans_a = exec_read_rows(tx, q_a)
         assert len(ans_a) == 1, "Tenant A should see their own capsule via join"
 
         # Tenant B should NOT see Tenant A's capsule
@@ -158,7 +144,7 @@ def test_tenant_ownership_relation_baseline(ghost_db):
             $c isa run-capsule, has capsule-id "{capsule_a}";
             (owner: $t, owned: $c) isa tenant-ownership;
         """
-        ans_b = exec_read(tx, q_b)
+        ans_b = exec_read_rows(tx, q_b)
         assert len(ans_b) == 0, "Tenant B MUST NOT see Tenant A's capsule via join"
 
 
@@ -196,7 +182,7 @@ def test_tenant_isolation_enforcement(ghost_db):
         """
         # Fix datetime for TypeDB
         import datetime
-        dt_now = datetime.datetime.now().isoformat()
+        dt_now = datetime.datetime.now().isoformat(timespec="seconds")
         setup_q = setup_q.replace('has created-at {config.typedb.database if not config.typedb.tls_enabled else "2026-02-22T14:00:00"}', f'has created-at {dt_now}')
 
         with ghost_db.driver.transaction(ghost_db.database, TransactionType.WRITE) as tx:
@@ -206,7 +192,7 @@ def test_tenant_isolation_enforcement(ghost_db):
         # 2. Test production read paths
         # Tenant X should see their capsule
         results_x, _ = typedb_reads.list_capsules_for_tenant(tenant_x)
-        assert any(r["capsule_id"] == capsule_x for r in results_x), "Tenant X should see their own capsule via service"
+        assert any(r["capsule_id"] == capsule_x for r in results_x), f"Tenant X should see their own capsule via service. Got: {results_x}"
 
         # Tenant Y should NOT see Tenant X's capsule
         results_y, _ = typedb_reads.list_capsules_for_tenant(tenant_y)

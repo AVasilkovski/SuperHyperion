@@ -11,7 +11,7 @@ from src.api.main import app
 from src.config import config
 from src.sdk.types import GovernedResultV1, ReplayVerdictV1
 
-config.auth.jwt_secret = "test-secret"
+config.auth.jwt_secret = "test-secret-that-is-at-least-32-characters-long!!"
 config.auth.env = "prod"
 config.auth.allow_insecure_headers = False
 
@@ -20,7 +20,9 @@ client = TestClient(app)
 
 def create_test_token(tenant_id: str, role: str) -> dict:
     token = jwt.encode(
-        {"tenant_id": tenant_id, "role": role, "sub": "test-user"}, "test-secret", algorithm="HS256"
+        {"tenant_id": tenant_id, "role": role, "sub": "test-user"},
+        "test-secret-that-is-at-least-32-characters-long!!",
+        algorithm="HS256",
     )
     return {"Authorization": f"Bearer {token}"}
 

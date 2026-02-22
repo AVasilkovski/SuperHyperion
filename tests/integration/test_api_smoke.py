@@ -32,7 +32,7 @@ def test_api_capsules_with_mocked_db(client):
 
     from src.config import config
 
-    config.auth.jwt_secret = "test-secret"
+    config.auth.jwt_secret = "test-secret-that-is-at-least-32-characters-long!!"
     config.auth.env = "prod"
     config.auth.allow_insecure_headers = False
 
@@ -41,7 +41,7 @@ def test_api_capsules_with_mocked_db(client):
 
         token = jwt.encode(
             {"tenant_id": "t-123", "role": "operator", "sub": "test-user"},
-            "test-secret",
+            "test-secret-that-is-at-least-32-characters-long!!",
             algorithm="HS256",
         )
 

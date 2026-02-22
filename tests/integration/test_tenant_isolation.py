@@ -1,4 +1,3 @@
-import os
 import uuid
 
 import pytest
@@ -15,8 +14,8 @@ from src.schema.scientific_knowledge import CANONICAL_SCHEMA  # noqa: E402
 
 @pytest.fixture(scope="module")
 def ghost_db():
-    os.environ["TYPEDB_DATABASE"] = "test_tenant_isolation"
-    db = TypeDBConnection()
+    db_name = "test_tenant_isolation"
+    db = TypeDBConnection(database=db_name)
     if not db.connect():
         pytest.skip("TypeDB driver connection failed or not available")
 
@@ -26,8 +25,7 @@ def ghost_db():
 
     yield db
 
-    # Teardown skipped for speed/simplicity in testing; usually DB is dropped
-    os.environ.pop("TYPEDB_DATABASE", None)
+    # Teardown skipped for speed/simplicity in testing
 
 
 def test_tenant_isolation_baseline(ghost_db):

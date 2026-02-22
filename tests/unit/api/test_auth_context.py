@@ -23,7 +23,7 @@ def test_auth_missing_token_fails_closed_401(monkeypatch):
 
 
 def test_auth_invalid_token_fails_closed_401(monkeypatch):
-    monkeypatch.setattr(config.auth, "jwt_secret", "secret")
+    monkeypatch.setattr(config.auth, "jwt_secret", "test-secret-that-is-at-least-32-characters-long!!")
 
     with pytest.raises(HTTPException) as exc:
         get_auth_context(MockRequest(), authorization="Bearer invalid.token.here")
@@ -32,13 +32,13 @@ def test_auth_invalid_token_fails_closed_401(monkeypatch):
 
 
 def test_auth_valid_token_threads_tenant_and_role(monkeypatch):
-    monkeypatch.setattr(config.auth, "jwt_secret", "secret")
+    monkeypatch.setattr(config.auth, "jwt_secret", "test-secret-that-is-at-least-32-characters-long!!")
     monkeypatch.setattr(config.auth, "jwt_issuer", None)
     monkeypatch.setattr(config.auth, "jwt_audience", None)
 
     token = jwt.encode(
         {"tenant_id": "tenant-123", "role": "admin", "sub": "user-1", "custom_claim": "value"},
-        "secret",
+        "test-secret-that-is-at-least-32-characters-long!!",
         algorithm="HS256",
     )
 
@@ -71,14 +71,16 @@ def test_insecure_header_fallback_only_when_env_enabled_and_dev(monkeypatch):
 
 
 def test_token_present_ignores_headers(monkeypatch):
-    monkeypatch.setattr(config.auth, "jwt_secret", "secret")
+    monkeypatch.setattr(config.auth, "jwt_secret", "test-secret-that-is-at-least-32-characters-long!!")
     monkeypatch.setattr(config.auth, "jwt_issuer", None)
     monkeypatch.setattr(config.auth, "jwt_audience", None)
     monkeypatch.setattr(config.auth, "allow_insecure_headers", True)
     monkeypatch.setattr(config.auth, "env", "dev")
 
     token = jwt.encode(
-        {"tenant_id": "tenant-jwt", "role": "admin", "sub": "user-jwt"}, "secret", algorithm="HS256"
+        {"tenant_id": "tenant-jwt", "role": "admin", "sub": "user-jwt"},
+        "test-secret-that-is-at-least-32-characters-long!!",
+        algorithm="HS256",
     )
 
     auth_ctx = get_auth_context(

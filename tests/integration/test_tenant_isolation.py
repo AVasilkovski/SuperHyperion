@@ -31,6 +31,21 @@ def is_typedb_ready():
         return False
 
 
+def exec_write(tx, q: str) -> None:
+    qs = q.strip()
+    # Tiny regression guard against passing empty or malformed strings
+    if not (qs.startswith("insert") or qs.startswith("match") or qs.startswith("define") or qs.startswith("undefine")):
+        raise ValueError(f"exec_write query must start with insert, match, define, or undefine. Got: {qs[:20]}")
+    # Force exhaustion of the lazy TypeDB 3.x iterator
+    for _ in tx.query(qs):
+        pass
+
+
+def exec_read(tx, q: str):
+    # Materialize lazy read iterator directly to a list
+    return list(tx.query(q.strip()))
+
+
 @pytest.fixture(scope="module")
 def ghost_db():
     if not is_typedb_ready():
@@ -86,19 +101,18 @@ def test_tenant_isolation_baseline(ghost_db):
         $tA isa tenant, has tenant-id "{tenant_a}";
         $tB isa tenant, has tenant-id "{tenant_b}";
         $cA isa run-capsule, has capsule-id "{capsule_a}", has tenant-id "{tenant_a}";
-        (tenant: $tA, capsule: $cA) isa tenant-owns-capsule;
+        (owner: $tA, owned: $cA) isa tenant-ownership;
     """
 
     with driver.transaction(db_name, TransactionType.WRITE) as tx:
-        # Loudly fail on write if TypeDB rejects it
-        ans = tx.query(setup_q.strip()).resolve()
-        list(ans.as_concept_rows())  # Exhaust iterator
+        # Loudly fail on write if TypeDB rejects it and exhaust iterator
+        exec_write(tx, setup_q)
         tx.commit()
 
     # Regression check: does it exist in the exact DB we're testing?
     with driver.transaction(db_name, TransactionType.READ) as tx:
         q_verify = f'match $t isa tenant, has tenant-id "{tenant_a}";'
-        ans_verify = list(tx.query(q_verify).resolve().as_concept_rows())
+        ans_verify = exec_read(tx, q_verify)
         if len(ans_verify) == 0:
             raise AssertionError(f"Write swallowed! Tenant {tenant_a} not found in DB '{db_name}'. Address: {ghost_db.address}")
 
@@ -106,12 +120,12 @@ def test_tenant_isolation_baseline(ghost_db):
     with driver.transaction(db_name, TransactionType.READ) as tx:
         # Step A1: Can we find the Tenant?
         q_t = f'match $t isa tenant, has tenant-id "{tenant_a}";'
-        ans_t = list(tx.query(q_t).resolve().as_concept_rows())
+        ans_t = exec_read(tx, q_t)
         assert len(ans_t) == 1, f"Tenant {tenant_a} not found in DB"
 
         # Step A2: Can we find the Capsule?
         q_c = f'match $c isa run-capsule, has capsule-id "{capsule_a}";'
-        ans_c = list(tx.query(q_c).resolve().as_concept_rows())
+        ans_c = exec_read(tx, q_c)
         assert len(ans_c) == 1, f"Capsule {capsule_a} not found in DB"
 
         # Step A3: Can we find the Relation?
@@ -119,9 +133,9 @@ def test_tenant_isolation_baseline(ghost_db):
         match
             $t isa tenant, has tenant-id "{tenant_a}";
             $c isa run-capsule, has capsule-id "{capsule_a}";
-            (tenant: $t, capsule: $c) isa tenant-owns-capsule;
+            (owner: $t, owned: $c) isa tenant-ownership;
         """
-        ans_a = list(tx.query(q_a).resolve().as_concept_rows())
+        ans_a = exec_read(tx, q_a)
         assert len(ans_a) == 1, "Tenant A should see their own capsule via relation"
 
         # Query B: Tenant B requests Tenant A's capsule -> Should Fail (Return empty)
@@ -129,7 +143,7 @@ def test_tenant_isolation_baseline(ghost_db):
         match
             $t isa tenant, has tenant-id "{tenant_b}";
             $c isa run-capsule, has capsule-id "{capsule_a}";
-            (tenant: $t, capsule: $c) isa tenant-owns-capsule;
+            (owner: $t, owned: $c) isa tenant-ownership;
         """
-        ans_b = list(tx.query(q_b).resolve().as_concept_rows())
+        ans_b = exec_read(tx, q_b)
         assert len(ans_b) == 0, "Tenant B MUST NOT see Tenant A's capsule (isolation leak)"

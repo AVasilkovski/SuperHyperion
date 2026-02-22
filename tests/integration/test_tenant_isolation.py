@@ -45,8 +45,14 @@ def exec_write(tx, q: str) -> None:
     if not any(qs.startswith(k) for k in ["insert", "match", "define", "undefine"]):
         raise ValueError(f"exec_write query must start with insert, match, define, or undefine. Got: {qs[:20]}")
         
-    # Correct TypeDB 3.x driver execution: query then resolve
-    tx.query(qs).resolve()
+    # Correct TypeDB 3.x driver execution: query then resolve and materialize
+    ans = tx.query(qs).resolve()
+    if hasattr(ans, "as_concept_rows"):
+        list(ans.as_concept_rows())
+    elif hasattr(ans, "as_concept_documents"):
+        list(ans.as_concept_documents())
+    else:
+        list(ans)
 
 
 def exec_read_rows(tx, q: str):
@@ -54,7 +60,8 @@ def exec_read_rows(tx, q: str):
     if not qs:
         raise ValueError("empty query")
     # Correct TypeDB 3.x driver execution: query, resolve, then materialize concept rows
-    return list(tx.query(qs).resolve().as_concept_rows())
+    ans = tx.query(qs).resolve()
+    return list(ans.as_concept_rows()) if hasattr(ans, "as_concept_rows") else list(ans)
 
 
 @pytest.fixture(scope="module")
@@ -105,12 +112,12 @@ def test_tenant_ownership_relation_baseline(ghost_db):
     tenant_b = f"T-B-{uuid.uuid4().hex[:8]}"
     capsule_a = f"cap-A-{uuid.uuid4().hex[:8]}"
 
-    # 1. Setup Data with Read-Your-Writes validation
+    # 1. Setup Data with Materialization
     setup_q = f"""
     insert 
-        $tA isa tenant, has tenant-id "{tenant_a}";
-        $tB isa tenant, has tenant-id "{tenant_b}";
-        $cA isa run-capsule, has capsule-id "{capsule_a}", has tenant-id "{tenant_a}";
+        $tA isa tenant, has tenant-id '{tenant_a}';
+        $tB isa tenant, has tenant-id '{tenant_b}';
+        $cA isa run-capsule, has capsule-id '{capsule_a}', has tenant-id '{tenant_a}';
         (owner: $tA, owned: $cA) isa tenant-ownership;
     """
 
@@ -120,18 +127,18 @@ def test_tenant_ownership_relation_baseline(ghost_db):
 
     # 2. Persistence check: prove existence after commit
     with driver.transaction(db_name, TransactionType.READ) as tx:
-        verify_q = f'match $t isa tenant, has tenant-id "{tenant_a}";'
+        verify_q = f"match $t isa tenant, has tenant-id '{tenant_a}';"
         ans = exec_read_rows(tx, verify_q)
         if not ans:
             raise AssertionError(f"Write swallowed after commit! Tenant {tenant_a} not found in DB '{db_name}'.")
 
-    # 3. Join-based isolation baseline (The "Correctness" check)
+    # 3. Join-based isolation baseline (The 'Correctness' check)
     with driver.transaction(db_name, TransactionType.READ) as tx:
         # Tenant A should see their own capsule
         q_a = f"""
         match
-            $t isa tenant, has tenant-id "{tenant_a}";
-            $c isa run-capsule, has capsule-id "{capsule_a}";
+            $t isa tenant, has tenant-id '{tenant_a}';
+            $c isa run-capsule, has capsule-id '{capsule_a}';
             (owner: $t, owned: $c) isa tenant-ownership;
         """
         ans_a = exec_read_rows(tx, q_a)
@@ -140,8 +147,8 @@ def test_tenant_ownership_relation_baseline(ghost_db):
         # Tenant B should NOT see Tenant A's capsule
         q_b = f"""
         match
-            $t isa tenant, has tenant-id "{tenant_b}";
-            $c isa run-capsule, has capsule-id "{capsule_a}";
+            $t isa tenant, has tenant-id '{tenant_b}';
+            $c isa run-capsule, has capsule-id '{capsule_a}';
             (owner: $t, owned: $c) isa tenant-ownership;
         """
         ans_b = exec_read_rows(tx, q_b)
@@ -158,32 +165,30 @@ def test_tenant_isolation_enforcement(ghost_db):
     # We must temporarily patch the config to point to our test database if it's isolated.
     original_db = config.typedb.database
     config.typedb.database = ghost_db.database
-    
     try:
-        tenant_x = f"T-X-{uuid.uuid4().hex[:8]}"
-        tenant_y = f"T-Y-{uuid.uuid4().hex[:8]}"
-        capsule_x = f"cap-X-{uuid.uuid4().hex[:8]}"
+        tenant_x = f'T-X-{uuid.uuid4().hex[:8]}'
+        tenant_y = f'T-Y-{uuid.uuid4().hex[:8]}'
+        capsule_x = f'cap-X-{uuid.uuid4().hex[:8]}'
+
+        import datetime
+        dt_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec='seconds')
         
         # 1. Insert data directly for testing
         setup_q = f"""
         insert 
-            $tX isa tenant, has tenant-id "{tenant_x}";
-            $tY isa tenant, has tenant-id "{tenant_y}";
+            $tX isa tenant, has tenant-id '{tenant_x}';
+            $tY isa tenant, has tenant-id '{tenant_y}';
             $cX isa run-capsule, 
-                has capsule-id "{capsule_x}", 
-                has tenant-id "{tenant_x}",
-                has session-id "sess-X",
-                has query-hash "hash-X",
-                has scope-lock-id "sl-X",
-                has intent-id "int-X",
-                has proposal-id "prop-X",
-                has created-at {config.typedb.database if not config.typedb.tls_enabled else "2026-02-22T14:00:00"}; # Placeholder
+                has capsule-id '{capsule_x}', 
+                has tenant-id '{tenant_x}',
+                has session-id 'sess-X',
+                has query-hash 'hash-X',
+                has scope-lock-id 'sl-X',
+                has intent-id 'int-X',
+                has proposal-id 'prop-X',
+                has created-at {dt_now};
             (owner: $tX, owned: $cX) isa tenant-ownership;
         """
-        # Fix datetime for TypeDB
-        import datetime
-        dt_now = datetime.datetime.now().isoformat(timespec="seconds")
-        setup_q = setup_q.replace('has created-at {config.typedb.database if not config.typedb.tls_enabled else "2026-02-22T14:00:00"}', f'has created-at {dt_now}')
 
         with ghost_db.driver.transaction(ghost_db.database, TransactionType.WRITE) as tx:
             exec_write(tx, setup_q)
@@ -207,6 +212,5 @@ def test_tenant_isolation_enforcement(ghost_db):
         # Tenant Y fetch -> Not Found (Isolated)
         item_y = typedb_reads.fetch_capsule_by_id_scoped(tenant_y, capsule_x)
         assert item_y is None, "Tenant Y should receive None (404-equivalent) when requesting Tenant X's capsule"
-
     finally:
         config.typedb.database = original_db

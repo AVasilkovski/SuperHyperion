@@ -43,11 +43,14 @@ def get_current_schema_version(driver, db: str) -> int:
     query = "match $v isa schema_version, has ordinal $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
-            results = tx.query(query).resolve()
+            # Materialize to force execution
+            ans = tx.query(query).resolve()
+            rows = list(ans.as_concept_rows())
+            
             ordinals = []
-            for r in results.as_concept_rows():
+            for r in rows:
                 o = r.get("o")
-                if o and o.is_attribute():
+                if o and hasattr(o, "is_attribute") and o.is_attribute():
                     ordinals.append(int(o.as_attribute().get_value()))
             return max(ordinals) if ordinals else 0
     except Exception as e:

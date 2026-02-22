@@ -27,11 +27,14 @@ def db_current_ordinal(driver, db: str) -> int:
     q = "match $v isa schema_version, has ordinal $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
+            # Materialize to force execution
             ans = tx.query(q).resolve()
+            rows = list(ans.as_concept_rows())
+            
             ords = []
-            for row in ans.as_concept_rows():
+            for row in rows:
                 c = row.get("o")
-                if c and c.is_attribute():
+                if c and hasattr(c, "is_attribute") and c.is_attribute():
                     ords.append(int(c.as_attribute().get_value()))
             return max(ords) if ords else 0
     except Exception as e:

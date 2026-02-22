@@ -53,8 +53,8 @@ def list_capsules_for_tenant(
         # For descending sort (created_at DESC, capsule_id DESC), the next page must be strictly older
         # or exactly the same time but a strictly smaller id.
         cursor_clause = f"""
-        {{ $c has created-at $ca; $ca < "{c_time}"; }} or
-        {{ $c has created-at "{c_time}"; $c has capsule-id $cid; $cid < "{c_id}"; }};
+        {{ $c has created-at $ca; $ca < '{c_time}'; }} or
+        {{ $c has created-at '{c_time}'; $c has capsule-id $cid; $cid < '{c_id}'; }};
         """
 
     # NOTE: In TypeDB 3.x querying, explicit disjunction might require specific syntax.
@@ -64,7 +64,7 @@ def list_capsules_for_tenant(
 
     query = f"""
     match
-        $t isa tenant, has tenant-id "{tenant_id}";
+        $t isa tenant, has tenant-id '{tenant_id}';
         (owner: $t, owned: $c) isa tenant-ownership;
         $c isa run-capsule,
             has capsule-id $cid,
@@ -149,8 +149,8 @@ def fetch_capsule_by_id_scoped(tenant_id: str, capsule_id: str) -> Optional[Dict
     """
     query = f"""
     match
-        $t isa tenant, has tenant-id "{tenant_id}";
-        $c isa run-capsule, has capsule-id "{capsule_id}";
+        $t isa tenant, has tenant-id '{tenant_id}';
+        $c isa run-capsule, has capsule-id '{capsule_id}';
         (owner: $t, owned: $c) isa tenant-ownership;
     fetch
         $c: capsule-id, session-id, query-hash, scope-lock-id, intent-id, proposal-id, created-at;

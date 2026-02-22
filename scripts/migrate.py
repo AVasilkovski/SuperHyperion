@@ -43,15 +43,15 @@ def get_current_schema_version(driver, db: str) -> int:
     query = "match $v isa schema_version, has ordinal $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
-            # Materialize to force execution
+            # Materialize to force execution and comply with TypeDB 3.8
             ans = tx.query(query).resolve()
             rows = list(ans.as_concept_rows())
             
             ordinals = []
             for r in rows:
-                o = r.get("o")
-                if o and hasattr(o, "is_attribute") and o.is_attribute():
-                    ordinals.append(int(o.as_attribute().get_value()))
+                o_attr = r.get("o")
+                if o_attr and o_attr.is_attribute():
+                    ordinals.append(int(o_attr.as_attribute().get_value()))
             return max(ordinals) if ordinals else 0
     except Exception as e:
         # Catch ConceptError or missing schema_version gracefully

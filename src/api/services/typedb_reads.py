@@ -40,7 +40,7 @@ def list_capsules_for_tenant(
 ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
     List capsules scoped to a tenant with cursor pagination.
-    Uses strict tenant-owns-capsule joins. No writes permitted.
+    Uses strict tenant-ownership joins. No writes permitted.
     """
     # Defensive limit capping
     actual_limit = max(1, min(limit, 200))

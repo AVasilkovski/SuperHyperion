@@ -94,8 +94,6 @@ def _deterministic_evidence() -> list[dict[str, Any]]:
     ]
 
 
-
-
 def _typedb_ready() -> tuple[bool, str]:
     """Return (ready, reason) for TypeDB-backed deterministic gate execution."""
     try:

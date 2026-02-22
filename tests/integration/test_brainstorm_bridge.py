@@ -5,17 +5,17 @@ These tests verify the epistemic firewall between the speculative lane
 and the grounded lane, specifically:
 
 1. SpeculativeAgent produces typed ExperimentHints
-2. VerifyAgent consumes hints for experiment design  
+2. VerifyAgent consumes hints for experiment design
 3. ExperimentSpec rejects speculative residue
 4. Steward guard rejects hints in evidence payload
 """
-
 
 import pytest
 
 # =============================================================================
 # Type Tests
 # =============================================================================
+
 
 def test_experiment_hints_type_creation():
     """ExperimentHints can be created with tight typing."""
@@ -26,9 +26,7 @@ def test_experiment_hints_type_creation():
         candidate_mechanisms=["mechanism A", "mechanism B"],
         discriminative_predictions=["If A, then X; if B, then Y"],
         sensitivity_axes=["temperature", "dose"],
-        prior_suggestions=[
-            PriorSuggestion(domain="pharmacology", parallel="dose-response curve")
-        ],
+        prior_suggestions=[PriorSuggestion(domain="pharmacology", parallel="dose-response curve")],
         falsification_criteria=["observe X under condition Z"],
     )
 
@@ -68,6 +66,7 @@ def test_experiment_hints_digest_differs_for_different_content():
 # =============================================================================
 # ExperimentSpec No-Residue Guard Tests
 # =============================================================================
+
 
 def test_experiment_spec_rejects_experiment_hints_field():
     """ExperimentSpec cannot contain experiment_hints field (no-residue)."""
@@ -143,6 +142,7 @@ def test_experiment_spec_accepts_clean_spec():
 # SpeculativeAgent Hint Extraction Tests
 # =============================================================================
 
+
 def test_speculative_agent_extract_experiment_hints():
     """SpeculativeAgent._extract_experiment_hints produces typed hints."""
     from src.agents.speculative_agent import SpeculativeAgent
@@ -202,6 +202,7 @@ def test_speculative_agent_hints_have_digests():
 # Steward Guard Tests (hints in evidence must be rejected)
 # =============================================================================
 
+
 def test_steward_rejects_experiment_hints_in_evidence_via_epistemic_status():
     """Steward guard catches hints leaked into evidence payload."""
     from src.agents.ontology_steward import q_insert_validation_evidence
@@ -251,6 +252,7 @@ def test_steward_rejects_raw_speculative_context_in_evidence():
 # Integration: VerifyAgent uses hints
 # =============================================================================
 
+
 def test_verify_agent_design_uses_hints_for_template_selection():
     """VerifyAgent selects sensitivity_suite when hints have sensitivity_axes."""
     import asyncio
@@ -274,9 +276,7 @@ def test_verify_agent_design_uses_hints_for_template_selection():
 
     claim = {"claim_id": "claim-1", "content": "Test claim"}
 
-    spec = asyncio.run(
-        agent._design_experiment_spec(claim, context)
-    )
+    spec = asyncio.run(agent._design_experiment_spec(claim, context))
 
     # Should select sensitivity_suite due to sensitivity_axes
     assert spec is not None
@@ -297,9 +297,7 @@ def test_verify_agent_design_falls_back_without_hints():
 
     claim = {"claim_id": "claim-2", "content": "Test claim without hints"}
 
-    spec = asyncio.run(
-        agent._design_experiment_spec(claim, context)
-    )
+    spec = asyncio.run(agent._design_experiment_spec(claim, context))
 
     # Should use default template
     assert spec is not None

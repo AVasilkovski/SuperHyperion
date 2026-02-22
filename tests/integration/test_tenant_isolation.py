@@ -53,17 +53,26 @@ def test_tenant_isolation_baseline(ghost_db):
         tx.query(setup_q.strip()).resolve()
 
     # 2. Test Fetching with Scoping Helper
-    from src.trust.tenant_scope import scope_prefix
 
     with ghost_db.transaction(TransactionType.READ) as tx:
         # Query A: Tenant A requests their own capsule -> Should Succeed
-        scope_a = scope_prefix(tenant_a, target_var="c").strip()
-        q_a = f'match $c isa run-capsule, has capsule-id "{capsule_a}", {scope_a.replace("$c ", "")}; select $c;'
+        q_a = f"""
+        match
+            $t isa tenant, has tenant-id "{tenant_a}";
+            $c isa run-capsule, has capsule-id "{capsule_a}";
+            (tenant: $t, capsule: $c) isa tenant-owns-capsule;
+        select $c;
+        """
         ans_a = list(tx.query(q_a).resolve().as_concept_rows())
         assert len(ans_a) == 1, "Tenant A should see their own capsule"
 
         # Query B: Tenant B requests Tenant A's capsule -> Should Fail (Return empty)
-        scope_b = scope_prefix(tenant_b, target_var="c").strip()
-        q_b = f'match $c isa run-capsule, has capsule-id "{capsule_a}", {scope_b.replace("$c ", "")}; select $c;'
+        q_b = f"""
+        match
+            $t isa tenant, has tenant-id "{tenant_b}";
+            $c isa run-capsule, has capsule-id "{capsule_a}";
+            (tenant: $t, capsule: $c) isa tenant-owns-capsule;
+        select $c;
+        """
         ans_b = list(tx.query(q_b).resolve().as_concept_rows())
         assert len(ans_b) == 0, "Tenant B MUST NOT see Tenant A's capsule (isolation leak)"

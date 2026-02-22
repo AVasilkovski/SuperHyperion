@@ -41,8 +41,12 @@ def build_summary(in_dir: str) -> dict[str, Any]:
     commit = _load_gate_dir(root / "commit")
     hold = _load_gate_dir(root / "hold")
 
-    commit_pass = bool(commit["status"] == "STAGED" and commit["capsule_id"] and commit["replay_status"] == "PASS")
-    hold_pass = bool(hold["status"] == "HOLD" and hold["capsule_id"] is None and hold["hold_code"] is not None)
+    commit_pass = bool(
+        commit["status"] == "STAGED" and commit["capsule_id"] and commit["replay_status"] == "PASS"
+    )
+    hold_pass = bool(
+        hold["status"] == "HOLD" and hold["capsule_id"] is None and hold["hold_code"] is not None
+    )
 
     hold_code_distribution = []
     if hold["hold_code"] is not None:

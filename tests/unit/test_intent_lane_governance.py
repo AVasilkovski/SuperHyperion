@@ -49,8 +49,8 @@ class TestWriteIntentLaneGovernance:
         """Should store lane in envelope and strip from payload."""
         intent = self.service.stage(
             intent_type="metrics_update",
-            payload={"metrics": {"test": 1}, "lane": "grounded"}, # passing lane in payload
-            lane="grounded"
+            payload={"metrics": {"test": 1}, "lane": "grounded"},  # passing lane in payload
+            lane="grounded",
         )
 
         # Check intent object
@@ -60,7 +60,7 @@ class TestWriteIntentLaneGovernance:
         # Check store
         stored = self.store.intents[intent.intent_id]
         if "lane" in stored:
-             assert stored["lane"] == "grounded"
+            assert stored["lane"] == "grounded"
         assert "lane" not in stored["payload"]
 
     def test_stage_mismatched_lane_raises(self):
@@ -69,7 +69,7 @@ class TestWriteIntentLaneGovernance:
             self.service.stage(
                 intent_type="metrics_update",
                 payload={"metrics": {}, "lane": "speculative"},
-                lane="grounded"
+                lane="grounded",
             )
 
     def test_scope_lock_policy_uses_envelope_lane(self):
@@ -79,7 +79,7 @@ class TestWriteIntentLaneGovernance:
             self.service.stage(
                 intent_type="create_proposition",
                 payload={"claim_id": "c1", "content": "t"},
-                lane="grounded"
+                lane="grounded",
                 # missing scope_lock_id
             )
 
@@ -88,10 +88,7 @@ class TestWriteIntentLaneGovernance:
         from src.agents.propose_agent import WriteIntent as AgentWriteIntent
 
         agent_intent = AgentWriteIntent(
-            intent_id="i1",
-            intent_type="update_epistemic_status",
-            lane="grounded",
-            payload={}
+            intent_id="i1", intent_type="update_epistemic_status", lane="grounded", payload={}
         )
         d = agent_intent.to_dict()
         assert d["lane"] == "grounded"
@@ -103,9 +100,7 @@ class TestWriteIntentLaneGovernance:
 
         with pytest.raises(ValueError, match="Payload must not contain 'lane'"):
             validate_intent_payload(
-                "metrics_update",
-                {"metrics": {}, "lane": "grounded"},
-                "grounded"
+                "metrics_update", {"metrics": {}, "lane": "grounded"}, "grounded"
             )
 
     def test_reconstruction_backward_compatibility(self):

@@ -27,8 +27,15 @@ class TestToOperatorTuples:
         """Should correctly parse TypeDB variable-named keys."""
         rows = [
             {"eid": "ev-1", "cid": "c1", "slid": "sl-1", "conf": 0.9, "role": "support"},
-            {"eid": "nev-1", "cid": "c1", "slid": "sl-1", "conf": 0.7, "role": "refute",
-             "fm": "null_effect", "rs": 0.7},
+            {
+                "eid": "nev-1",
+                "cid": "c1",
+                "slid": "sl-1",
+                "conf": 0.7,
+                "role": "refute",
+                "fm": "null_effect",
+                "rs": 0.7,
+            },
         ]
 
         tuples = self.steward._to_operator_tuples(rows)
@@ -48,8 +55,13 @@ class TestToOperatorTuples:
     def test_handles_legacy_keys(self):
         """Should fall back to legacy keys if DB keys missing."""
         rows = [
-            {"entity-id": "ev-2", "claim-id": "c2", "scope-lock-id": "sl-2",
-             "confidence-score": 0.8, "evidence-role": "support"},
+            {
+                "entity-id": "ev-2",
+                "claim-id": "c2",
+                "scope-lock-id": "sl-2",
+                "confidence-score": 0.8,
+                "evidence-role": "support",
+            },
         ]
 
         tuples = self.steward._to_operator_tuples(rows)
@@ -137,8 +149,8 @@ class TestGenerateAndStageProposals:
     def setup_method(self):
         self.steward = OntologySteward()
 
-    @patch.object(OntologySteward, '_fetch_session_evidence')
-    @patch('src.hitl.intent_service.write_intent_service')
+    @patch.object(OntologySteward, "_fetch_session_evidence")
+    @patch("src.hitl.intent_service.write_intent_service")
     def test_stages_proposal_for_sufficient_evidence(self, mock_service, mock_fetch):
         """Should stage proposal when MIN_EVIDENCE_COUNT met."""
         mock_fetch.return_value = [
@@ -157,8 +169,8 @@ class TestGenerateAndStageProposals:
         assert call_kwargs["lane"] == "grounded"
         assert "lane" not in call_kwargs["payload"]  # lane in envelope, not payload
 
-    @patch.object(OntologySteward, '_fetch_session_evidence')
-    @patch('src.hitl.intent_service.write_intent_service')
+    @patch.object(OntologySteward, "_fetch_session_evidence")
+    @patch("src.hitl.intent_service.write_intent_service")
     def test_skips_hold_action(self, mock_service, mock_fetch):
         """Should NOT stage if action is HOLD (insufficient evidence)."""
         # Only 1 evidence row (below MIN_EVIDENCE_COUNT=2)
@@ -172,8 +184,8 @@ class TestGenerateAndStageProposals:
         # Should NOT have called stage (HOLD action)
         assert mock_service.stage.call_count == 0
 
-    @patch.object(OntologySteward, '_fetch_session_evidence')
-    @patch('src.hitl.intent_service.write_intent_service')
+    @patch.object(OntologySteward, "_fetch_session_evidence")
+    @patch("src.hitl.intent_service.write_intent_service")
     def test_groups_by_claim(self, mock_service, mock_fetch):
         """Should group evidence by claim and stage separate proposals."""
         mock_fetch.return_value = [
@@ -189,8 +201,8 @@ class TestGenerateAndStageProposals:
         # Should have staged 2 proposals (one per claim)
         assert mock_service.stage.call_count == 2
 
-    @patch.object(OntologySteward, '_fetch_session_evidence')
-    @patch('src.hitl.intent_service.write_intent_service')
+    @patch.object(OntologySteward, "_fetch_session_evidence")
+    @patch("src.hitl.intent_service.write_intent_service")
     def test_derives_scope_lock_from_evidence(self, mock_service, mock_fetch):
         """Should pass derived scope_lock_id to stage()."""
         mock_fetch.return_value = [

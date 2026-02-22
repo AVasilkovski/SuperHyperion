@@ -4,7 +4,6 @@ HITL Gates Tests
 v2.1: Tests for HITL gate triggering and audit logging.
 """
 
-
 import pytest
 
 from src.hitl.audit import HITLAuditLog
@@ -140,9 +139,7 @@ class TestHITLAuditLog:
     def test_logs_gate_triggered(self, audit):
         """Logs gate trigger event."""
         event_id = audit.log_gate_triggered(
-            claim_id="C1",
-            gate_type="epistemic",
-            trigger_reason="Status transition"
+            claim_id="C1", gate_type="epistemic", trigger_reason="Status transition"
         )
 
         assert event_id.startswith("evt_")
@@ -184,15 +181,9 @@ class TestHITLAuditLog:
 
     def test_count_by_action(self, audit):
         """Counts events by action type."""
-        audit.log_decision("C1", HITLDecision(
-            action="approve", rationale="", approver_id=""
-        ), "")
-        audit.log_decision("C2", HITLDecision(
-            action="reject", rationale="", approver_id=""
-        ), "")
-        audit.log_decision("C3", HITLDecision(
-            action="approve", rationale="", approver_id=""
-        ), "")
+        audit.log_decision("C1", HITLDecision(action="approve", rationale="", approver_id=""), "")
+        audit.log_decision("C2", HITLDecision(action="reject", rationale="", approver_id=""), "")
+        audit.log_decision("C3", HITLDecision(action="approve", rationale="", approver_id=""), "")
 
         counts = audit.count_by_action()
         assert counts["approve"] == 2

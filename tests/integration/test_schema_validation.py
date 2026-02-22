@@ -1,5 +1,3 @@
-
-
 import pytest
 
 from src.db.typedb_client import TypeDBConnection
@@ -24,14 +22,22 @@ class MockQuery:
     def resolve(self):
         return self
 
+
 class MockTransaction:
     def __init__(self):
         self.query = MockQuery()
 
-    def commit(self): pass
-    def close(self): pass
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): pass
+    def commit(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class MockDriver:
@@ -41,7 +47,9 @@ class MockDriver:
     def transaction(self, db, type, options=None):
         return self.tx
 
-    def close(self): pass
+    def close(self):
+        pass
+
 
 @pytest.fixture
 def mock_typedb(monkeypatch):
@@ -53,7 +61,8 @@ def mock_typedb(monkeypatch):
 
     class MockTypeDBClass:
         @staticmethod
-        def driver(addr, creds, opts): return mock_driver
+        def driver(addr, creds, opts):
+            return mock_driver
 
     monkeypatch.setattr("src.db.typedb_client.TypeDB", MockTypeDBClass)
     monkeypatch.setattr("src.db.typedb_client.Credentials", lambda u, p: None)
@@ -71,9 +80,10 @@ def mock_typedb(monkeypatch):
 
     return mock_driver
 
+
 def test_schema_syntax_and_load(mock_typedb):
     """
-    Simulate loading the schema to check for syntax errors catching 
+    Simulate loading the schema to check for syntax errors catching
     (though real syntax check needs real TypeDB, this verifies the file is readable and passed to driver).
     and manually inspect the content for the fixed items.
     """
@@ -100,7 +110,9 @@ def test_schema_syntax_and_load(mock_typedb):
 
     # We can access the definition via the mock_driver fixture if we ensured it was returned
     if not mock_typedb.tx.query.definitions:
-        pytest.fail(f"No definitions found! Mock driver stats: {len(mock_typedb.tx.query.definitions)} inserts: {len(mock_typedb.tx.query.inserts)}")
+        pytest.fail(
+            f"No definitions found! Mock driver stats: {len(mock_typedb.tx.query.definitions)} inserts: {len(mock_typedb.tx.query.inserts)}"
+        )
 
     defined_schema = mock_typedb.tx.query.definitions[0]
 
@@ -111,11 +123,14 @@ def test_schema_syntax_and_load(mock_typedb):
     assert count == 1, f"Expected 1 definition of {relation_def}, found {count}"
 
     # 2. Check for Severity Attribute Definition
-    assert "attribute severity, value string;" in defined_schema, "Severity attribute definition missing"
+    assert "attribute severity, value string;" in defined_schema, (
+        "Severity attribute definition missing"
+    )
 
     # 3. Check for Entity usage of severity
     assert "owns severity," in defined_schema, "Entity usage of severity missing"
     assert "entity meta-critique-report" in defined_schema
+
 
 def test_meta_critique_insert_generation():
     """Verify we can form a query using the new attribute."""

@@ -7,7 +7,6 @@ Tests for:
 - Validation evidence success-only invariant preservation
 """
 
-
 import pytest
 
 from src.agents.ontology_steward import (
@@ -30,6 +29,7 @@ from src.governance.fingerprinting import (
 # =============================================================================
 # Evidence Role Tests
 # =============================================================================
+
 
 class TestEvidenceRoles:
     """Tests for evidence role validation and semantics."""
@@ -106,6 +106,7 @@ class TestEvidenceRoles:
 # Fingerprinting Tests
 # =============================================================================
 
+
 class TestFingerprinting:
     """Tests for deterministic ID generation."""
 
@@ -137,7 +138,6 @@ class TestFingerprinting:
         # Hash parts are the same (same payload)
         assert pos_id[3:] == neg_id[4:]
 
-
     def test_make_mutation_id_deterministic(self):
         """Mutation IDs should be deterministic and namespaced."""
         id1 = make_mutation_id("sess-1", "intent-1", "claim-1", "verified")
@@ -156,6 +156,7 @@ class TestFingerprinting:
 # =============================================================================
 # Negative Evidence Query Tests
 # =============================================================================
+
 
 class TestNegativeEvidenceQuery:
     """Tests for q_insert_negative_evidence query builder."""
@@ -233,12 +234,13 @@ class TestNegativeEvidenceQuery:
 # Invariant Preservation Tests
 # =============================================================================
 
+
 class TestInvariantPreservation:
     """Tests ensuring Phase 15 invariants are preserved."""
 
     def test_validation_evidence_success_only_preserved(self):
         """Validation evidence should still be success-only.
-        
+
         This test ensures we haven't broken the existing invariant.
         The new negative-evidence channel is separate.
         """
@@ -262,8 +264,20 @@ class TestInvariantPreservation:
         """Positive and negative evidence channels should be completely separate."""
         from src.agents.ontology_steward import q_insert_validation_evidence
 
-        ev_pos = {"claim_id": "c1", "execution_id": "e1", "template_qid": "q1", "success": True, "scope_lock_id": "sl-1"}
-        ev_neg = {"claim_id": "c1", "execution_id": "e1", "template_qid": "q1", "failure_mode": "null_effect", "scope_lock_id": "sl-1"}
+        ev_pos = {
+            "claim_id": "c1",
+            "execution_id": "e1",
+            "template_qid": "q1",
+            "success": True,
+            "scope_lock_id": "sl-1",
+        }
+        ev_neg = {
+            "claim_id": "c1",
+            "execution_id": "e1",
+            "template_qid": "q1",
+            "failure_mode": "null_effect",
+            "scope_lock_id": "sl-1",
+        }
 
         query_pos = q_insert_validation_evidence("s1", ev_pos)
         query_neg = q_insert_negative_evidence("s1", ev_neg)

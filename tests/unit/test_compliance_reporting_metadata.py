@@ -88,7 +88,10 @@ def test_compliance_runs_include_unique_bundle_key_for_duplicate_prefixes(tmp_pa
             "source_refs": {},
         },
     )
-    _write(bundles / "tenant-a__run-1_run_capsule_manifest.json", {"capsule_id": "run-flat", "tenant_id": "t-flat"})
+    _write(
+        bundles / "tenant-a__run-1_run_capsule_manifest.json",
+        {"capsule_id": "run-flat", "tenant_id": "t-flat"},
+    )
 
     _write(
         bundles / "tenant-a" / "run-1_governance_summary.json",
@@ -109,7 +112,10 @@ def test_compliance_runs_include_unique_bundle_key_for_duplicate_prefixes(tmp_pa
             "source_refs": {},
         },
     )
-    _write(bundles / "tenant-a" / "run-1_run_capsule_manifest.json", {"capsule_id": "run-nested", "tenant_id": "t-nested"})
+    _write(
+        bundles / "tenant-a" / "run-1_run_capsule_manifest.json",
+        {"capsule_id": "run-nested", "tenant_id": "t-nested"},
+    )
 
     report = build_compliance_report(str(bundles))
     keys = [row["bundle_key"] for row in report["runs"]]

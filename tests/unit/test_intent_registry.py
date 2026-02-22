@@ -105,8 +105,8 @@ class TestPayloadValidation:
         """Should pass validation for valid payload."""
         validate_intent_payload(
             "create_proposition",
-            {"claim_id": "prop-123", "content": "Test"}, # scope_lock_id moved to envelope
-            "grounded"
+            {"claim_id": "prop-123", "content": "Test"},  # scope_lock_id moved to envelope
+            "grounded",
         )
 
     def test_missing_required_field_raises(self):
@@ -115,7 +115,7 @@ class TestPayloadValidation:
             validate_intent_payload(
                 "create_proposition",
                 {"claim_id": "prop-123"},  # missing content
-                "grounded"
+                "grounded",
             )
 
     def test_unknown_field_raises(self):
@@ -124,7 +124,7 @@ class TestPayloadValidation:
             validate_intent_payload(
                 "create_proposition",
                 {"claim_id": "prop-123", "content": "Test", "unknown": "bad"},
-                "grounded"
+                "grounded",
             )
 
     def test_wrong_lane_raises(self):
@@ -133,7 +133,7 @@ class TestPayloadValidation:
             validate_intent_payload(
                 "create_proposition",  # grounded-only
                 {"claim_id": "prop-123", "content": "Test"},
-                "speculative"
+                "speculative",
             )
 
     def test_lane_in_payload_raises(self):
@@ -142,16 +142,14 @@ class TestPayloadValidation:
             validate_intent_payload(
                 "create_claim",
                 {"claim_id": "prop-123", "content": "Test", "lane": "speculative"},
-                "speculative"
+                "speculative",
             )
 
     def test_missing_id_field_raises(self):
         """Should raise when required ID field is empty."""
         with pytest.raises(ValueError, match="Missing or empty ID fields"):
             validate_intent_payload(
-                "update_epistemic_status",
-                {"claim_id": "", "new_status": "validated"},
-                "grounded"
+                "update_epistemic_status", {"claim_id": "", "new_status": "validated"}, "grounded"
             )
 
     def test_fork_requires_both_claim_ids(self):
@@ -159,9 +157,13 @@ class TestPayloadValidation:
         with pytest.raises(ValueError, match="Missing or empty ID fields"):
             validate_intent_payload(
                 "fork_proposition",
-                {"parent_claim_id": "prop-1", "new_claim_id": "", "content": "Test",
-                 "fork_rationale": "conflict"},
-                "grounded"
+                {
+                    "parent_claim_id": "prop-1",
+                    "new_claim_id": "",
+                    "content": "Test",
+                    "fork_rationale": "conflict",
+                },
+                "grounded",
             )
 
     def test_valid_fork_payload_passes(self):
@@ -174,7 +176,7 @@ class TestPayloadValidation:
                 "content": "Forked hypothesis",
                 "fork_rationale": "High conflict",
             },
-            "grounded"
+            "grounded",
         )
 
 
@@ -183,7 +185,12 @@ class TestRegistryCompleteness:
 
     def test_all_phase_16_2_intents_present(self):
         """Should have all Phase 16.2 theory change intents."""
-        required = {"revise_proposition", "fork_proposition", "quarantine_proposition", "stage_epistemic_proposal"}
+        required = {
+            "revise_proposition",
+            "fork_proposition",
+            "quarantine_proposition",
+            "stage_epistemic_proposal",
+        }
         assert required.issubset(set(INTENT_REGISTRY.keys()))
 
     def test_all_low_risk_intents_present(self):

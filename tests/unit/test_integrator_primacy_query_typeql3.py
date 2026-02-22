@@ -16,5 +16,5 @@ def test_fetch_evidence_by_ids_uses_select_query_tail(monkeypatch):
     assert rows == []
     query = captured["query"]
     assert 'session-id "sess-1"' in query
-    assert 'select $id, $claim, $scope;' in query
-    assert 'get $id, $claim, $scope;' not in query
+    assert "select $id, $claim, $scope;" in query
+    assert "get $id, $claim, $scope;" not in query

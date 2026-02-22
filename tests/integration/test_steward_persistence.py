@@ -1,5 +1,3 @@
-
-
 import pytest
 
 from src.agents.base_agent import AgentContext
@@ -23,9 +21,11 @@ class MockTypeDB(TypeDBConnection):
     def connect(self):
         return True
 
+
 @pytest.fixture
 def mock_db():
     return MockTypeDB()
+
 
 @pytest.fixture
 def steward(mock_db):
@@ -33,10 +33,11 @@ def steward(mock_db):
     steward.db = mock_db
     return steward
 
+
 @pytest.mark.asyncio
 async def test_v22_end_to_end_persistence(steward, mock_db):
     """
-    Test a full session persistence cycle ensuring all v2.2 artifacts 
+    Test a full session persistence cycle ensuring all v2.2 artifacts
     generate correct TypeQL queries.
     """
     # Setup context with one of each artifact
@@ -51,7 +52,7 @@ async def test_v22_end_to_end_persistence(steward, mock_db):
                     "phase": "execution",
                     "agent_id": "ValidatorAgent.A",
                     "output": "Simulating...",
-                    "timestamp": "2023-01-01T00:00:00"
+                    "timestamp": "2023-01-01T00:00:00",
                 }
             ],
             "template_executions": [
@@ -62,7 +63,7 @@ async def test_v22_end_to_end_persistence(steward, mock_db):
                     "success": True,
                     "runtime_ms": 150,
                     "params": {"n": 100},
-                    "result": {"mean": 0.5}
+                    "result": {"mean": 0.5},
                 }
             ],
             "epistemic_update_proposal": [
@@ -72,23 +73,23 @@ async def test_v22_end_to_end_persistence(steward, mock_db):
                     "final_proposed_status": "supported",
                     "confidence_score": 0.85,
                     "cap_reasons": [],
-                    "requires_hitl": False
+                    "requires_hitl": False,
                 }
             ],
             "write_intents": [
                 {
                     "intent_id": "intent-1",
                     "intent_type": "update_epistemic_status",
-                    "payload": {"claim_id": "claim-alpha", "status": "supported"}
+                    "payload": {"claim_id": "claim-alpha", "status": "supported"},
                 }
             ],
             "approved_write_intents": [
                 {
                     "intent_id": "intent-1",
                     "intent_type": "update_epistemic_status",
-                    "payload": {"claim_id": "claim-alpha", "status": "supported"}
+                    "payload": {"claim_id": "claim-alpha", "status": "supported"},
                 }
-            ]
+            ],
         }
     )
 
@@ -100,48 +101,48 @@ async def test_v22_end_to_end_persistence(steward, mock_db):
     deletes_str = "\n".join(mock_db.deletes)
 
     # 1. Session
-    assert 'isa run-session' in inserts_str
+    assert "isa run-session" in inserts_str
     assert 'has session-id "sess-integration-test"' in inserts_str
     assert 'has run-status "running"' in inserts_str
     # Check session completion update (separate insert/delete)
-    assert 'insert $s has ended-at' in inserts_str
-    assert 'delete has $old of $s' in deletes_str
+    assert "insert $s has ended-at" in inserts_str
+    assert "delete has $old of $s" in deletes_str
     assert 'insert $s has run-status "complete"' in inserts_str
 
     # 2. Trace
-    assert 'isa trace-entry' in inserts_str
+    assert "isa trace-entry" in inserts_str
     assert 'has node-name "verify"' in inserts_str
-    assert 'isa session-has-trace' in inserts_str
+    assert "isa session-has-trace" in inserts_str
 
     # 3. Execution
-    assert 'isa template-execution' in inserts_str
+    assert "isa template-execution" in inserts_str
     assert 'has execution-id "exec-001"' in inserts_str
     assert 'has template-id "bootstrap_ci"' in inserts_str
-    assert 'has params-hash' in inserts_str
-    assert 'has result-hash' in inserts_str
-    assert 'isa session-has-execution' in inserts_str
+    assert "has params-hash" in inserts_str
+    assert "has result-hash" in inserts_str
+    assert "isa session-has-execution" in inserts_str
 
     # 4. Proposal
-    assert 'isa epistemic-proposal' in inserts_str
+    assert "isa epistemic-proposal" in inserts_str
     assert 'has final-proposed-status "supported"' in inserts_str
-    assert 'isa session-has-epistemic-proposal' in inserts_str
+    assert "isa session-has-epistemic-proposal" in inserts_str
     # Check Linking
-    assert 'isa proposal-targets-proposition' in inserts_str
+    assert "isa proposal-targets-proposition" in inserts_str
     assert 'has entity-id "claim-alpha"' in inserts_str
 
     # 5. Write Intent
-    assert 'isa write-intent' in inserts_str
+    assert "isa write-intent" in inserts_str
     assert 'has intent-id "intent-1"' in inserts_str
     assert 'has intent-status "approved"' in inserts_str
-    assert 'isa session-has-write-intent' in inserts_str
+    assert "isa session-has-write-intent" in inserts_str
 
     # 6. Intent Execution (Mutation)
     # Check separate delete and insert queries
-    assert 'delete has $old of $c' in deletes_str
+    assert "delete has $old of $c" in deletes_str
     # Check insert contains the new status
     assert 'insert $c has epistemic-status "supported"' in inserts_str
 
     # 7. Intent Status Event
-    assert 'isa intent-status-event' in inserts_str
+    assert "isa intent-status-event" in inserts_str
     assert 'has intent-status "executed"' in inserts_str
-    assert 'isa intent-has-status-event' in inserts_str
+    assert "isa intent-has-status-event" in inserts_str

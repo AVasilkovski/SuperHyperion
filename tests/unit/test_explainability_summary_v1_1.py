@@ -39,10 +39,28 @@ def test_parser_accepts_v1_payload():
         "tenant_id": "x",
         "status": "HOLD",
         "hold": {"hold_code": None, "hold_reason": None},
-        "source_refs": {"governance_summary_file": "a.json", "replay_verdict_file": None, "capsule_manifest_file": None},
-        "governance_gate": {"status": "HOLD", "gate_code": "X", "duration_ms": 0, "failure_reason": None},
-        "governance_checks": {"hash_integrity": {"ok": False}, "primacy": {"ok": False, "code": "FAIL"}, "mutation_linkage": {"ok": False, "missing": []}},
-        "evidence": {"persisted_ids": [], "mutation_ids": [], "intent_id": None, "proposal_id": None},
+        "source_refs": {
+            "governance_summary_file": "a.json",
+            "replay_verdict_file": None,
+            "capsule_manifest_file": None,
+        },
+        "governance_gate": {
+            "status": "HOLD",
+            "gate_code": "X",
+            "duration_ms": 0,
+            "failure_reason": None,
+        },
+        "governance_checks": {
+            "hash_integrity": {"ok": False},
+            "primacy": {"ok": False, "code": "FAIL"},
+            "mutation_linkage": {"ok": False, "missing": []},
+        },
+        "evidence": {
+            "persisted_ids": [],
+            "mutation_ids": [],
+            "intent_id": None,
+            "proposal_id": None,
+        },
         "lineage": {"session_id": None, "scope_lock_id": None, "query_hash": None},
     }
     parsed = parse_explainability_summary(payload_v1)

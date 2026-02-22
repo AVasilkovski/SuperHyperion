@@ -3,9 +3,7 @@ from __future__ import annotations
 import pytest
 
 typedb_driver = pytest.importorskip(
-    "typedb.driver", 
-    reason="TypeDB driver not available in this environment", 
-    exc_type=ImportError
+    "typedb.driver", reason="TypeDB driver not available in this environment", exc_type=ImportError
 )
 
 from src.montecarlo.template_store import TypeDBTemplateStore  # noqa: E402
@@ -85,10 +83,10 @@ class _Driver:
 def test_typedb_template_store_supports_v3_query_callable_api():
     store = TypeDBTemplateStore(_Driver())
 
-    rows = store._read_query('match $m isa template-metadata, has spec-hash $spec; select $spec;')
+    rows = store._read_query("match $m isa template-metadata, has spec-hash $spec; select $spec;")
     assert rows == [{"spec": "spec-hash"}]
 
-    store._write_query('insert $x isa template-lifecycle-event;')
+    store._write_query("insert $x isa template-lifecycle-event;")
 
 
 def test_typedb_template_store_freeze_uses_typeql3_delete_has_of_syntax():

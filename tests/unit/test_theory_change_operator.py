@@ -3,7 +3,7 @@ Tests for Theory Change Operator (Phase 16.2)
 
 Verifies:
 - Evidence aggregation (with channel parameter)
-- Conflict/entropy metrics 
+- Conflict/entropy metrics
 - Deterministic action selection
 - Proposal generation
 - Canonical ID resolution
@@ -91,7 +91,7 @@ class TestEvidenceAggregation:
         """Should correctly classify replicate by channel."""
         evidence = [
             ({"confidence_score": 0.9}, EvidenceRole.REPLICATE, "validation"),  # success
-            ({"confidence_score": 0.8}, EvidenceRole.REPLICATE, "negative"),    # failure
+            ({"confidence_score": 0.8}, EvidenceRole.REPLICATE, "negative"),  # failure
         ]
         agg = aggregate_evidence("claim-1", evidence)
 
@@ -120,10 +120,16 @@ class TestConflictMetrics:
         """Should return 0 conflict when all evidence is support."""
         agg = EvidenceAggregate(
             claim_id="claim-1",
-            support_count=3, support_max_conf=0.9, support_mean_conf=0.8,
-            refute_count=0, refute_max_conf=0.0, refute_mean_conf=0.0,
-            undercut_count=0, undercut_max_conf=0.0,
-            replicate_success_count=0, replicate_fail_count=0,
+            support_count=3,
+            support_max_conf=0.9,
+            support_mean_conf=0.8,
+            refute_count=0,
+            refute_max_conf=0.0,
+            refute_mean_conf=0.0,
+            undercut_count=0,
+            undercut_max_conf=0.0,
+            replicate_success_count=0,
+            replicate_fail_count=0,
         )
         assert compute_conflict_score(agg) == 0.0
 
@@ -131,10 +137,16 @@ class TestConflictMetrics:
         """Should return ~1.0 conflict when support equals refute."""
         agg = EvidenceAggregate(
             claim_id="claim-1",
-            support_count=2, support_max_conf=0.8, support_mean_conf=0.8,
-            refute_count=2, refute_max_conf=0.8, refute_mean_conf=0.8,
-            undercut_count=0, undercut_max_conf=0.0,
-            replicate_success_count=0, replicate_fail_count=0,
+            support_count=2,
+            support_max_conf=0.8,
+            support_mean_conf=0.8,
+            refute_count=2,
+            refute_max_conf=0.8,
+            refute_mean_conf=0.8,
+            undercut_count=0,
+            undercut_max_conf=0.0,
+            replicate_success_count=0,
+            replicate_fail_count=0,
         )
         conflict = compute_conflict_score(agg)
         assert conflict == pytest.approx(1.0)
@@ -143,10 +155,16 @@ class TestConflictMetrics:
         """Should return low entropy when evidence is homogeneous."""
         agg = EvidenceAggregate(
             claim_id="claim-1",
-            support_count=5, support_max_conf=0.9, support_mean_conf=0.8,
-            refute_count=0, refute_max_conf=0.0, refute_mean_conf=0.0,
-            undercut_count=0, undercut_max_conf=0.0,
-            replicate_success_count=0, replicate_fail_count=0,
+            support_count=5,
+            support_max_conf=0.9,
+            support_mean_conf=0.8,
+            refute_count=0,
+            refute_max_conf=0.0,
+            refute_mean_conf=0.0,
+            undercut_count=0,
+            undercut_max_conf=0.0,
+            replicate_success_count=0,
+            replicate_fail_count=0,
         )
         entropy = compute_entropy_proxy(agg)
         assert entropy == 0.0
@@ -231,8 +249,16 @@ class TestProposalGeneration:
     def test_proposal_extracts_kebab_case_ids(self):
         """Should correctly extract entity-id (kebab-case) from evidence."""
         evidence = [
-            ({"entity-id": "ev-kebab", "confidence_score": 0.9}, EvidenceRole.SUPPORT, "validation"),
-            ({"entity_id": "ev-snake", "confidence_score": 0.8}, EvidenceRole.SUPPORT, "validation"),
+            (
+                {"entity-id": "ev-kebab", "confidence_score": 0.9},
+                EvidenceRole.SUPPORT,
+                "validation",
+            ),
+            (
+                {"entity_id": "ev-snake", "confidence_score": 0.8},
+                EvidenceRole.SUPPORT,
+                "validation",
+            ),
         ]
         proposal = generate_proposal("claim-1", evidence, proposal_id="prop-test")
 

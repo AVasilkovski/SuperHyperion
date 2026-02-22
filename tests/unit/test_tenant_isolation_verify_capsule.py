@@ -30,8 +30,12 @@ def test_verify_capsule_tenant_match_proceeds():
             return responses.pop(0)
 
     with patch("src.db.typedb_client.TypeDBConnection", return_value=FakeDB()):
-        with patch("src.verification.replay_verify._verify_hash_integrity", return_value=(True, {})):
-            with patch("src.verification.replay_verify._verify_primacy", return_value=(True, "PASS", {})):
+        with patch(
+            "src.verification.replay_verify._verify_hash_integrity", return_value=(True, {})
+        ):
+            with patch(
+                "src.verification.replay_verify._verify_primacy", return_value=(True, "PASS", {})
+            ):
                 result = verify_capsule("cap-1", _capsule_data(), tenant_id="tenant-a")
 
     assert result.status == "PASS"

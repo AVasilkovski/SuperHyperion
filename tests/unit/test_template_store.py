@@ -1,5 +1,3 @@
-
-
 import pytest
 
 from src.montecarlo.template_metadata import TemplateMetadata, TemplateStatus, TemplateVersion
@@ -10,18 +8,20 @@ from src.montecarlo.template_store import InMemoryTemplateStore
 def store():
     return InMemoryTemplateStore()
 
+
 @pytest.fixture
 def meta():
     return TemplateMetadata(
         template_id="test_tmpl",
-        version=TemplateVersion(1,0,0),
+        version=TemplateVersion(1, 0, 0),
         spec_hash="abc",
         code_hash="def",
         status=TemplateStatus.ACTIVE,
         frozen=False,
         tainted=False,
-        approved_by="tester"
+        approved_by="tester",
     )
+
 
 def test_insert_metadata(store, meta):
     store.insert_metadata(meta)
@@ -34,6 +34,7 @@ def test_insert_metadata(store, meta):
     # Check updated audit
     assert len(store.events) == 1
     assert store.events[0]["event_type"] == "registered"
+
 
 def test_freeze_template(store, meta):
     store.insert_metadata(meta)
@@ -49,14 +50,16 @@ def test_freeze_template(store, meta):
     assert store.events[1]["event_type"] == "frozen"
     assert store.events[1]["extra_json"]["evidence_id"] == "ev-123"
 
+
 def test_freeze_is_idempotent(store, meta):
     store.insert_metadata(meta)
     store.freeze("test_tmpl", "1.0.0", "ev-123")
-    store.freeze("test_tmpl", "1.0.0", "ev-999") # Should ignore
+    store.freeze("test_tmpl", "1.0.0", "ev-999")  # Should ignore
 
     retrieved = store.get_metadata("test_tmpl", "1.0.0")
     assert retrieved.first_evidence_id == "ev-123"
-    assert len(store.events) == 2 # No new event
+    assert len(store.events) == 2  # No new event
+
 
 def test_taint_template(store, meta):
     store.insert_metadata(meta)

@@ -20,7 +20,9 @@ def test_explainability_governance_only_hold_is_deterministic():
         "gate_code": "NO_EVIDENCE_PERSISTED",
         "failure_reason": "No evidence",
         "duration_ms": 0,
-        "source_refs": {"governance_summary_file": "no-capsule-sess-hold-1_governance_summary.json"},
+        "source_refs": {
+            "governance_summary_file": "no-capsule-sess-hold-1_governance_summary.json"
+        },
     }
 
     summary = build_explainability_summary(governance)
@@ -79,4 +81,29 @@ def test_explainability_full_bundle_commit_is_deterministic():
 
 def test_explainability_extra_fields_forbidden():
     with pytest.raises(Exception):
-        ExplainabilitySummaryV1(contract_version="v1", tenant_id="x", status="HOLD", hold={"hold_code": None, "hold_reason": None}, source_refs={"governance_summary_file": "a"}, governance_gate={"status": "HOLD", "gate_code": "X", "duration_ms": 0, "failure_reason": None}, governance_checks={"hash_integrity": {"ok": False}, "primacy": {"ok": False, "code": "FAIL"}, "mutation_linkage": {"ok": False, "missing": []}}, evidence={"persisted_ids": [], "mutation_ids": [], "intent_id": None, "proposal_id": None}, lineage={"session_id": None, "scope_lock_id": None, "query_hash": None}, unexpected="boom")
+        ExplainabilitySummaryV1(
+            contract_version="v1",
+            tenant_id="x",
+            status="HOLD",
+            hold={"hold_code": None, "hold_reason": None},
+            source_refs={"governance_summary_file": "a"},
+            governance_gate={
+                "status": "HOLD",
+                "gate_code": "X",
+                "duration_ms": 0,
+                "failure_reason": None,
+            },
+            governance_checks={
+                "hash_integrity": {"ok": False},
+                "primacy": {"ok": False, "code": "FAIL"},
+                "mutation_linkage": {"ok": False, "missing": []},
+            },
+            evidence={
+                "persisted_ids": [],
+                "mutation_ids": [],
+                "intent_id": None,
+                "proposal_id": None,
+            },
+            lineage={"session_id": None, "scope_lock_id": None, "query_hash": None},
+            unexpected="boom",
+        )

@@ -15,6 +15,7 @@ import pytest
 # G1: Replay hash backward compatibility
 # ============================================================================
 
+
 def test_legacy_capsule_hash_matches():
     """
     Pre-16.8 capsules were hashed without a mutation_ids key.
@@ -32,7 +33,9 @@ def test_legacy_capsule_hash_matches():
         "evidence_ids": ["ev-1", "ev-2"],
     }
     capsule_id = "run-legacy-001"
-    original_hash = make_capsule_manifest_hash(capsule_id, manifest_at_creation, manifest_version="v1")
+    original_hash = make_capsule_manifest_hash(
+        capsule_id, manifest_at_creation, manifest_version="v1"
+    )
 
     # Now simulate replay: _has_mutation_snapshot=False → omit mutation_ids
     replay_manifest = {
@@ -50,6 +53,7 @@ def test_legacy_capsule_hash_matches():
         f"Legacy hash mismatch: {recomputed_hash} != {original_hash}. "
         "Replay must not add mutation_ids to legacy manifests."
     )
+
 
 def test_current_capsule_hash_includes_mutation_ids():
     """
@@ -83,6 +87,7 @@ def test_current_capsule_hash_includes_mutation_ids():
 
     assert recomputed_hash == original_hash
 
+
 def test_tenant_attributed_capsule_hash_pins_tenant_id():
     """
     Tenant-attributed capsules (v3) must include tenant_id in hash integrity.
@@ -110,6 +115,7 @@ def test_tenant_attributed_capsule_hash_pins_tenant_id():
 
     assert hash_a != hash_b, "tenant_id must affect v3 capsule hash"
 
+
 def test_v2_hash_ignores_tenant_id_for_backward_compat():
     """
     Legacy v2 hash computation should ignore tenant_id to preserve old capsules.
@@ -135,6 +141,7 @@ def test_v2_hash_ignores_tenant_id_for_backward_compat():
     )
 
     assert original == with_tenant
+
 
 def test_adding_mutation_ids_key_changes_hash():
     """
@@ -162,9 +169,11 @@ def test_adding_mutation_ids_key_changes_hash():
         "(this proves the G1 bug exists and our fix is needed)"
     )
 
+
 # ============================================================================
 # G2: create_claim fails closed
 # ============================================================================
+
 
 def test_execute_intent_create_claim_fails_closed():
     """
@@ -185,9 +194,11 @@ def test_execute_intent_create_claim_fails_closed():
     assert not success, "create_claim should fail (not silently succeed)"
     assert "not yet implemented" in err.lower(), f"Expected NotImplementedError message, got: {err}"
 
+
 # ============================================================================
 # G3: SHOWCASE bypass denied in non-local environments
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_bypass_denied_in_nonlocal_env():
@@ -214,6 +225,7 @@ async def test_bypass_denied_in_nonlocal_env():
     assert gov["status"] == "HOLD", (
         f"Bypass should be DENIED in non-local env, but got status={gov['status']}"
     )
+
 
 @pytest.mark.asyncio
 async def test_bypass_allowed_in_local_dev():
@@ -245,6 +257,7 @@ async def test_bypass_allowed_in_local_dev():
         f"Local dev bypass should be allowed, but got status={gov['status']}"
     )
 
+
 @pytest.mark.asyncio
 async def test_old_showcase_env_has_no_effect():
     """
@@ -275,6 +288,7 @@ async def test_old_showcase_env_has_no_effect():
     assert gov["status"] == "HOLD", (
         f"Old SHOWCASE env var should have no effect, but got status={gov['status']}"
     )
+
 
 @pytest.mark.asyncio
 async def test_bypass_denied_in_ci():

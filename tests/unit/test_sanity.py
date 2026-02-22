@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 from src.agents.ontology_steward import (
@@ -21,31 +20,26 @@ def test_schema_static_verification():
 
     # 3. Unique Proposal Relation
     count = content.count("relation proposal-targets-proposition")
-    assert count == 1, f"Expected 1 duplicate of relation proposal-targets-proposition, found {count}"
+    assert count == 1, (
+        f"Expected 1 duplicate of relation proposal-targets-proposition, found {count}"
+    )
+
 
 def test_builder_query_shapes():
     """Verify generated queries match schema requirements."""
 
     # 1. Template Execution (must use success)
-    ex = {
-        "execution_id": "test-exec",
-        "template_id": "tpl-1",
-        "success": True,
-        "runtime_ms": 100
-    }
+    ex = {"execution_id": "test-exec", "template_id": "tpl-1", "success": True, "runtime_ms": 100}
     q_exec = q_insert_execution("sess-1", ex)
-    assert 'isa template-execution' in q_exec
-    assert 'has success true' in q_exec.lower(), "Execution query invalid success format"
-    assert 'isa session-has-execution' in q_exec
+    assert "isa template-execution" in q_exec
+    assert "has success true" in q_exec.lower(), "Execution query invalid success format"
+    assert "isa session-has-execution" in q_exec
 
     # 2. Proposal (must use proposal-targets-proposition)
-    prop = {
-        "claim_id": "claim-123",
-        "final_proposed_status": "supported"
-    }
+    prop = {"claim_id": "claim-123", "final_proposed_status": "supported"}
     q_prop = q_insert_proposal("sess-1", prop)
-    assert 'isa epistemic-proposal' in q_prop
-    assert '(proposal: $p, proposition: $prop) isa proposal-targets-proposition' in q_prop
+    assert "isa epistemic-proposal" in q_prop
+    assert "(proposal: $p, proposition: $prop) isa proposal-targets-proposition" in q_prop
 
     # 3. Validation Evidence (sanity check for future role labels)
     # If we add evidence builder, it must match 'validation-evidence plays session-has-evidence:evidence'
@@ -57,11 +51,12 @@ def test_builder_query_shapes():
     # Just asserting we know this is the string we want.
     pass
 
+
 def test_intent_status_payload():
     """Verify json payload with error."""
     payload = {"error": "Perm failure"}
     q_log = q_insert_intent_status_event("intent-1", "failed", payload)
 
     assert 'has intent-status "failed"' in q_log
-    assert 'has json' in q_log
-    assert 'Perm failure' in q_log
+    assert "has json" in q_log
+    assert "Perm failure" in q_log

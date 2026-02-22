@@ -1,5 +1,3 @@
-
-
 import pytest
 
 from src.agents.base_agent import AgentContext
@@ -20,15 +18,18 @@ class MockTypeDB:
     def connect(self):
         return True
 
+
 @pytest.fixture
 def mock_db():
     return MockTypeDB()
+
 
 @pytest.fixture
 def steward(mock_db):
     steward = OntologySteward()
     steward.db = mock_db
     return steward
+
 
 @pytest.mark.asyncio
 async def test_persist_session_traces(steward, mock_db):
@@ -41,9 +42,9 @@ async def test_persist_session_traces(steward, mock_db):
                     "node": "verify",
                     "output": "some result",
                     "summary": "some result",
-                    "timestamp": "2023-01-01T00:00:00"
+                    "timestamp": "2023-01-01T00:00:00",
                 }
-            ]
+            ],
         }
     )
 
@@ -55,7 +56,8 @@ async def test_persist_session_traces(steward, mock_db):
     # Check trace insert
     assert any('has node-name "verify"' in q for q in mock_db.inserts)
     assert any('has trace-summary "some result"' in q for q in mock_db.inserts)
-    assert any('isa trace-entry' in q for q in mock_db.inserts)
+    assert any("isa trace-entry" in q for q in mock_db.inserts)
+
 
 @pytest.mark.asyncio
 async def test_persist_execution(steward, mock_db):
@@ -64,24 +66,22 @@ async def test_persist_execution(steward, mock_db):
         "template_id": "template_a",
         "params": {"p": 1},
         "result": {"val": 42},
-        "success": True
+        "success": True,
     }
 
     context = AgentContext(
-        graph_context={
-            "session_id": "sess-123",
-            "template_executions": [execution]
-        }
+        graph_context={"session_id": "sess-123", "template_executions": [execution]}
     )
 
     await steward.run(context)
 
     # Check execution insert
-    insert = next((q for q in mock_db.inserts if 'isa template-execution' in q), None)
+    insert = next((q for q in mock_db.inserts if "isa template-execution" in q), None)
     assert insert is not None
     assert 'has execution-id "exec-1"' in insert
     assert 'has template-id "template_a"' in insert
-    assert 'has success true' in insert
+    assert "has success true" in insert
+
 
 @pytest.mark.asyncio
 async def test_persist_proposal(steward, mock_db):
@@ -89,42 +89,34 @@ async def test_persist_proposal(steward, mock_db):
         "claim_id": "claim-1",
         "final_proposed_status": "speculative",
         "confidence_score": 0.8,
-        "cap_reasons": ["fragile"]
+        "cap_reasons": ["fragile"],
     }
 
     context = AgentContext(
-        graph_context={
-            "session_id": "sess-123",
-            "epistemic_update_proposal": [proposal]
-        }
+        graph_context={"session_id": "sess-123", "epistemic_update_proposal": [proposal]}
     )
 
     await steward.run(context)
 
     # Check proposal insert
-    insert = next((q for q in mock_db.inserts if 'isa epistemic-proposal' in q), None)
+    insert = next((q for q in mock_db.inserts if "isa epistemic-proposal" in q), None)
     assert insert is not None
     assert 'has final-proposed-status "speculative"' in insert
-    assert 'has confidence-score 0.8' in insert
-    assert 'has cap-reason' in insert
-    assert 'has cap-reason' in insert
-    assert 'isa proposal-targets-proposition' in insert
+    assert "has confidence-score 0.8" in insert
+    assert "has cap-reason" in insert
+    assert "has cap-reason" in insert
+    assert "isa proposal-targets-proposition" in insert
+
 
 @pytest.mark.asyncio
 async def test_execute_intent(steward, mock_db):
     intent = {
         "intent_type": "update_epistemic_status",
-        "payload": {
-            "claim_id": "claim-1",
-            "status": "supported"
-        }
+        "payload": {"claim_id": "claim-1", "status": "supported"},
     }
 
     context = AgentContext(
-        graph_context={
-            "session_id": "sess-123",
-            "approved_write_intents": [intent]
-        }
+        graph_context={"session_id": "sess-123", "approved_write_intents": [intent]}
     )
 
     await steward.run(context)
@@ -144,18 +136,19 @@ async def test_execute_intent(steward, mock_db):
     # Check DB operations
     assert len(mock_db.deletes) >= 1
     # Find the specific delete for epistemic status
-    delete_q = next((q for q in mock_db.deletes if 'delete has $old of $c' in q), None)
+    delete_q = next((q for q in mock_db.deletes if "delete has $old of $c" in q), None)
     assert delete_q is not None
 
     # Check insert (should be in inserts list)
-    insert_q = next((q for q in mock_db.inserts if 'insert $c has epistemic-status' in q), None)
+    insert_q = next((q for q in mock_db.inserts if "insert $c has epistemic-status" in q), None)
     assert insert_q is not None
-    assert 'supported' in insert_q
+    assert "supported" in insert_q
 
 
 # ============================================================================
 # Phase 11 Regression Guards (bypass closures)
 # ============================================================================
+
 
 def test_v22_p11_guard_json_string_speculative():
     """Guard catches speculative marker hidden in JSON string (bypass closure)."""

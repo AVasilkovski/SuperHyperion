@@ -1,4 +1,3 @@
-
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +15,7 @@ from src.montecarlo.types import ExperimentSpec
 # 1. ExperimentSpec Constitutional Rules
 # =============================================================================
 
+
 def test_experimentspec_requires_execution_fields():
     """Verify scope_lock_id and template_qid are enforced."""
     with pytest.raises(ValueError, match="Missing or invalid template_qid"):
@@ -25,13 +25,14 @@ def test_experimentspec_requires_execution_fields():
             # missing template_qid, missing template_id
         )
 
+
 def test_experimentspec_legacy_normalization(caplog):
     """Verify legacy template_id is normalized to pinned QID with warning."""
     with caplog.at_level(logging.WARNING):
         spec = ExperimentSpec(
             claim_id="claim-123",
             hypothesis="abc",
-            template_id="bootstrap_ci", # Legacy
+            template_id="bootstrap_ci",  # Legacy
             scope_lock_id="scope-lock-xyz",
         )
 
@@ -39,15 +40,17 @@ def test_experimentspec_legacy_normalization(caplog):
     assert spec.template_qid == "bootstrap_ci@1.0.0"
     assert "LEGACY_TEMPLATE_ID_USED" in caplog.text
 
+
 def test_experimentspec_invalid_qid_format():
     """Verify regex enforcement for QID."""
     with pytest.raises(ValueError, match="Invalid template_qid format"):
         ExperimentSpec(
             claim_id="claim-123",
             hypothesis="abc",
-            template_qid="bootstrap_ci@latest", # Invalid (must be X.Y.Z)
+            template_qid="bootstrap_ci@latest",  # Invalid (must be X.Y.Z)
             scope_lock_id="scope-lock-xyz",
         )
+
 
 def test_experimentspec_requires_scope_lock():
     """Verify scope_lock_id is mandatory."""
@@ -59,9 +62,11 @@ def test_experimentspec_requires_scope_lock():
             # Missing scope_lock_id
         )
 
+
 # =============================================================================
 # 2. Deterministic IDs & Hashing
 # =============================================================================
+
 
 def test_make_evidence_id_determinism():
     """Verify evidence ID is stable and joinable."""
@@ -82,6 +87,7 @@ def test_make_evidence_id_determinism():
     ev3 = make_evidence_id(sid, cid, "exec-2", qid)
     assert ev1 != ev3
 
+
 def test_sha256_json_strict():
     """Verify strict hashing."""
     data = {"a": 1, "b": 2}
@@ -93,9 +99,11 @@ def test_sha256_json_strict():
 
     assert hash1 == hash2
 
+
 # =============================================================================
 # 3. Blocking Seal Gate & Hash Parity
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_steward_blocks_on_seal_failure():
@@ -108,14 +116,16 @@ async def test_steward_blocks_on_seal_failure():
 
     context = MagicMock()
     context.graph_context = {
-        "evidence": [{
-            "claim_id": "c1",
-            "execution_id": "e1",
-            "template_qid": "t@1.0.0",
-            "scope_lock_id": "s1",
-            "success": True,
-            "json": {"foo": "bar"}
-        }]
+        "evidence": [
+            {
+                "claim_id": "c1",
+                "execution_id": "e1",
+                "template_qid": "t@1.0.0",
+                "scope_lock_id": "s1",
+                "success": True,
+                "json": {"foo": "bar"},
+            }
+        ]
     }
 
     # Expect Exception to bubble up (since we process one item loop)
@@ -133,24 +143,27 @@ async def test_steward_blocks_on_seal_failure():
     validation_calls = [c.args[0] for c in calls if "validation-evidence" in str(c.args[0])]
     assert len(validation_calls) == 0, f"Evidence inserted despite seal failure: {validation_calls}"
 
+
 @pytest.mark.asyncio
 async def test_steward_succeeds_if_seal_passes():
     """Verify success path."""
     steward = OntologySteward()
     steward.insert_to_graph = MagicMock()
-    steward._seal_operator_before_mint = MagicMock() # Success
+    steward._seal_operator_before_mint = MagicMock()  # Success
     steward.db = MagicMock()
 
     context = MagicMock()
     context.graph_context = {
-        "evidence": [{
-            "claim_id": "c1",
-            "execution_id": "e1",
-            "template_qid": "t@1.0.0",
-            "scope_lock_id": "s1",
-            "success": True,  # Critical: Must be True to trigger seal
-            "json": {"foo": "bar"}
-        }]
+        "evidence": [
+            {
+                "claim_id": "c1",
+                "execution_id": "e1",
+                "template_qid": "t@1.0.0",
+                "scope_lock_id": "s1",
+                "success": True,  # Critical: Must be True to trigger seal
+                "json": {"foo": "bar"},
+            }
+        ]
     }
 
     await steward.run(context)
@@ -162,6 +175,7 @@ async def test_steward_succeeds_if_seal_passes():
     validation_calls = [c.args[0] for c in calls if "validation-evidence" in c.args[0]]
     assert len(validation_calls) == 1
 
+
 @pytest.mark.asyncio
 async def test_steward_accepts_failed_evidence_for_audit():
     """Verify failed evidence is persisted for audit (Phase 16.5 stabilization)."""
@@ -172,23 +186,26 @@ async def test_steward_accepts_failed_evidence_for_audit():
 
     context = MagicMock()
     context.graph_context = {
-        "evidence": [{
-            "claim_id": "c1",
-            "execution_id": "e1",
-            "template_qid": "t@1.0.0",
-            "scope_lock_id": "s1",
-            "success": False,  # Failed evidence
-            "json": {"foo": "bar"}
-        }]
+        "evidence": [
+            {
+                "claim_id": "c1",
+                "execution_id": "e1",
+                "template_qid": "t@1.0.0",
+                "scope_lock_id": "s1",
+                "success": False,  # Failed evidence
+                "json": {"foo": "bar"},
+            }
+        ]
     }
 
     # Should NOT raise ValueError anymore, but log a warning and proceed
     await steward.run(context)
-    
+
     # Verify insert WAS called (Phase 16.5 change)
     calls = steward.insert_to_graph.call_args_list
     validation_calls = [c.args[0] for c in calls if "validation-evidence" in c.args[0]]
     assert len(validation_calls) == 1
+
 
 @pytest.mark.asyncio
 async def test_seal_method_checks_hash_parity():
@@ -211,9 +228,10 @@ async def test_seal_method_checks_hash_parity():
 
     # Mock Registry Modules
     # Patch the source module because _seal imports it locally
-    with patch("src.montecarlo.versioned_registry.VERSIONED_REGISTRY") as mock_reg, \
-         patch("src.montecarlo.template_metadata.compute_code_hash_strict") as mock_code_hash:
-
+    with (
+        patch("src.montecarlo.versioned_registry.VERSIONED_REGISTRY") as mock_reg,
+        patch("src.montecarlo.template_metadata.compute_code_hash_strict") as mock_code_hash,
+    ):
         # Test Case 1: Spec Hash Mismatch
         mock_spec = MagicMock()
         mock_spec.spec_hash.return_value = "DIFFERENT_HASH"
@@ -223,9 +241,9 @@ async def test_seal_method_checks_hash_parity():
             steward._seal_operator_before_mint(qid, "ev1", "c1", "s1")
 
         # Test Case 2: Code Hash Mismatch
-        mock_spec.spec_hash.return_value = "h1" # Fix spec hash
+        mock_spec.spec_hash.return_value = "h1"  # Fix spec hash
         mock_code_hash.return_value = "DIFFERENT_CODE_HASH"
-        mock_reg.get.return_value = MagicMock() # Template instance
+        mock_reg.get.return_value = MagicMock()  # Template instance
 
         with pytest.raises(ValueError, match="Code hash mismatch"):
             steward._seal_operator_before_mint(qid, "ev1", "c1", "s1")
@@ -233,17 +251,17 @@ async def test_seal_method_checks_hash_parity():
         # Test Case 3: Null Template Instance
         mock_reg.get.return_value = None
         with pytest.raises(ValueError, match="Seal failed: Template instance .* not found"):
-             steward._seal_operator_before_mint(qid, "ev1", "c1", "s1")
+            steward._seal_operator_before_mint(qid, "ev1", "c1", "s1")
 
         # Test Case 4: Corrupt Metadata
-        mock_reg.get.return_value = MagicMock() # Restore instance
-        mock_meta.spec_hash = None # Corrupt
+        mock_reg.get.return_value = MagicMock()  # Restore instance
+        mock_meta.spec_hash = None  # Corrupt
         with pytest.raises(ValueError, match="Corrupt metadata"):
-             steward._seal_operator_before_mint(qid, "ev1", "c1", "s1")
+            steward._seal_operator_before_mint(qid, "ev1", "c1", "s1")
 
         # Test Case 5: Success
-        mock_meta.spec_hash = "h1" # Restore from TC4
-        mock_code_hash.return_value = "h2" # Fix code hash
+        mock_meta.spec_hash = "h1"  # Restore from TC4
+        mock_code_hash.return_value = "h2"  # Fix code hash
 
         steward._seal_operator_before_mint(qid, "ev1", "c1", "s1")
         mock_store.freeze.assert_called_once()
@@ -253,28 +271,21 @@ async def test_seal_method_checks_hash_parity():
 # 4. Final Hardening: Query Builder Policy & Seal Regex
 # =============================================================================
 
+
 def test_q_insert_validation_evidence_success_canonicalization():
     """Verify 'false' string sets success=False (allowed for audit)."""
-    ev = {
-        "success": "false",
-        "claim_id": "c1",
-        "template_qid": "t@1.0.0",
-        "scope_lock_id": "sl1"
-    }
+    ev = {"success": "false", "claim_id": "c1", "template_qid": "t@1.0.0", "scope_lock_id": "sl1"}
 
     query = q_insert_validation_evidence("sess1", ev)
     assert "has success false" in query
+
 
 def test_q_insert_validation_evidence_allows_failed_evidence():
     """Verify failed evidence is allowed (Phase 16.5)."""
-    ev = {
-        "success": False,
-        "claim_id": "c1",
-        "template_qid": "t@1.0.0",
-        "scope_lock_id": "sl1"
-    }
+    ev = {"success": False, "claim_id": "c1", "template_qid": "t@1.0.0", "scope_lock_id": "sl1"}
     query = q_insert_validation_evidence("sess1", ev)
     assert "has success false" in query
+
 
 def test_q_insert_validation_evidence_derives_template_id():
     """Verify template_id is derived from qid if missing."""
@@ -284,7 +295,7 @@ def test_q_insert_validation_evidence_derives_template_id():
         "evidence_id": "ev1",
         "claim_id": "c1",
         "template_qid": "foo_bar@1.2.3",
-        "scope_lock_id": "sl1"
+        "scope_lock_id": "sl1",
     }
 
     query = q_insert_validation_evidence("sess1", ev)
@@ -292,6 +303,7 @@ def test_q_insert_validation_evidence_derives_template_id():
     # Check that template-id "foo_bar" was inserted
     assert 'has template-id "foo_bar"' in query
     assert 'has template-qid "foo_bar@1.2.3"' in query
+
 
 @pytest.mark.asyncio
 async def test_seal_rejects_malformed_qid_regex():
@@ -301,17 +313,18 @@ async def test_seal_rejects_malformed_qid_regex():
     # Should fail regex check before even hitting store/registry
     with pytest.raises(ValueError, match="Invalid template_qid format for seal"):
         steward._seal_operator_before_mint(
-            template_qid="bootstrap_ci@1", # Invalid format (missing .X.X or similar) - wait, regex depends on exact def.
+            template_qid="bootstrap_ci@1",  # Invalid format (missing .X.X or similar) - wait, regex depends on exact def.
             # Assuming standard strict regex from types.py
             evidence_id="ev1",
             claim_id="c1",
-            scope_lock_id="sl1"
+            scope_lock_id="sl1",
         )
 
 
 # =============================================================================
 # P1-A: authorized-by-intent-id linkage
 # =============================================================================
+
 
 def test_validation_evidence_includes_intent_id_when_provided():
     """Q_insert_validation_evidence emits authorized-by-intent-id when intent_id is given."""

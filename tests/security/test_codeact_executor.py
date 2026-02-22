@@ -207,6 +207,7 @@ class TestBlockedPatterns:
     def test_all_patterns_are_valid_regex(self):
         """All blocked patterns should be valid regex."""
         import re
+
         for pattern in BLOCKED_PATTERNS:
             try:
                 re.compile(pattern)

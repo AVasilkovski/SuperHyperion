@@ -36,7 +36,13 @@ def test_compliance_reporting_deterministic_metrics(tmp_path):
     _write(bundles / "run-a_run_capsule_manifest.json", {"capsule_id": "run-a"})
     _write(
         bundles / "run-a_replay_verify_verdict.json",
-        {"contract_version": "v1", "status": "PASS", "reasons": [], "details": {}, "source_refs": {}},
+        {
+            "contract_version": "v1",
+            "status": "PASS",
+            "reasons": [],
+            "details": {},
+            "source_refs": {},
+        },
     )
 
     _write(

@@ -62,14 +62,18 @@ def resolve_schema_files(schema_args: list[str]) -> list[Path]:
     for path in deduped:
         path_str = str(path)
         if any(ch in path_str for ch in ["*", "?", "[", "]"]):
-            raise ValueError(f"[apply_schema] BUG: unresolved glob in resolved schema files: {path_str}")
+            raise ValueError(
+                f"[apply_schema] BUG: unresolved glob in resolved schema files: {path_str}"
+            )
         if not path.is_file():
-             raise FileNotFoundError(f"Schema file not found: {path_str}")
+            raise FileNotFoundError(f"Schema file not found: {path_str}")
 
     return deduped
 
 
-def parse_canonical_caps(schema_text: str) -> tuple[dict[str, str], dict[str, set[str]], dict[str, set[str]]]:
+def parse_canonical_caps(
+    schema_text: str,
+) -> tuple[dict[str, str], dict[str, set[str]], dict[str, set[str]]]:
     """Parse schema text to extract parent/child hierarchy, owns, and plays."""
     parent_of: dict[str, str] = {}
     owns_of: dict[str, set[str]] = {}
@@ -77,10 +81,12 @@ def parse_canonical_caps(schema_text: str) -> tuple[dict[str, str], dict[str, se
 
     # Strip comments robustly
     schema_text = re.sub(r"#.*", "", schema_text, flags=re.MULTILINE)
-    
+
     # Extract entity/relation blocks
     # Pattern: \b(entity|relation)\b <name> [ \bsub\b <parent>] <body-until-semicolon> ;
-    block_re = re.compile(r"\b(entity|relation)\b\s+([a-zA-Z0-9_-]+)(?:\s+\bsub\b\s+([a-zA-Z0-9_-]+))?\s*(.*?);", re.S)
+    block_re = re.compile(
+        r"\b(entity|relation)\b\s+([a-zA-Z0-9_-]+)(?:\s+\bsub\b\s+([a-zA-Z0-9_-]+))?\s*(.*?);", re.S
+    )
     owns_re = re.compile(r"\bowns\b\s+([a-zA-Z0-9_-]+)")
     plays_re = re.compile(r"\bplays\b\s+([a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+)")
 
@@ -90,11 +96,11 @@ def parse_canonical_caps(schema_text: str) -> tuple[dict[str, str], dict[str, se
             # If it's a structural 'sub entity' or 'sub relation', we ignore it for capability mapping
             if supertype not in ("entity", "relation"):
                 parent_of[entity_name] = supertype
-            
+
         owns_of.setdefault(entity_name, set())
         for match in owns_re.findall(body):
             owns_of[entity_name].add(match)
-            
+
         plays_of.setdefault(entity_name, set())
         for match in plays_re.findall(body):
             plays_of[entity_name].add(match)
@@ -107,9 +113,9 @@ def compute_transitive_subtypes(parent_of: dict[str, str]) -> dict[str, set[str]
     children_of: dict[str, set[str]] = {}
     for child, parent in parent_of.items():
         children_of.setdefault(parent, set()).add(child)
-        
+
     subtypes: dict[str, set[str]] = {}
-    
+
     def get_all_subtypes(entity: str) -> set[str]:
         if entity in subtypes:
             return subtypes[entity]
@@ -119,10 +125,10 @@ def compute_transitive_subtypes(parent_of: dict[str, str]) -> dict[str, set[str]
             all_children.update(get_all_subtypes(child))
         subtypes[entity] = all_children
         return all_children
-        
+
     for parent in list(children_of.keys()):
         get_all_subtypes(parent)
-        
+
     return subtypes
 
 
@@ -132,9 +138,9 @@ def plan_auto_migrations(
     """Plan undefines for capabilities inherited from supertypes onto subtypes."""
     undefine_owns_specs: list[tuple[str, str]] = []
     undefine_plays_specs: list[tuple[str, str]] = []
-    
+
     subtypes = compute_transitive_subtypes(parent_of)
-    
+
     for supertype, attrs in owns_of.items():
         if supertype not in subtypes:
             continue
@@ -154,7 +160,7 @@ def plan_auto_migrations(
                 # ONLY undefine if the child ALSO has it in the TQL (redeclaration)
                 if role in child_roles:
                     undefine_plays_specs.append((child, role))
-                
+
     return undefine_owns_specs, undefine_plays_specs
 
 
@@ -168,6 +174,7 @@ def connect_with_retries(
     sleep_s: float = 2.0,
 ):
     from typedb.driver import Credentials, DriverOptions, TypeDB
+
     creds = Credentials(username, password)
     opts = DriverOptions(is_tls_enabled=tls, tls_root_ca_path=ca_path)
 
@@ -195,6 +202,7 @@ def ensure_database(driver, db: str):
 
 def apply_schema(driver, db: str, schema_paths: list[Path]):
     from typedb.driver import TransactionType
+
     for schema_path in schema_paths:
         schema = schema_path.read_text(encoding="utf-8")
         with driver.transaction(db, TransactionType.SCHEMA) as tx:
@@ -215,14 +223,14 @@ def parse_undefine_owns_spec(spec: str) -> tuple[str, str]:
     parts = spec.split(":", maxsplit=1)
     if len(parts) != 2 or not parts[0] or not parts[1]:
         raise ValueError(
-            "Invalid --undefine-owns spec. Expected format '<entity>:<attribute>', "
-            f"got: {spec}"
+            f"Invalid --undefine-owns spec. Expected format '<entity>:<attribute>', got: {spec}"
         )
     return parts[0].strip(), parts[1].strip()
 
 
 def migrate_undefine_owns(driver, db: str, specs: list[str]):
     from typedb.driver import TransactionType
+
     for spec in specs:
         entity, attribute = parse_undefine_owns_spec(spec)
         query = f"undefine owns {attribute} from {entity};"
@@ -241,14 +249,14 @@ def parse_undefine_plays_spec(spec: str) -> tuple[str, str]:
     parts = spec.split(":", maxsplit=1)
     if len(parts) != 2 or not parts[0] or not parts[1]:
         raise ValueError(
-            "Invalid --undefine-plays spec. Expected format '<type>:<relation:role>', "
-            f"got: {spec}"
+            f"Invalid --undefine-plays spec. Expected format '<type>:<relation:role>', got: {spec}"
         )
     return parts[0].strip(), parts[1].strip()
 
 
 def migrate_undefine_plays(driver, db: str, specs: list[str]):
     from typedb.driver import TransactionType
+
     for spec in specs:
         type_label, scoped_role = parse_undefine_plays_spec(spec)
         query = f"undefine plays {scoped_role} from {type_label};"
@@ -277,7 +285,9 @@ def main():
     p.add_argument("--port", default=os.getenv("TYPEDB_PORT", "1729"))
     p.add_argument("--username", default=os.getenv("TYPEDB_USERNAME", "admin"))
     p.add_argument("--password", default=os.getenv("TYPEDB_PASSWORD", "password"))
-    p.add_argument("--recreate", action="store_true", help="Delete and recreate the database before applying.")
+    p.add_argument(
+        "--recreate", action="store_true", help="Delete and recreate the database before applying."
+    )
     p.add_argument(
         "--undefine-owns",
         action="append",
@@ -318,7 +328,9 @@ def main():
     tls = env_bool("TYPEDB_TLS", "false")
     ca_path = os.getenv("TYPEDB_ROOT_CA_PATH") or None
 
-    raw_schema_args = args.schema or [os.getenv("TYPEDB_SCHEMA", "src/schema/scientific_knowledge.tql")]
+    raw_schema_args = args.schema or [
+        os.getenv("TYPEDB_SCHEMA", "src/schema/scientific_knowledge.tql")
+    ]
     schema_paths = resolve_schema_files(raw_schema_args)
 
     print("[apply_schema] resolved schema files:")
@@ -332,14 +344,18 @@ def main():
 
     is_ci = os.getenv("GITHUB_ACTIONS") == "true"
     if is_ci and (not address or address == ":"):
-        print("[apply_schema] SKIP: Skipping Cloud deployment in CI (secrets missing for branch/PR)")
+        print(
+            "[apply_schema] SKIP: Skipping Cloud deployment in CI (secrets missing for branch/PR)"
+        )
         return 0
 
     if args.auto_migrate_redeclarations:
         schema_text = "\n\n".join(path.read_text(encoding="utf-8") for path in schema_paths)
         parent_of, owns_of, plays_of = parse_canonical_caps(schema_text)
         owns_specs, plays_specs = plan_auto_migrations(parent_of, owns_of, plays_of)
-        print(f"[apply_schema] auto-migrate planned owns={len(owns_specs)} plays={len(plays_specs)}")
+        print(
+            f"[apply_schema] auto-migrate planned owns={len(owns_specs)} plays={len(plays_specs)}"
+        )
         # We'll apply these later after connecting
 
     if args.dry_run:

@@ -22,6 +22,7 @@ from src.hitl.intent_service import IntentStatus, WriteIntent
 # Helpers
 # =============================================================================
 
+
 def _make_staged_intent(
     intent_id: str = "intent-test-001",
     proposal_id: str = "prop-test-001",
@@ -92,15 +93,13 @@ def _make_governance_state(
 
 def _mock_db_rows(evidence_ids, claim_id="claim-1", scope_lock_id="scope-lock-001"):
     """Build TypeDB-style result rows for mocked query_fetch."""
-    return [
-        {"id": eid, "claim": claim_id, "scope": scope_lock_id}
-        for eid in evidence_ids
-    ]
+    return [{"id": eid, "claim": claim_id, "scope": scope_lock_id} for eid in evidence_ids]
 
 
 # =============================================================================
 # Test 1: Integrator holds on fake evidence ID
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_integrator_holds_on_fake_evidence_id():
@@ -128,7 +127,8 @@ async def test_integrator_holds_on_fake_evidence_id():
 
     # Mock TypeDB to return only real IDs (fake is missing from ledger)
     with patch.object(
-        integrator_agent, "query_graph",
+        integrator_agent,
+        "query_graph",
         return_value=_mock_db_rows(real_ids),
     ):
         result = await integrate_node(state)
@@ -142,6 +142,7 @@ async def test_integrator_holds_on_fake_evidence_id():
 # =============================================================================
 # Test 2: Governance gate holds on evidence set mismatch
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_governance_gate_holds_on_intent_evidence_set_mismatch():
@@ -184,6 +185,7 @@ async def test_governance_gate_holds_on_intent_evidence_set_mismatch():
 # Test 3: Integrator holds on scope mismatch
 # =============================================================================
 
+
 @pytest.mark.asyncio
 async def test_integrator_holds_on_scope_mismatch():
     """
@@ -212,7 +214,8 @@ async def test_integrator_holds_on_scope_mismatch():
     )
 
     with patch.object(
-        integrator_agent, "query_graph",
+        integrator_agent,
+        "query_graph",
         return_value=wrong_scope_rows,
     ):
         result = await integrate_node(state)
@@ -226,6 +229,7 @@ async def test_integrator_holds_on_scope_mismatch():
 # =============================================================================
 # Test 4: Integrator holds on claim mismatch
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_integrator_holds_on_claim_mismatch():
@@ -255,14 +259,17 @@ async def test_integrator_holds_on_claim_mismatch():
     )
 
     with patch.object(
-        integrator_agent, "query_graph",
+        integrator_agent,
+        "query_graph",
         return_value=wrong_claim_rows,
     ):
         result = await integrate_node(state)
 
     assert result["grounded_response"]["status"] == "HOLD"
     assert result["grounded_response"]["hold_code"] == "EVIDENCE_CLAIM_MISMATCH"
-    assert "expected-claim" in str(result["grounded_response"]["details"].get("expected_claims", []))
+    assert "expected-claim" in str(
+        result["grounded_response"]["details"].get("expected_claims", [])
+    )
     assert result["speculative_alternatives"] == []
 
 

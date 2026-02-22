@@ -1,4 +1,3 @@
-
 import re
 
 import pytest
@@ -31,25 +30,30 @@ class StrictMockTypeDB(TypeDBConnection):
                 self.propositions.add(m.group(1))
 
         # Enforce proposition existence when matching for links
-        is_linking = ("isa evidence-for-proposition" in query) or ("isa proposal-targets-proposition" in query)
+        is_linking = ("isa evidence-for-proposition" in query) or (
+            "isa proposal-targets-proposition" in query
+        )
         if is_linking:
             # Robust regex: match proposition type and entity-id, ignoring intervening text
             # We look for ANY mention of a proposition entity-id in a linking query
             # CRITICAL: Use non-greedy match .*? to avoid skipping to the evidence entity-id
             m = re.search(r'isa proposition.*?has entity-id "([^"]+)"', query, re.DOTALL)
-            
+
             # Fallback: if not found, try simpler pattern just for the entity-id
             if not m:
-                 m = re.search(r'has entity-id "([^"]+)"', query, re.DOTALL)
+                m = re.search(r'has entity-id "([^"]+)"', query, re.DOTALL)
 
             if m and m.group(1) not in self.propositions:
-                raise RuntimeError(f"Missing proposition violation: {m.group(1)} was not found. Current propositions: {self.propositions}")
+                raise RuntimeError(
+                    f"Missing proposition violation: {m.group(1)} was not found. Current propositions: {self.propositions}"
+                )
 
     def query_delete(self, query: str, **kwargs):
         self.deletes.append(query)
 
     def connect(self):
         return True
+
 
 # ----------------------------
 # Helper Classes for Tests
@@ -58,6 +62,7 @@ class MockVerifyAgent(VerifyAgent):
     """
     Override _design_experiment_spec and registry execution deterministically.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # We need to simulate different scenarios via setup
@@ -68,12 +73,13 @@ class MockVerifyAgent(VerifyAgent):
     async def _design_experiment_spec(self, claim, context):
         # Minimal spec: choose an MC template to exercise strict diagnostics rules
         from src.montecarlo.types import ExperimentSpec
+
         return ExperimentSpec(
             claim_id=claim["claim_id"],
             hypothesis=f"Verify: {claim['content']}",
             template_id=self.mock_template_id,
             scope_lock_id="scope-e2e-1",
-            params={"n_runs": 1000, "data": [1,2,3,4,5]},
+            params={"n_runs": 1000, "data": [1, 2, 3, 4, 5]},
             units={"estimate": "unit"},
             assumptions={"independence_assumed": True},
         )
@@ -82,6 +88,7 @@ class MockVerifyAgent(VerifyAgent):
         # Return a deterministic TemplateExecution-like object
         # Must match your TemplateExecution shape
         from src.montecarlo.templates import TemplateExecution
+
         return TemplateExecution(
             execution_id=f"exec-{spec.claim_id}",
             template_id=spec.template_id,
@@ -95,12 +102,13 @@ class MockVerifyAgent(VerifyAgent):
                 "variance": 0.02,
                 "diagnostics": self.mock_diagnostics,
                 "sensitivity": {"prior_widened_flips": False, "noise_model_flips": False},
-                "consistent": True
+                "consistent": True,
             },
             success=True,
             runtime_ms=self.mock_runtime,
-            warnings=[]
+            warnings=[],
         )
+
 
 class MockOntologySteward(OntologySteward):
     def __init__(self, db):
@@ -115,9 +123,11 @@ class MockOntologySteward(OntologySteward):
         # In E2E tests, we don't have a real TypeDB, so skip seal
         pass
 
+
 # ----------------------------
 # Test Cases
 # ----------------------------
+
 
 @pytest.mark.asyncio
 async def test_v22_e2e_verify_to_steward_happy():
@@ -125,24 +135,30 @@ async def test_v22_e2e_verify_to_steward_happy():
     db = StrictMockTypeDB()
 
     # 1) Seed the proposition (hard dependency for evidence/proposal links)
-    seed_prop = '''
+    seed_prop = """
     insert $p isa proposition, has entity-id "claim-e2e-1";
-    '''
+    """
     db.query_insert(seed_prop)
 
     # 2) Run Verify
     verify = MockVerifyAgent(max_budget_ms=30_000)
-    context = AgentContext(graph_context={
-        "session_id": "sess-e2e",
-        "user_query": "E2E test query",
-        "atomic_claims": [{"claim_id": "claim-e2e-1", "content": "Drug X reduces biomarker Y"}],
-    })
+    context = AgentContext(
+        graph_context={
+            "session_id": "sess-e2e",
+            "user_query": "E2E test query",
+            "atomic_claims": [{"claim_id": "claim-e2e-1", "content": "Drug X reduces biomarker Y"}],
+        }
+    )
 
     context = await verify.run(context)
 
     # VerifyAgent contract checks
-    assert context.graph_context.get("template_executions"), "Verify did not produce template_executions"
-    assert context.graph_context.get("is_fragile") is not None, "Verify did not populate is_fragile scalar"
+    assert context.graph_context.get("template_executions"), (
+        "Verify did not produce template_executions"
+    )
+    assert context.graph_context.get("is_fragile") is not None, (
+        "Verify did not populate is_fragile scalar"
+    )
     assert context.graph_context.get("diagnostics"), "Verify did not populate diagnostics scalar"
     assert context.graph_context["is_fragile"] is False
 
@@ -172,6 +188,7 @@ async def test_v22_e2e_verify_to_steward_happy():
     # Also check it has content (not just empty dict if that was a concern, but key presence is P0)
     assert '\\"all_pass\\":' in inserts or '\\"checks\\":' in inserts
 
+
 @pytest.mark.asyncio
 async def test_v22_e2e_budget_exceeded():
     """Case A: Budget exceeded -> Persist Fragility."""
@@ -179,12 +196,14 @@ async def test_v22_e2e_budget_exceeded():
     db.query_insert('insert $p isa proposition, has entity-id "claim-budget";')
 
     verify = MockVerifyAgent(max_budget_ms=100)
-    verify.mock_runtime = 5000 # Exceeds budget
+    verify.mock_runtime = 5000  # Exceeds budget
 
-    context = AgentContext(graph_context={
-        "session_id": "sess-budget",
-        "atomic_claims": [{"claim_id": "claim-budget", "content": "Too slow"}],
-    })
+    context = AgentContext(
+        graph_context={
+            "session_id": "sess-budget",
+            "atomic_claims": [{"claim_id": "claim-budget", "content": "Too slow"}],
+        }
+    )
 
     context = await verify.run(context)
 
@@ -201,6 +220,7 @@ async def test_v22_e2e_budget_exceeded():
     # Look for escaped json key-value
     assert '\\"is_fragile\\": true' in inserts, "Fragility flag was not persisted as true in JSON"
 
+
 @pytest.mark.asyncio
 async def test_v22_e2e_diagnostic_failure():
     """Case B: Diagnostics failure (missing ESS) -> Persist Fragility."""
@@ -208,16 +228,20 @@ async def test_v22_e2e_diagnostic_failure():
     db.query_insert('insert $p isa proposition, has entity-id "claim-diag";')
 
     verify = MockVerifyAgent()
-    verify.mock_diagnostics = {"toy_ok": True} # Missing ESS for MC template
+    verify.mock_diagnostics = {"toy_ok": True}  # Missing ESS for MC template
 
-    context = AgentContext(graph_context={
-        "session_id": "sess-diag",
-        "atomic_claims": [{"claim_id": "claim-diag", "content": "Bad Diag"}],
-    })
+    context = AgentContext(
+        graph_context={
+            "session_id": "sess-diag",
+            "atomic_claims": [{"claim_id": "claim-diag", "content": "Bad Diag"}],
+        }
+    )
 
     context = await verify.run(context)
 
-    assert context.graph_context["is_fragile"] is True, "Diagnostics failure didn't trigger fragility"
+    assert context.graph_context["is_fragile"] is True, (
+        "Diagnostics failure didn't trigger fragility"
+    )
 
     steward = MockOntologySteward(db=db)
     await steward.run(context)

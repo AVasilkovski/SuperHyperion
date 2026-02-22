@@ -83,10 +83,14 @@ class TestBeliefMaintenanceAgent:
     def test_bayesian_update_supporting_evidence(self, agent):
         """Supporting evidence should log deferral (WriteCap: no direct write)."""
         # Setup mock to return current belief
-        agent.db.query_fetch = Mock(return_value=[{
-            "beta_alpha": 5.0,
-            "beta_beta": 3.0,
-        }])
+        agent.db.query_fetch = Mock(
+            return_value=[
+                {
+                    "beta_alpha": 5.0,
+                    "beta_beta": 3.0,
+                }
+            ]
+        )
         agent.db.query_delete = Mock()
 
         agent.update_belief("h1", evidence_supports=True, evidence_weight=1.0)
@@ -96,10 +100,14 @@ class TestBeliefMaintenanceAgent:
 
     def test_bayesian_update_refuting_evidence(self, agent):
         """Refuting evidence should log deferral (WriteCap: no direct write)."""
-        agent.db.query_fetch = Mock(return_value=[{
-            "beta_alpha": 5.0,
-            "beta_beta": 3.0,
-        }])
+        agent.db.query_fetch = Mock(
+            return_value=[
+                {
+                    "beta_alpha": 5.0,
+                    "beta_beta": 3.0,
+                }
+            ]
+        )
         agent.db.query_delete = Mock()
 
         agent.update_belief("h1", evidence_supports=False, evidence_weight=1.0)
@@ -109,10 +117,14 @@ class TestBeliefMaintenanceAgent:
 
     def test_bayesian_update_weighted_evidence(self, agent):
         """Evidence weight should affect update magnitude (write deferred)."""
-        agent.db.query_fetch = Mock(return_value=[{
-            "beta_alpha": 5.0,
-            "beta_beta": 5.0,
-        }])
+        agent.db.query_fetch = Mock(
+            return_value=[
+                {
+                    "beta_alpha": 5.0,
+                    "beta_beta": 5.0,
+                }
+            ]
+        )
         agent.db.query_delete = Mock()
 
         agent.update_belief("h1", evidence_supports=True, evidence_weight=3.0)
@@ -174,11 +186,15 @@ class TestBeliefMaintenanceAgent:
     @pytest.mark.asyncio
     async def test_run_updates_context(self, agent):
         """Running agent should update context with entropy."""
-        agent._get_pending_hypotheses = Mock(return_value=[{
-            "id": "h1",
-            "beta_alpha": 3.0,
-            "beta_beta": 3.0,
-        }])
+        agent._get_pending_hypotheses = Mock(
+            return_value=[
+                {
+                    "id": "h1",
+                    "beta_alpha": 3.0,
+                    "beta_beta": 3.0,
+                }
+            ]
+        )
         agent._find_contradictions = Mock(return_value=[])
         agent._update_belief_state = Mock()
 
@@ -190,11 +206,15 @@ class TestBeliefMaintenanceAgent:
     @pytest.mark.asyncio
     async def test_run_detects_contradictions(self, agent):
         """Running agent should detect and report contradictions."""
-        agent._get_pending_hypotheses = Mock(return_value=[{
-            "id": "h1",
-            "beta_alpha": 5.0,
-            "beta_beta": 2.0,
-        }])
+        agent._get_pending_hypotheses = Mock(
+            return_value=[
+                {
+                    "id": "h1",
+                    "beta_alpha": 5.0,
+                    "beta_beta": 2.0,
+                }
+            ]
+        )
         agent._find_contradictions = Mock(return_value=[{"conflict": "A vs B"}])
         agent._update_belief_state = Mock()
 
@@ -239,9 +259,9 @@ class TestContradictionResolution:
         agent.db = Mock()
 
         # Mock returning contradictory hypotheses
-        agent._find_contradictions = Mock(return_value=[
-            {"claim_a": "X causes Y", "claim_b": "X prevents Y"}
-        ])
+        agent._find_contradictions = Mock(
+            return_value=[{"claim_a": "X causes Y", "claim_b": "X prevents Y"}]
+        )
 
         contradictions = agent._find_contradictions({"id": "test"})
 

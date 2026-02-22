@@ -7,20 +7,20 @@ This enforces the primary key contract that underpins the entire audit trail.
 Naming convention: test_<component>_<action>_<expected_behavior>
 """
 
-
 import pytest
 
 # =============================================================================
 # Claim ID Lineage Contract Tests
 # =============================================================================
 
+
 class TestClaimIdLineage:
     """
     Verifies claim_id is preserved across all phases.
-    
+
     The claim_id is the primary anchor that links:
     - atomic_claims → propositions → evidence → truth assertions
-    
+
     Any break in this chain invalidates the audit trail.
     """
 
@@ -34,7 +34,9 @@ class TestClaimIdLineage:
         for claim in atomic_claims:
             assert "claim_id" in claim, "Decomposition must produce claim_id"
             assert claim["claim_id"], "claim_id must be non-empty"
-            assert claim["claim_id"].startswith("claim-"), "claim_id should follow naming convention"
+            assert claim["claim_id"].startswith("claim-"), (
+                "claim_id should follow naming convention"
+            )
 
     def test_proposition_entity_id_equals_claim_id(self):
         """Proposition entity-id matches source claim_id."""
@@ -161,11 +163,7 @@ class TestLaneSentinel:
             "execution_id": "exec-nested-1",
             "template_qid": "qid-nested",
             "scope_lock_id": "sl-nested-1",
-            "metadata": {
-                "source": {
-                    "lane": "speculative"
-                }
-            },
+            "metadata": {"source": {"lane": "speculative"}},
             "success": True,
         }
 

@@ -17,6 +17,7 @@ def setup_mock_db():
     typedb._mock_mode = True
     yield
 
+
 @pytest.mark.asyncio
 async def test_evidence_fingerprint_integrity():
     """Test 1: Check ID determinism for evidence fingerprints."""
@@ -24,20 +25,21 @@ async def test_evidence_fingerprint_integrity():
     cid = "claim-1"
     exid = "exec-42"
     qid = "stat-test@1.0.0"
-    
+
     id1 = make_evidence_id(sid, cid, exid, qid)
     id2 = make_evidence_id(sid, cid, exid, qid)
-    
+
     assert id1 == id2
     assert id1.startswith("ev-")
     assert len(id1) == 35
+
 
 @pytest.mark.asyncio
 async def test_proposal_generation_logic_revise():
     """Test 2: Ensure REVISE is computed when evidence is consistent."""
     state = create_initial_state("Is caffeine a stimulant?")
     state["graph_context"]["session_id"] = "sess-test-002"
-    
+
     # Mock positive evidence
     state["evidence"] = [
         {
@@ -47,7 +49,7 @@ async def test_proposal_generation_logic_revise():
             "role": "support",
             "confidence_score": 0.9,
             "success": True,
-            "scope_lock_id": "sl1"
+            "scope_lock_id": "sl1",
         },
         {
             "claim_id": "caffeine-stimulant",
@@ -56,38 +58,43 @@ async def test_proposal_generation_logic_revise():
             "role": "support",
             "confidence_score": 0.85,
             "success": True,
-            "scope_lock_id": "sl1"
-        }
+            "scope_lock_id": "sl1",
+        },
     ]
-    
+
     # Run the Constitutional Spine node
     await govern_and_stage_node(state)
-    
+
     # Check if proposals were staged
     proposals = write_intent_service.list_staged()
     # Filter for our session
-    session_props = [p for p in proposals if p["intent_type"] == "stage_epistemic_proposal" 
-                     and p["payload"]["claim_id"] == "caffeine-stimulant"]
-    
+    session_props = [
+        p
+        for p in proposals
+        if p["intent_type"] == "stage_epistemic_proposal"
+        and p["payload"]["claim_id"] == "caffeine-stimulant"
+    ]
+
     assert len(session_props) == 1
     assert session_props[0]["payload"]["action"] == TheoryAction.REVISE.value
+
 
 @pytest.mark.asyncio
 async def test_channel_enforcement_rejection():
     """Test 3: Ensure invalid channel usage (negative support) is handled."""
     state = create_initial_state("Does water boil at 50C?")
     state["graph_context"]["session_id"] = "sess-test-003"
-    
+
     state["graph_context"]["negative_evidence"] = [
         {
             "claim_id": "boil-50c",
             "execution_id": "ex-3",
             "template_qid": "therm-test@1.0.0",
             "role": "support",  # ILLEGAL for negative channel
-            "confidence_score": 0.1
+            "confidence_score": 0.1,
         }
     ]
-    
+
     await govern_and_stage_node(state)
     pass
 
@@ -96,14 +103,15 @@ async def test_channel_enforcement_rejection():
 # Phase 16.4 Contract Tests
 # =============================================================================
 
+
 def test_normalization_maps_validator_keys():
     """Phase 16.4 E1-1: Normalization maps validator keys to steward contract."""
     # Simulates what validator_agent emits after __dict__ serialization
     validator_evidence = {
         "hypothesis_id": "claim-abc-123",
         "codeact_execution_id": 42,
-        "execution_id": "",   
-        "claim_id": None,     
+        "execution_id": "",
+        "claim_id": None,
         "template_id": "my-template",
         "success": True,
         "confidence_score": 0.9,
@@ -205,7 +213,7 @@ async def test_integrate_includes_evidence_ids():
             "evidence_id": "ev-abc123",
             "execution_id": "exec-1",
             "scope_lock_id": "sl1",
-            "template_qid": "tpl@1.0.0"
+            "template_qid": "tpl@1.0.0",
         },
         {
             "claim_id": "test-claim-1",
@@ -214,7 +222,7 @@ async def test_integrate_includes_evidence_ids():
             "evidence_id": "ev-def456",
             "execution_id": "exec-2",
             "scope_lock_id": "sl1",
-            "template_qid": "tpl@1.0.0"
+            "template_qid": "tpl@1.0.0",
         },
     ]
     state["evidence"] = state["graph_context"]["evidence"]
@@ -244,6 +252,7 @@ async def test_integrate_includes_evidence_ids():
     assert grounded["claims"][0]["evidence_ids"] == ["ev-abc123", "ev-def456"]
     assert grounded["governance"]["cited_intent_id"] == "intent-001"
     assert grounded["governance"]["cited_proposal_id"] == "prop-001"
+
 
 if __name__ == "__main__":
     asyncio.run(test_evidence_fingerprint_integrity())

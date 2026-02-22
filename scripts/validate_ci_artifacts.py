@@ -22,17 +22,21 @@ def _validate_file(data_path: Path, schema_path: Path) -> list[str]:
     messages: list[str] = []
     for err in errors:
         pointer = "/".join(str(x) for x in err.path) or "<root>"
-        messages.append(
-            f"{data_path} :: schema={schema_path} :: path={pointer} :: {err.message}"
-        )
+        messages.append(f"{data_path} :: schema={schema_path} :: path={pointer} :: {err.message}")
     return messages
 
 
 def validate_ci_artifacts(root: Path, schemas: Path) -> list[str]:
     checks = [
         (root / "trust_gate_summary.json", schemas / "trust_gate_summary.v1.schema.json"),
-        (root / "conflicts" / "policy_conflicts_summary.json", schemas / "policy_conflicts_summary.v1.schema.json"),
-        (root / "compliance" / "compliance_report.json", schemas / "compliance_report.v1.schema.json"),
+        (
+            root / "conflicts" / "policy_conflicts_summary.json",
+            schemas / "policy_conflicts_summary.v1.schema.json",
+        ),
+        (
+            root / "compliance" / "compliance_report.json",
+            schemas / "compliance_report.v1.schema.json",
+        ),
     ]
 
     errors: list[str] = []

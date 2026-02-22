@@ -120,17 +120,17 @@ class TestPhase162Safeguards:
     def test_clamp_probability_rejects_nan(self):
         """clamp_probability should reject NaN."""
         with pytest.raises(ValueError) as exc_info:
-            clamp_probability(float('nan'), "test")
+            clamp_probability(float("nan"), "test")
         assert "must be finite" in str(exc_info.value)
 
     def test_clamp_probability_rejects_inf(self):
         """clamp_probability should reject infinity."""
         with pytest.raises(ValueError) as exc_info:
-            clamp_probability(float('inf'), "test")
+            clamp_probability(float("inf"), "test")
         assert "must be finite" in str(exc_info.value)
 
         with pytest.raises(ValueError) as exc_info:
-            clamp_probability(float('-inf'), "test")
+            clamp_probability(float("-inf"), "test")
         assert "must be finite" in str(exc_info.value)
 
     def test_require_evidence_role_strict_raises_on_invalid(self):
@@ -191,7 +191,9 @@ class TestDispatchWiring:
         with pytest.raises(ValueError) as exc_info:
             # Mock template_store to avoid seal operator failures
             class MockStore:
-                def get_metadata(self, *args): return None
+                def get_metadata(self, *args):
+                    return None
+
             steward.template_store = MockStore()
             steward._seal_evidence_dict_before_mint("sess-001", ev, channel="invalid")
 

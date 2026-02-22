@@ -24,9 +24,12 @@ TEST_INTENT_SPEC = IntentSpec(
     required_fields=frozenset(),
     required_id_fields=frozenset(),
     allowed_lanes=frozenset({"grounded", "speculative"}),
-    scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+    scope_lock_by_lane={
+        "grounded": ScopeLockPolicy.OPTIONAL,
+        "speculative": ScopeLockPolicy.OPTIONAL,
+    },
     approval_by_lane={"grounded": ApprovalPolicy.HITL, "speculative": ApprovalPolicy.HITL},
-    description="Test intent"
+    description="Test intent",
 )
 
 # Define generic test_type spec
@@ -38,7 +41,7 @@ TEST_TYPE_SPEC = IntentSpec(
     allowed_lanes=frozenset({"grounded"}),
     scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
     approval_by_lane={"grounded": ApprovalPolicy.HITL},
-    description="Test type"
+    description="Test type",
 )
 
 # Define update_epistemic_status mock (strict)
@@ -50,7 +53,7 @@ STRICT_INTENT_SPEC = IntentSpec(
     allowed_lanes=frozenset({"grounded"}),
     scope_lock_by_lane={"grounded": ScopeLockPolicy.REQUIRED},
     approval_by_lane={"grounded": ApprovalPolicy.HITL},
-    description="Strict intent"
+    description="Strict intent",
 )
 
 
@@ -62,11 +65,14 @@ def test_service():
     """Create a fresh test service with InMemory store and mocked registry."""
     store = InMemoryIntentStore()
 
-    with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {
-        "test": TEST_INTENT_SPEC,
-        "test_type": TEST_TYPE_SPEC,
-        "update_epistemic_status": STRICT_INTENT_SPEC,
-    }):
+    with patch.dict(
+        "src.hitl.intent_registry.INTENT_REGISTRY",
+        {
+            "test": TEST_INTENT_SPEC,
+            "test_type": TEST_TYPE_SPEC,
+            "update_epistemic_status": STRICT_INTENT_SPEC,
+        },
+    ):
         service = WriteIntentService(store=store)
         yield service
 
@@ -252,10 +258,15 @@ class TestIntentDefer:
         result = runner.invoke(
             app,
             [
-                "intent", "defer", intent.intent_id,
-                "--by", "Anton",
-                "--until", "2026-02-01T10:00:00Z",
-                "--why", "Need more info",
+                "intent",
+                "defer",
+                intent.intent_id,
+                "--by",
+                "Anton",
+                "--until",
+                "2026-02-01T10:00:00Z",
+                "--why",
+                "Need more info",
             ],
         )
 
@@ -270,10 +281,15 @@ class TestIntentDefer:
         result = runner.invoke(
             app,
             [
-                "intent", "defer", intent.intent_id,
-                "--by", "Anton",
-                "--until", "not-a-date",
-                "--why", "test",
+                "intent",
+                "defer",
+                intent.intent_id,
+                "--by",
+                "Anton",
+                "--until",
+                "not-a-date",
+                "--why",
+                "test",
             ],
         )
 

@@ -6,7 +6,9 @@ from pathlib import Path
 
 
 def _load_validator():
-    spec = importlib.util.spec_from_file_location("validate_ci_artifacts", "scripts/validate_ci_artifacts.py")
+    spec = importlib.util.spec_from_file_location(
+        "validate_ci_artifacts", "scripts/validate_ci_artifacts.py"
+    )
     module = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
     spec.loader.exec_module(module)
@@ -27,19 +29,39 @@ def test_validate_ci_artifacts_passes_for_valid_payloads(tmp_path: Path):
 
     _write(
         schemas / "trust_gate_summary.v1.schema.json",
-        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "required": ["contract_version"], "properties": {"contract_version": {"const": "v1"}}},
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["contract_version"],
+            "properties": {"contract_version": {"const": "v1"}},
+        },
     )
     _write(
         schemas / "policy_conflicts_summary.v1.schema.json",
-        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "required": ["contract_version"], "properties": {"contract_version": {"const": "v1"}}},
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["contract_version"],
+            "properties": {"contract_version": {"const": "v1"}},
+        },
     )
     _write(
         schemas / "compliance_report.v1.schema.json",
-        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "required": ["contract_version"], "properties": {"contract_version": {"const": "v1"}}},
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["contract_version"],
+            "properties": {"contract_version": {"const": "v1"}},
+        },
     )
     _write(
         schemas / "explainability_summary.v1.schema.json",
-        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "required": ["contract_version"], "properties": {"contract_version": {"enum": ["v1", "v1.1"]}}},
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["contract_version"],
+            "properties": {"contract_version": {"enum": ["v1", "v1.1"]}},
+        },
     )
 
     _write(root / "trust_gate_summary.json", {"contract_version": "v1"})
@@ -56,7 +78,12 @@ def test_validate_ci_artifacts_reports_schema_errors(tmp_path: Path):
 
     _write(
         schemas / "trust_gate_summary.v1.schema.json",
-        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "required": ["contract_version"], "properties": {"contract_version": {"const": "v1"}}},
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["contract_version"],
+            "properties": {"contract_version": {"const": "v1"}},
+        },
     )
     _write(
         schemas / "policy_conflicts_summary.v1.schema.json",
@@ -94,5 +121,7 @@ def test_validate_ci_artifacts_reports_missing_required_artifacts(tmp_path: Path
     errors = validate_ci_artifacts(root, schemas)
 
     assert any("missing required artifact" in e and "trust_gate_summary.json" in e for e in errors)
-    assert any("missing required artifact" in e and "policy_conflicts_summary.json" in e for e in errors)
+    assert any(
+        "missing required artifact" in e and "policy_conflicts_summary.json" in e for e in errors
+    )
     assert any("missing required artifact" in e and "compliance_report.json" in e for e in errors)

@@ -170,9 +170,7 @@ async def test_sdk_threads_tenant_id_field():
     ):
         from src.sdk.governed_run import GovernedRun
 
-        result = await GovernedRun.run(
-            "Tenant test query", tenant_id="acme-corp"
-        )
+        result = await GovernedRun.run("Tenant test query", tenant_id="acme-corp")
 
     # Tenant must be threaded into workflow entrypoint
     assert mock_run_v21_query.await_count == 1

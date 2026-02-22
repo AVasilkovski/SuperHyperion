@@ -17,13 +17,13 @@ config.auth.allow_insecure_headers = False
 
 client = TestClient(app)
 
+
 def create_test_token(tenant_id: str, role: str) -> dict:
     token = jwt.encode(
-        {"tenant_id": tenant_id, "role": role, "sub": "test-user"},
-        "test-secret",
-        algorithm="HS256"
+        {"tenant_id": tenant_id, "role": role, "sub": "test-user"}, "test-secret", algorithm="HS256"
     )
     return {"Authorization": f"Bearer {token}"}
+
 
 # Common Headers
 H_VIEWER = create_test_token("t-123", "viewer")
@@ -49,23 +49,17 @@ def test_api_run_requires_tenant_header_fail_closed():
 @patch("src.sdk.governed_run.GovernedRun.run", new_callable=AsyncMock)
 def test_api_run_threads_tenant_id_to_governedrun(mock_run):
     # Setup mock return value
-    mock_run.return_value = GovernedResultV1(
-        status="COMMIT", response="Success", tenant_id="t-123"
-    )
+    mock_run.return_value = GovernedResultV1(status="COMMIT", response="Success", tenant_id="t-123")
 
     req_data = {"query": "test query", "session_id": "s-123", "mode": "grounded"}
     response = client.post("/v1/run", headers=H_OPERATOR, json=req_data)
 
     assert response.status_code == 200
-    
+
     mock_run.assert_called_once_with(
-        query="test query",
-        tenant_id="t-123",
-        session_id="s-123",
-        thread_id=None,
-        mode="grounded"
+        query="test query", tenant_id="t-123", session_id="s-123", thread_id=None, mode="grounded"
     )
-    
+
     res_data = response.json()
     assert res_data["contract_version"] == "v1"
     assert res_data["result"]["status"] == "COMMIT"
@@ -78,7 +72,7 @@ def test_api_capsules_returns_404_on_tenant_mismatch(mock_fetch):
     mock_fetch.return_value = None
 
     response = client.get("/v1/audit/export?capsule_id=cap-999", headers=H_VIEWER)
-    
+
     assert response.status_code == 404
     mock_fetch.assert_called_once_with("t-123", "cap-999")
     # Crucial semantic check: it's not a 403 leak
@@ -107,7 +101,7 @@ def test_api_capsules_pagination_contract(mock_list):
 
     assert response.status_code == 200
     data = response.json()
-    
+
     assert data["contract_version"] == "v1"
     assert data["tenant_id"] == "t-123"
     assert data["next_cursor"] == "encoded-cursor-string"
@@ -124,32 +118,35 @@ def test_api_audit_export_calls_verify_capsule_with_tenant(mock_verify, mock_fet
         "capsule_id": "cap-777",
         "created_at": "2026-02-22T00:00:00",
         "manifest_version": "v2",
-        "unknown_key": "should_be_stripped"
+        "unknown_key": "should_be_stripped",
     }
-    
+
     # Mock verify_capsule returning PASS
     mock_verify.return_value = ReplayVerdictV1(status="PASS", reasons=[])
 
     response = client.get("/v1/audit/export?capsule_id=cap-777", headers=H_VIEWER)
-    
+
     assert response.status_code == 200
     data = response.json()
-    
-    mock_verify.assert_called_once_with("cap-777", capsule_data=mock_fetch.return_value, tenant_id="t-123")
-    
+
+    mock_verify.assert_called_once_with(
+        "cap-777", capsule_data=mock_fetch.return_value, tenant_id="t-123"
+    )
+
     # Check that contract filtering worked
     assert "unknown_key" not in data["capsule_manifest"]
     assert data["capsule_manifest"]["capsule_id"] == "cap-777"
     assert data["replay_verdict"]["status"] == "PASS"
+
 
 # 7) test_api_auth_fails_before_typedb
 @patch("src.api.routes.v1_core.list_capsules_for_tenant")
 def test_api_auth_fails_before_typedb(mock_list):
     # Mock to ensure it raises if called
     mock_list.side_effect = Exception("TypeDB should not be reached!")
-    
+
     response = client.get("/v1/capsules", headers={})
     assert response.status_code == 401
-    
+
     # Prove the DB read function was never invoked
     mock_list.assert_not_called()

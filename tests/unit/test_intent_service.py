@@ -31,9 +31,12 @@ TEST_INTENT_SPEC = IntentSpec(
     required_fields=frozenset(),
     required_id_fields=frozenset(),
     allowed_lanes=frozenset({"grounded", "speculative"}),
-    scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL, "speculative": ScopeLockPolicy.OPTIONAL},
+    scope_lock_by_lane={
+        "grounded": ScopeLockPolicy.OPTIONAL,
+        "speculative": ScopeLockPolicy.OPTIONAL,
+    },
     approval_by_lane={"grounded": ApprovalPolicy.HITL, "speculative": ApprovalPolicy.HITL},
-    description="Test intent"
+    description="Test intent",
 )
 
 # Define update_epistemic_status mock (strict)
@@ -45,8 +48,9 @@ STRICT_INTENT_SPEC = IntentSpec(
     allowed_lanes=frozenset({"grounded"}),
     scope_lock_by_lane={"grounded": ScopeLockPolicy.REQUIRED},
     approval_by_lane={"grounded": ApprovalPolicy.HITL},
-    description="Strict intent"
+    description="Strict intent",
 )
+
 
 class TestIntentStatus:
     # ... (existing content, simplified for brevity in replacement if needed, but replace tool handles chunks)
@@ -89,19 +93,22 @@ class TestWriteIntentService:
     @pytest.fixture(autouse=True)
     def mock_registry(self):
         """Mock the registry with test intents."""
-        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {
-            "test": TEST_INTENT_SPEC,
-            "update_epistemic_status": STRICT_INTENT_SPEC,
-            "housekeeping": IntentSpec(
-                intent_type="housekeeping",
-                allowed_fields=frozenset(),
-                required_fields=frozenset(),
-                required_id_fields=frozenset(),
-                allowed_lanes=frozenset({"grounded"}),
-                scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
-                approval_by_lane={"grounded": ApprovalPolicy.AUTO},
-            )
-        }):
+        with patch.dict(
+            "src.hitl.intent_registry.INTENT_REGISTRY",
+            {
+                "test": TEST_INTENT_SPEC,
+                "update_epistemic_status": STRICT_INTENT_SPEC,
+                "housekeeping": IntentSpec(
+                    intent_type="housekeeping",
+                    allowed_fields=frozenset(),
+                    required_fields=frozenset(),
+                    required_id_fields=frozenset(),
+                    allowed_lanes=frozenset({"grounded"}),
+                    scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
+                    approval_by_lane={"grounded": ApprovalPolicy.AUTO},
+                ),
+            },
+        ):
             yield
 
     @pytest.fixture
@@ -336,19 +343,22 @@ class TestScopeLockRequired:
 
     @pytest.fixture(autouse=True)
     def mock_registry(self):
-        with patch.dict("src.hitl.intent_registry.INTENT_REGISTRY", {
-            "test": TEST_INTENT_SPEC,
-            "update_epistemic_status": STRICT_INTENT_SPEC,
-            "housekeeping": IntentSpec(
-                intent_type="housekeeping",
-                allowed_fields=frozenset(),
-                required_fields=frozenset(),
-                required_id_fields=frozenset(),
-                allowed_lanes=frozenset({"grounded"}),
-                scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
-                approval_by_lane={"grounded": ApprovalPolicy.AUTO},
-            )
-        }):
+        with patch.dict(
+            "src.hitl.intent_registry.INTENT_REGISTRY",
+            {
+                "test": TEST_INTENT_SPEC,
+                "update_epistemic_status": STRICT_INTENT_SPEC,
+                "housekeeping": IntentSpec(
+                    intent_type="housekeeping",
+                    allowed_fields=frozenset(),
+                    required_fields=frozenset(),
+                    required_id_fields=frozenset(),
+                    allowed_lanes=frozenset({"grounded"}),
+                    scope_lock_by_lane={"grounded": ScopeLockPolicy.OPTIONAL},
+                    approval_by_lane={"grounded": ApprovalPolicy.AUTO},
+                ),
+            },
+        ):
             yield
 
     @pytest.fixture

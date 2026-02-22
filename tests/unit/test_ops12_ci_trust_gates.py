@@ -22,8 +22,13 @@ async def test_commit_gate_success_with_mocked_steward_and_verify(tmp_path):
 
     with (
         patch("scripts.ops12_ci_trust_gates.OntologySteward.insert_to_graph", return_value=None),
-        patch("scripts.ops12_ci_trust_gates.OntologySteward.query_graph", return_value=[{"eid": "ev-ci-1"}]),
-        patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)),
+        patch(
+            "scripts.ops12_ci_trust_gates.OntologySteward.query_graph",
+            return_value=[{"eid": "ev-ci-1"}],
+        ),
+        patch(
+            "scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)
+        ),
         patch.object(
             IntegratorAgent,
             "_verify_evidence_primacy",
@@ -51,7 +56,9 @@ async def test_commit_gate_fails_early_when_persisted_id_not_linked_in_ledger(tm
     with (
         patch("scripts.ops12_ci_trust_gates.OntologySteward.insert_to_graph", return_value=None),
         patch("scripts.ops12_ci_trust_gates.OntologySteward.query_graph", return_value=[]),
-        patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)),
+        patch(
+            "scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)
+        ),
     ):
         ok, payload = await _run_gate("commit", str(tmp_path))
 
@@ -69,7 +76,9 @@ async def test_hold_gate_success(tmp_path):
 
     with (
         patch("scripts.ops12_ci_trust_gates.OntologySteward.insert_to_graph", return_value=None),
-        patch("scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)),
+        patch(
+            "scripts.ops12_ci_trust_gates.OntologySteward.run", new=AsyncMock(side_effect=_fake_run)
+        ),
     ):
         ok, payload = await _run_gate("hold", str(tmp_path))
 

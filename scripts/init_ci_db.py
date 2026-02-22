@@ -25,6 +25,7 @@ SCHEMA_PATH = Path(__file__).resolve().parent.parent / "src" / "schema" / "scien
 MAX_RETRIES = 30
 RETRY_DELAY = 2
 
+
 def main():
     try:
         from typedb.driver import Credentials, DriverOptions, TransactionType, TypeDB
@@ -63,7 +64,10 @@ def main():
             time.sleep(RETRY_DELAY)
 
     if not driver:
-        print(f"FATAL: TypeDB not reachable at {ADDRESS} after {MAX_RETRIES} attempts: {last_err}", file=sys.stderr)
+        print(
+            f"FATAL: TypeDB not reachable at {ADDRESS} after {MAX_RETRIES} attempts: {last_err}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     try:
@@ -94,6 +98,7 @@ def main():
             driver.close()
         except Exception:
             pass
+
 
 if __name__ == "__main__":
     main()

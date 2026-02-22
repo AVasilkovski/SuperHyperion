@@ -30,7 +30,9 @@ def _bundle(bundles, prefix: str, tenant: str):
             "source_refs": {},
         },
     )
-    _write(bundles / f"{prefix}_run_capsule_manifest.json", {"capsule_id": prefix, "tenant_id": tenant})
+    _write(
+        bundles / f"{prefix}_run_capsule_manifest.json", {"capsule_id": prefix, "tenant_id": tenant}
+    )
 
 
 def test_policy_conflict_detector_static_and_dynamic(tmp_path, monkeypatch):
@@ -91,7 +93,9 @@ def policy_allow_b(bundle):
     run_policy_conflicts(str(bundles), "policy_pack_non_blocking", str(out))
     summary = json.loads((out / "policy_conflicts_summary.json").read_text())
 
-    duplicate_code = [c for c in summary["static_conflicts"] if c["type"] == "duplicate_decision_code"]
+    duplicate_code = [
+        c for c in summary["static_conflicts"] if c["type"] == "duplicate_decision_code"
+    ]
     assert duplicate_code == []
 
 
@@ -119,7 +123,9 @@ def policy_hold_b(bundle):
     run_policy_conflicts(str(bundles), "policy_pack_blocking", str(out))
     summary = json.loads((out / "policy_conflicts_summary.json").read_text())
 
-    duplicate_code = [c for c in summary["static_conflicts"] if c["type"] == "duplicate_decision_code"]
+    duplicate_code = [
+        c for c in summary["static_conflicts"] if c["type"] == "duplicate_decision_code"
+    ]
     assert len(duplicate_code) == 1
     assert duplicate_code[0]["decision"] == "HOLD"
     assert duplicate_code[0]["policy_ids"] == ["hold-a", "hold-b"]
@@ -150,7 +156,9 @@ def policy_hold_b(bundle):
     run_policy_conflicts(str(bundles), "policy_pack_missing_code", str(out))
     summary = json.loads((out / "policy_conflicts_summary.json").read_text())
 
-    duplicate_code = [c for c in summary["static_conflicts"] if c["type"] == "duplicate_decision_code"]
+    duplicate_code = [
+        c for c in summary["static_conflicts"] if c["type"] == "duplicate_decision_code"
+    ]
     assert len(duplicate_code) == 1
     assert duplicate_code[0]["code"] == "UNSPECIFIED_CODE"
     assert duplicate_code[0]["decision"] == "HOLD"
@@ -180,5 +188,12 @@ def policy_hold(bundle):
     monkeypatch.syspath_prepend(str(moddir))
 
     run_policy_conflicts(str(bundles), "policy_pack_conflict", str(out))
-    per_run = sorted(p.name for p in out.glob("*_policy_conflicts.json") if p.name != "policy_conflicts_summary.json")
-    assert per_run == ["tenant-a%2Frun-1_policy_conflicts.json", "tenant-a__run-1_policy_conflicts.json"]
+    per_run = sorted(
+        p.name
+        for p in out.glob("*_policy_conflicts.json")
+        if p.name != "policy_conflicts_summary.json"
+    )
+    assert per_run == [
+        "tenant-a%2Frun-1_policy_conflicts.json",
+        "tenant-a__run-1_policy_conflicts.json",
+    ]

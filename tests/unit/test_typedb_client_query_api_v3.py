@@ -92,8 +92,8 @@ def test_query_insert_delete_support_legacy_query_object(monkeypatch):
     monkeypatch.setattr(db, "transaction", _tx_ctx)
 
     cap = WriteCap._mint()
-    db.query_insert('insert $x isa thing;', cap=cap)
-    db.query_delete('match $x isa thing; delete $x isa thing;', cap=cap)
+    db.query_insert("insert $x isa thing;", cap=cap)
+    db.query_delete("match $x isa thing; delete $x isa thing;", cap=cap)
 
     assert tx.query.inserts
     assert tx.query.deletes

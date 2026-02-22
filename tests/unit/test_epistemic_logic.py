@@ -84,39 +84,26 @@ class TestHITLTransitions:
 
     def test_speculative_to_supported_requires_hitl(self):
         """SPECULATIVE → SUPPORTED requires HITL."""
-        assert requires_hitl_approval(
-            EpistemicStatus.SPECULATIVE,
-            EpistemicStatus.SUPPORTED
-        ) is True
+        assert (
+            requires_hitl_approval(EpistemicStatus.SPECULATIVE, EpistemicStatus.SUPPORTED) is True
+        )
 
     def test_supported_to_proven_requires_hitl(self):
         """SUPPORTED → PROVEN requires HITL."""
-        assert requires_hitl_approval(
-            EpistemicStatus.SUPPORTED,
-            EpistemicStatus.PROVEN
-        ) is True
+        assert requires_hitl_approval(EpistemicStatus.SUPPORTED, EpistemicStatus.PROVEN) is True
 
     def test_unresolved_to_refuted_requires_hitl(self):
         """UNRESOLVED → REFUTED requires HITL."""
-        assert requires_hitl_approval(
-            EpistemicStatus.UNRESOLVED,
-            EpistemicStatus.REFUTED
-        ) is True
+        assert requires_hitl_approval(EpistemicStatus.UNRESOLVED, EpistemicStatus.REFUTED) is True
 
     def test_same_status_no_hitl(self):
         """Same status → No HITL needed."""
-        assert requires_hitl_approval(
-            EpistemicStatus.SUPPORTED,
-            EpistemicStatus.SUPPORTED
-        ) is False
+        assert requires_hitl_approval(EpistemicStatus.SUPPORTED, EpistemicStatus.SUPPORTED) is False
 
     def test_downgrade_no_hitl(self):
         """PROVEN → SUPPORTED (downgrade) → No HITL."""
         # Not in the required transitions set
-        assert requires_hitl_approval(
-            EpistemicStatus.PROVEN,
-            EpistemicStatus.SUPPORTED
-        ) is False
+        assert requires_hitl_approval(EpistemicStatus.PROVEN, EpistemicStatus.SUPPORTED) is False
 
 
 class TestScientificUncertainty:
@@ -206,11 +193,13 @@ class TestEpistemicClassifierAgent:
         """Claim with evidence → SUPPORTED."""
         result = classifier.classify_claim(
             claim={"claim_id": "C1", "content": "Test claim"},
-            evidence=[{
-                "hypothesis_id": "C1",
-                "success": True,
-                "result": {"value": 0.8},
-            }],
+            evidence=[
+                {
+                    "hypothesis_id": "C1",
+                    "success": True,
+                    "result": {"value": 0.8},
+                }
+            ],
             contradictions=[],
         )
 
@@ -232,11 +221,13 @@ class TestEpistemicClassifierAgent:
         """Output lists missing evidence."""
         result = classifier.classify_claim(
             claim={"claim_id": "C1", "content": "Test"},
-            evidence=[{
-                "hypothesis_id": "C1",
-                "success": True,
-                "result": {"value": 0.5},
-            }],
+            evidence=[
+                {
+                    "hypothesis_id": "C1",
+                    "success": True,
+                    "result": {"value": 0.5},
+                }
+            ],
             contradictions=[],
         )
 

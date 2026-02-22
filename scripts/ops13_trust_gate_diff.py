@@ -23,15 +23,21 @@ def build_diff(base: dict[str, Any], head: dict[str, Any]) -> dict[str, Any]:
         "contract_version": "v1",
         "base_bundle_root": base.get("bundle_root"),
         "head_bundle_root": head.get("bundle_root"),
-        "run_prefixes": sorted(set((base.get("run_prefixes") or []) + (head.get("run_prefixes") or []))),
+        "run_prefixes": sorted(
+            set((base.get("run_prefixes") or []) + (head.get("run_prefixes") or []))
+        ),
         "commit_gate": {
             "pass_changed": bool(base_commit.get("pass") != head_commit.get("pass")),
             "base_pass": base_commit.get("pass"),
             "head_pass": head_commit.get("pass"),
-            "replay_status_changed": bool(base_commit.get("replay_status") != head_commit.get("replay_status")),
+            "replay_status_changed": bool(
+                base_commit.get("replay_status") != head_commit.get("replay_status")
+            ),
             "base_replay_status": base_commit.get("replay_status"),
             "head_replay_status": head_commit.get("replay_status"),
-            "duration_ms_delta": _delta(base_commit.get("duration_ms"), head_commit.get("duration_ms")),
+            "duration_ms_delta": _delta(
+                base_commit.get("duration_ms"), head_commit.get("duration_ms")
+            ),
         },
         "hold_gate": {
             "pass_changed": bool(base_hold.get("pass") != head_hold.get("pass")),

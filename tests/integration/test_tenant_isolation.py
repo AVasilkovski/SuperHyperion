@@ -50,6 +50,7 @@ def test_tenant_isolation_baseline(ghost_db):
     with ghost_db.transaction(TransactionType.WRITE) as tx:
         ans = tx.query(setup_q.strip()).resolve()
         list(ans.as_concept_rows())  # Exhaust the iterator to execute the insert
+        tx.commit()  # Explicitly commit to guarantee persistence
 
     # 2. Test Fetching with Scoping Helper
 

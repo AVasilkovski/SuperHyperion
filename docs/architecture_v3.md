@@ -361,6 +361,10 @@ Milestone B LOCKED rule:
    - **Health Check**: TypeDB 3.8 compatible `schema_health.py` resolving ordinals from migration history; elimination of `SessionType` legacy imports.
    - **Immutability**: Hardened `SCHEMA_FILE` guards in CI/CD blocks (mandatory `unset`, double-bracket wildcard rejection, `test -f` fatal checks).
    - **Perf Safety**: "Ghost DB" automated benchmark (10k entities) for P99 latency tracking.
+   - **CI Enforced**:
+     - `additive_linter.py` in PR CI prevents destructive changes.
+     - Migrate dry-run and ephemeral apply validation in PR CI.
+     - `schema_health.py` parity gate in CI and staging CD.
 2. **TRUST-1.1 Multi-Tenant Foundation & RBAC (✅ COMPLETE)**
    - Database isolation baseline: `tenant` entity plus ownership relations (`tenant-owns-capsule`, etc.).
    - **Tenant Scope Helper**: `tenant_scope.py` injection for hard query scoping in Steward.

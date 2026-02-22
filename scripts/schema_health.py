@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-import os, re, sys
+import os
+import re
+import sys
 from pathlib import Path
+
 
 def env_bool(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() == "true"
@@ -18,18 +21,18 @@ def repo_head_ordinal(migrations_dir: str) -> int:
 
 def db_current_ordinal(driver, db: str) -> int:
     from typedb.driver import TransactionType
-    q = "match $v isa schema_version, has ordinal $o; select $o;"
+    q = "match $v isa schema_version, has ordinal $o; get $o;"
     with driver.transaction(db, TransactionType.READ) as tx:
-        ans = tx.query(q).resolve()
+        ans = tx.query.get(q)
         ords = []
-        for row in ans.as_concept_rows():
+        for row in ans:
             c = row.get("o")
             if c and c.is_attribute():
                 ords.append(int(c.as_attribute().get_value()))
         return max(ords) if ords else 0
 
 def connect(address: str, username: str, password: str, tls: bool, ca_path: str | None):
-    from typedb.driver import TypeDB, Credentials, DriverOptions
+    from typedb.driver import Credentials, DriverOptions, TypeDB
     creds = Credentials(username, password)
     opts = DriverOptions(is_tls_enabled=tls, tls_root_ca_path=ca_path)
     return TypeDB.driver(address, creds, opts)

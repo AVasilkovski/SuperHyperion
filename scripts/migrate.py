@@ -36,62 +36,91 @@ def connect_with_retries(
 
 def get_current_schema_version(driver, db: str) -> int:
     from typedb.driver import TransactionType
-    query = "match $v isa schema_version, has ordinal $o; select $o;"
+    query = "match $v isa schema_version, has ordinal $o; get $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
-            results = list(tx.query(query).resolve())
-            if not results:
-                return 0
-            # Get the max ordinal
-            ordinals = [r.get("o").as_attribute().get_value() for r in results]
+            results = tx.query.get(query)
+            ordinals = []
+            for r in results:
+                o = r.get("o")
+                if o and o.is_attribute():
+                    ordinals.append(o.as_attribute().get_value())
             return max(ordinals) if ordinals else 0
     except Exception as e:
         # Before the schema is applied, the entity might not exist resulting in a TypeDB exception.
         print(f"[migrate] schema_version query failed (likely no schema yet): {e}")
         return 0
 
-def get_migrations(migrations_dir: Path) -> list[Path]:
+def get_migrations(migrations_dir: Path) -> list[tuple[int, Path]]:
     if not migrations_dir.is_dir():
         return []
     
     files = list(migrations_dir.glob("*.tql"))
-    # Sort files by the numeric prefix
-    def _extract_ordinal(p: Path) -> int:
-        name = p.name
-        parts = name.split("_")
-        if parts and parts[0].isdigit():
-            return int(parts[0])
-        return -1
+    valid_files = []
+    seen_ordinals = set()
     
-    valid_files = [f for f in files if _extract_ordinal(f) >= 0]
-    return sorted(valid_files, key=_extract_ordinal)
+    allow_gaps = env_bool("MIGRATIONS_ALLOW_GAPS", "false")
+    
+    for f in files:
+        name = f.name
+        parts = name.split("_")
+        if not parts or not parts[0].isdigit():
+            raise ValueError(f"Invalid migration filename format: {name}. Must be NNN_name.tql")
+        
+        ordinal = int(parts[0])
+        if ordinal < 1:
+            raise ValueError(f"Invalid migration ordinal: {ordinal} in {name}. Must be >= 1")
+            
+        if ordinal in seen_ordinals:
+            raise ValueError(f"Duplicate migration ordinal detected: {ordinal}")
+            
+        seen_ordinals.add(ordinal)
+        valid_files.append((ordinal, f))
+        
+    valid_files.sort(key=lambda x: x[0])
+    
+    # Gap detection
+    if valid_files and not allow_gaps:
+        expected = 1
+        for ord_val, _ in valid_files:
+            if ord_val != expected:
+                raise ValueError(f"Migration gap detected: expected {expected}, got {ord_val}")
+            expected += 1
+            
+    # Check 001_* contains schema_version definitions
+    if valid_files:
+        first_ord, first_path = valid_files[0]
+        if first_ord == 1:
+            content = first_path.read_text(encoding="utf-8")
+            if "schema_version" not in content or "ordinal" not in content or "git-commit" not in content or "applied-at" not in content:
+                raise ValueError(f"Migration 001 must contain 'schema_version' definitions with 'ordinal', 'git-commit', 'applied-at'. Found in {first_path.name}: missing standard keywords.")
+    
+    return valid_files
 
 def apply_migration(driver, db: str, migration_file: Path, next_ordinal: int, dry_run: bool):
     import datetime
+    import hashlib
 
     from typedb.driver import TransactionType
     
-    print(f"[migrate] Applying migration: {migration_file.name} (Ordinal: {next_ordinal})")
+    schema = migration_file.read_text(encoding="utf-8")
+    file_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()[:12]
+    
+    print(f"[migrate] applying {migration_file.name} (sha256: {file_hash})")
     
     if dry_run:
-        print(f"[migrate] DRY-RUN: Would execute {migration_file.name}")
         return
         
-    schema = migration_file.read_text(encoding="utf-8")
     git_commit = os.getenv("GITHUB_SHA", "unknown")
     applied_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec="microseconds")
     
-    # Needs to be a split transaction for schema vs data in older TypeDBs sometimes, 
-    # but in 3.x schema tx can handle rule additions and schema.
-    # To be safe and compliant, we do schema first, then data transaction for the version record.
-    
-    with driver.transaction(db, TransactionType.SCHEMA) as tx:
-        tx.query(schema).resolve()
-        tx.commit()
+    try:
+        with driver.transaction(db, TransactionType.SCHEMA) as tx:
+            tx.query.define(schema)
+            tx.commit()
+    except Exception as e:
+        raise RuntimeError(f"Failed to apply SCHEMA transaction for {migration_file.name} (Ordinal: {next_ordinal}): {e}") from e
         
-    # Then insert the version record
-    # Requires schema_version to exist, which it might not if it's the 001 migration.
-    # The 001 migration *must* include the schema_version definition.
     version_query = f"""
     insert $v isa schema_version, 
       has ordinal {next_ordinal},
@@ -99,9 +128,12 @@ def apply_migration(driver, db: str, migration_file: Path, next_ordinal: int, dr
       has applied-at {applied_at};
     """
     
-    with driver.transaction(db, TransactionType.WRITE) as tx:
-        tx.query(version_query).resolve()
-        tx.commit()
+    try:
+        with driver.transaction(db, TransactionType.WRITE) as tx:
+            tx.query.insert(version_query)
+            tx.commit()
+    except Exception as e:
+        raise RuntimeError(f"Failed to apply WRITE transaction for {migration_file.name} (Ordinal: {next_ordinal}): {e}") from e
 
 def ensure_database(driver, db: str):
     existing = {d.name for d in driver.databases.all()}
@@ -162,9 +194,7 @@ def main():
         print(f"[migrate] Current schema version ordinal: {current_ordinal}")
         
         pending_migrations = []
-        for mig in all_migrations:
-            parts = mig.name.split("_")
-            ordinal = int(parts[0])
+        for ordinal, mig in all_migrations:
             if ordinal > current_ordinal:
                 if args.target is not None and ordinal > args.target:
                     continue

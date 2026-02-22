@@ -21,7 +21,7 @@ def repo_head_ordinal(migrations_dir: str) -> int:
 
 def db_current_ordinal(driver, db: str) -> int:
     from typedb.driver import TransactionType
-    q = "match $v isa schema_version, has ordinal $o; get $o;"
+    q = "match $v isa schema_version, has ordinal $o; select $o;"
     with driver.transaction(db, TransactionType.READ) as tx:
         ans = tx.query(q).resolve()
         ords = []

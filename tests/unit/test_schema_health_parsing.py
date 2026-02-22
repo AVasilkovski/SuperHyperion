@@ -6,8 +6,8 @@ mock_typedb = MagicMock()
 sys.modules["typedb"] = mock_typedb
 sys.modules["typedb.driver"] = mock_typedb.driver
 
-import pytest
-from scripts.schema_health import db_current_ordinal
+from scripts.schema_health import db_current_ordinal  # noqa: E402
+
 
 def test_db_current_ordinal_parsing():
     mock_driver = MagicMock()
@@ -21,7 +21,7 @@ def test_db_current_ordinal_parsing():
     
     # Mock tx.query(q).resolve() returning answer
     mock_query_res = MagicMock()
-    mock_tx.query.return_value = mock_query_res
+    mock_tx.query.side_effect = lambda q: mock_query_res if "select" in q else MagicMock()
     mock_query_res.resolve.return_value = mock_answer
     
     # Mock row 1: ordinal 5

@@ -36,7 +36,7 @@ def connect_with_retries(
 
 def get_current_schema_version(driver, db: str) -> int:
     from typedb.driver import TransactionType
-    query = "match $v isa schema_version, has ordinal $o; get $o;"
+    query = "match $v isa schema_version, has ordinal $o; select $o;"
     try:
         with driver.transaction(db, TransactionType.READ) as tx:
             results = tx.query(query).resolve()

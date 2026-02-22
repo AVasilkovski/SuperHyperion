@@ -7,11 +7,10 @@ mock_typedb = MagicMock()
 sys.modules["typedb"] = mock_typedb
 sys.modules["typedb.driver"] = mock_typedb.driver
 
-import pytest
-from unittest.mock import MagicMock
+import pytest  # noqa: E402
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../scripts')))
-import migrate
+import migrate  # noqa: E402
 
 
 def test_validates_ordinal_parsing(tmp_path):

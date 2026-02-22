@@ -32,8 +32,8 @@ logger = logging.getLogger("EngineShowcase")
 # Ensure project root is in path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.db.typedb_client import TypeDBConnection
-from src.graph.workflow_v21 import run_v21_query
+from src.db.typedb_client import TypeDBConnection  # noqa: E402
+from src.graph.workflow_v21 import run_v21_query  # noqa: E402
 
 
 async def main():

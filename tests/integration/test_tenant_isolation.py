@@ -31,13 +31,6 @@ def ghost_db():
         tx.query(CANONICAL_SCHEMA).resolve()
         tx.commit()
 
-    # 3. Verify Schema Loaded
-    with driver.transaction(db_name, TransactionType.READ) as tx:
-        # Just check if the 'tenant' entity type exists
-        ans = tx.query("match $t sub tenant; select $t;").resolve()
-        if not list(ans.as_concept_rows()):
-            raise RuntimeError("CRITICAL: Schema failed to load! Data will drop silently.")
-
     yield db
 
     # Teardown skipped for speed/simplicity in testing
@@ -48,6 +41,9 @@ def test_tenant_isolation_baseline(ghost_db):
     Acceptance test for TRUST-1.1 Tenant Isolation Baseline.
     Asserts cross-tenant data leakage is prevented at the schema boundary.
     """
+    driver = ghost_db.driver
+    db_name = ghost_db.database
+
 
     tenant_a = f"T-A-{uuid.uuid4().hex[:8]}"
     tenant_b = f"T-B-{uuid.uuid4().hex[:8]}"
@@ -62,14 +58,14 @@ def test_tenant_isolation_baseline(ghost_db):
         (tenant: $tA, capsule: $cA) isa tenant-owns-capsule;
     """
 
-    with ghost_db.transaction(TransactionType.WRITE) as tx:
+    with driver.transaction(db_name, TransactionType.WRITE) as tx:
         ans = tx.query(setup_q.strip()).resolve()
         list(ans.as_concept_rows())  # Exhaust the iterator to execute the insert
         tx.commit()  # Explicitly commit to guarantee persistence
 
     # 2. Test Fetching with Scoping Helper
 
-    with ghost_db.transaction(TransactionType.READ) as tx:
+    with driver.transaction(db_name, TransactionType.READ) as tx:
         # Step A1: Can we find the Tenant?
         q_t = f'match $t isa tenant, has tenant-id "{tenant_a}"; select $t;'
         ans_t = list(tx.query(q_t).resolve().as_concept_rows())

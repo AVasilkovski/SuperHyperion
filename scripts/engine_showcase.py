@@ -21,11 +21,8 @@ os.environ["ENVIRONMENT"] = "dev"  # Ensure bypass is allowed in local showcase
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("engine_showcase.log")
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("engine_showcase.log")],
 )
 logger = logging.getLogger("EngineShowcase")
 
@@ -38,7 +35,7 @@ from src.graph.workflow_v21 import run_v21_query  # noqa: E402
 
 async def main():
     logger.info("Starting SuperHyperion Engine (The 'Engine Start')...")
-    
+
     # Check TypeDB connection
     db_conn = TypeDBConnection()
     try:
@@ -53,34 +50,34 @@ async def main():
         logger.error(f"Failed to connect to TypeDB: {e}")
         logger.warning("Proceeding in MOCK mode...")
         # Note: If TypeDB is down, the workflow may degrade gracefully or fail based on node logic
-    
+
     query = "The observed quantum coherence in the Avian Compass is sustained by environmental noise, contradicting the standard decoherence model."
     session_id = f"showcase-{uuid.uuid4().hex[:8]}"
-    
+
     logger.info(f"Query: '{query}'")
     logger.info(f"Session ID: {session_id}")
-    
+
     try:
         # Run the full v2.1 pipeline
         # We use a custom thread_id to keep the session isolated
         result = await run_v21_query(query, thread_id=session_id, session_id=session_id)
-        
+
         logger.info("Workflow execution complete.")
-        
+
         # Extract and report results
         resp = result.get("grounded_response", {})
         status = resp.get("status", "UNKNOWN")
-        
-        print("\n" + "="*80)
+
+        print("\n" + "=" * 80)
         print(f"ENGINE START RESULT: {status}")
-        print("="*80)
-        
+        print("=" * 80)
+
         if status == "HOLD":
             print(f"HOLD CODE: {resp.get('hold_code')}")
             print(f"REASON: {resp.get('summary')}")
         else:
             print(f"SUMMARY: {resp.get('summary')}")
-            
+
             # Show Governance Metadata
             gov = result.get("governance", {})
             print("\nGOVERNANCE METADATA:")
@@ -88,7 +85,7 @@ async def main():
             print(f"- Proposal ID: {gov.get('proposal_id')}")
             print(f"- Scope Lock:  {gov.get('scope_lock_id')}")
             print(f"- Evidence:    {gov.get('persisted_evidence_ids', [])}")
-            
+
             # Show Run Capsule
             capsule = result.get("run_capsule", {})
             if capsule:
@@ -96,14 +93,14 @@ async def main():
                 print(f"- Capsule ID:   {capsule.get('capsule_id')}")
                 print(f"- Capsule Hash: {capsule.get('capsule_hash')}")
                 print(f"- Created At:   {capsule.get('created_at')}")
-                
+
                 # Save capsule info for reproducibility test
                 with open("last_capsule.json", "w") as f:
                     json.dump(capsule, f, indent=2)
                 logger.info("Saved capsule info to last_capsule.json")
             else:
                 print("\nWARNING: No Run Capsule generated.")
-                
+
         # Show Speculative Alternatives (Entropy)
         alts = result.get("speculative_alternatives", [])
         if alts:
@@ -111,11 +108,12 @@ async def main():
             for i, alt in enumerate(alts[:3], 1):
                 print(f"{i}. {alt.get('hypothesis')}")
 
-        print("="*80)
-        
+        print("=" * 80)
+
     except Exception as e:
         logger.exception(f"Engine execution failed: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

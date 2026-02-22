@@ -8,6 +8,7 @@ from pathlib import Path
 def env_bool(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() == "true"
 
+
 def repo_head_ordinal(migrations_dir: str) -> int:
     p = Path(migrations_dir)
     if not p.exists():
@@ -19,8 +20,10 @@ def repo_head_ordinal(migrations_dir: str) -> int:
             ords.append(int(m.group(1)))
     return max(ords) if ords else 0
 
+
 def db_current_ordinal(driver, db: str) -> int:
     from typedb.driver import TransactionType
+
     q = "match $v isa schema_version, has ordinal $o; select $o;"
     with driver.transaction(db, TransactionType.READ) as tx:
         ans = tx.query(q).resolve()
@@ -31,11 +34,14 @@ def db_current_ordinal(driver, db: str) -> int:
                 ords.append(int(c.as_attribute().get_value()))
         return max(ords) if ords else 0
 
+
 def connect(address: str, username: str, password: str, tls: bool, ca_path: str | None):
     from typedb.driver import Credentials, DriverOptions, TypeDB
+
     creds = Credentials(username, password)
     opts = DriverOptions(is_tls_enabled=tls, tls_root_ca_path=ca_path)
     return TypeDB.driver(address, creds, opts)
+
 
 def main() -> int:
     migrations_dir = os.getenv("TYPEDB_MIGRATIONS_DIR", "src/schema/migrations")
@@ -70,6 +76,7 @@ def main() -> int:
     except Exception as e:
         print(f"[schema_health] ERROR: {e}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

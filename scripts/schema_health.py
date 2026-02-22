@@ -25,7 +25,7 @@ def db_current_ordinal(driver, db: str) -> int:
     with driver.transaction(db, TransactionType.READ) as tx:
         ans = tx.query(q).resolve()
         ords = []
-        for row in ans:
+        for row in ans.as_concept_rows():
             c = row.get("o")
             if c and c.is_attribute():
                 ords.append(int(c.as_attribute().get_value()))

@@ -1,7 +1,14 @@
 import os
 import sys
+from unittest.mock import MagicMock
+
+# Mock typedb.driver before importing migrate
+mock_typedb = MagicMock()
+sys.modules["typedb"] = mock_typedb
+sys.modules["typedb.driver"] = mock_typedb.driver
 
 import pytest
+from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../scripts')))
 import migrate
@@ -52,7 +59,26 @@ def test_gap_detection_passes_with_override(tmp_path):
         assert migrations[1][0] == 3
 
 def test_validates_001_preflight_check(tmp_path):
-    (tmp_path / "001_init.tql").write_text("define something else;")
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+    # Missing schema_version definitions
+    f1 = mig_dir / "001_v1.tql"
+    f1.write_text("define entity foo;", encoding="utf-8")
     
-    with pytest.raises(ValueError, match="Migration 001 must contain 'schema_version' definitions"):
-         migrate.get_migrations(tmp_path)
+    with pytest.raises(ValueError, match="Migration 001 must contain 'schema_version'"):
+        migrate.get_migrations(mig_dir)
+
+def test_enforces_migration_hygiene(tmp_path):
+    mig_file = tmp_path / "004_bad.tql"
+    mig_file.write_text("insert $x isa foo;", encoding="utf-8")
+    
+    mock_driver = MagicMock()
+    with pytest.raises(ValueError, match="Migration hygiene violation"):
+        migrate.apply_migration(mock_driver, "db", mig_file, 4, dry_run=True)
+
+    # Valid starts
+    for kw in ["define", "undefine", "redefine"]:
+        mig_file = tmp_path / f"005_{kw}.tql"
+        mig_file.write_text(f"{kw} entity bar;", encoding="utf-8")
+        # Should NOT raise ValueError for hygiene (might raise for other things if not dry-run)
+        migrate.apply_migration(mock_driver, "db", mig_file, 5, dry_run=True)

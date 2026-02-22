@@ -41,14 +41,14 @@ def get_current_schema_version(driver, db: str) -> int:
         with driver.transaction(db, TransactionType.READ) as tx:
             results = tx.query(query).resolve()
             ordinals = []
-            for r in results:
+            for r in results.as_concept_rows():
                 o = r.get("o")
                 if o and o.is_attribute():
-                    ordinals.append(o.as_attribute().get_value())
+                    ordinals.append(int(o.as_attribute().get_value()))
             return max(ordinals) if ordinals else 0
     except Exception as e:
-        # Before the schema is applied, the entity might not exist resulting in a TypeDB exception.
-        print(f"[migrate] schema_version query failed (likely no schema yet): {e}")
+        # Catch ConceptError or missing schema_version gracefully
+        print(f"[migrate] schema_version query failed (returning 0): {e}")
         return 0
 
 def get_migrations(migrations_dir: Path) -> list[tuple[int, Path]]:
@@ -103,7 +103,12 @@ def apply_migration(driver, db: str, migration_file: Path, next_ordinal: int, dr
 
     from typedb.driver import TransactionType
     
-    schema = migration_file.read_text(encoding="utf-8")
+    schema = migration_file.read_text(encoding="utf-8").strip()
+    
+    # Migration hygiene: must start with define/undefine/redefine
+    if not any(schema.lower().startswith(kw) for kw in ["define", "undefine", "redefine"]):
+         raise ValueError(f"Migration hygiene violation: {migration_file.name} must start with define/undefine/redefine. Found: {schema[:20]}...")
+
     file_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()[:12]
     
     print(f"[migrate] applying {migration_file.name} (sha256: {file_hash})")

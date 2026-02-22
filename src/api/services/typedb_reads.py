@@ -44,8 +44,6 @@ def list_capsules_for_tenant(
     """
     # Defensive limit capping
     actual_limit = max(1, min(limit, 200))
-    # Fetch N + 1 to determine if there is a next page
-    fetch_limit = actual_limit + 1
 
     cursor_clause = ""
     if cursor:

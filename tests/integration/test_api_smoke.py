@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,8 +22,6 @@ def test_api_capsules_requires_tenant(client):
     response = client.get("/v1/capsules")
     assert response.status_code == 400
     assert "X-Tenant-Id" in response.json()["detail"]
-
-from unittest.mock import patch
 
 def test_api_capsules_with_mocked_db(client):
     with patch("src.api.routes.v1_core.list_capsules_for_tenant") as mock_list:

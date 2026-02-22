@@ -4,12 +4,9 @@ Tests for TRUST-1.2 API Core Endpoints
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
-from src.api.contracts.v1 import CapsuleListItemV1, RoleEnum
 from src.api.main import app
-from src.sdk.governed_run import GovernedRun
 from src.sdk.types import GovernedResultV1, ReplayVerdictV1
 
 client = TestClient(app)

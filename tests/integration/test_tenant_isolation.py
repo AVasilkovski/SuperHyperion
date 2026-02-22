@@ -16,12 +16,27 @@ from src.schema.scientific_knowledge import CANONICAL_SCHEMA  # noqa: E402
 def ghost_db():
     db_name = "test_tenant_isolation"
     db = TypeDBConnection(database=db_name)
-    if not db.connect():
+    
+    driver = db.connect()
+    if not driver:
         pytest.skip("TypeDB driver connection failed or not available")
 
-    # 1. Clean DB & Setup Schema
-    with db.transaction(TransactionType.SCHEMA) as tx:
+    # 1. Clean DB ensuring a pristine state
+    if driver.databases.contains(db_name):
+        driver.databases.get(db_name).delete()
+    driver.databases.create(db_name)
+
+    # 2. Setup Schema
+    with driver.transaction(db_name, TransactionType.SCHEMA) as tx:
         tx.query(CANONICAL_SCHEMA).resolve()
+        tx.commit()
+
+    # 3. Verify Schema Loaded
+    with driver.transaction(db_name, TransactionType.READ) as tx:
+        # Just check if the 'tenant' entity type exists
+        ans = tx.query("match $t sub tenant; select $t;").resolve()
+        if not list(ans.as_concept_rows()):
+            raise RuntimeError("CRITICAL: Schema failed to load! Data will drop silently.")
 
     yield db
 

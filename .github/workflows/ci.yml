@@ -98,7 +98,7 @@ jobs:
 
       - name: Additive Linter Pre-flight
         run: |
-          python scripts/additive_linter.py --base main --head HEAD
+          python scripts/additive_linter.py --base origin/main --head HEAD
 
       - name: Apply schema (CI TypeDB Core)
         run: |
@@ -106,15 +106,21 @@ jobs:
 
           unset SCHEMA_FILE || true
           SCHEMA_FILE="src/schema/scientific_knowledge.tql"
+          MIGRATIONS_DIR="src/schema/migrations"
 
           # Hard fail if wildcard sneaks in
           if [[ "$SCHEMA_FILE" == *"*"* || "$SCHEMA_FILE" == *"?"* || "$SCHEMA_FILE" == *"["* ]]; then
             echo "ERROR: wildcard in SCHEMA_FILE: $SCHEMA_FILE"
             exit 1
           fi
+          if [[ "$MIGRATIONS_DIR" == *"*"* || "$MIGRATIONS_DIR" == *"?"* || "$MIGRATIONS_DIR" == *"["* ]]; then
+            echo "ERROR: wildcard in MIGRATIONS_DIR: $MIGRATIONS_DIR"
+            exit 1
+          fi
 
           echo "Using authoritative schema file: $SCHEMA_FILE"
           test -f "$SCHEMA_FILE" || (echo "Missing schema file" && ls -la src/schema && exit 1)
+          test -d "$MIGRATIONS_DIR" || (echo "Missing migrations directory" && ls -la src/schema && exit 1)
 
           python scripts/apply_schema.py \
             --schema "$SCHEMA_FILE" \
@@ -122,7 +128,20 @@ jobs:
 
       - name: Verify Migration Safety (Dry-Run)
         run: |
-          python scripts/migrate.py --database "$TYPEDB_DATABASE" --dry-run
+          python scripts/migrate.py \
+            --migrations-dir "src/schema/migrations" \
+            --database "$TYPEDB_DATABASE" \
+            --dry-run
+
+      - name: Apply Migrations (Ephemeral CI)
+        run: |
+          python scripts/migrate.py \
+            --migrations-dir "src/schema/migrations" \
+            --database "$TYPEDB_DATABASE"
+            
+      - name: Verify Schema Health Parity
+        run: |
+          python scripts/schema_health.py
 
       - name: Run tests
         run: |

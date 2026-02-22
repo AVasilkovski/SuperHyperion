@@ -115,10 +115,11 @@ jobs:
 
           echo "Applying authoritative additive migrations..."
           python scripts/migrate.py \
+             --migrations-dir "src/schema/migrations" \
              --database "$TYPEDB_DATABASE"
              
           echo "Asserting Schema Health Parity..."
-          python scripts/schema_health.py --database "$TYPEDB_DATABASE" --output "ci_artifacts/schema/staging_schema_health.json"
+          python scripts/schema_health.py
 
       - name: 'Connectivity smoke check'
         env:

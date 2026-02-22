@@ -1,91 +1,88 @@
 #!/usr/bin/env python3
 import argparse
+import os
+import re
+import subprocess
 import sys
-from pathlib import Path
-
-from apply_schema import parse_canonical_caps
-
-
-def compare_schemas(old_text: str, new_text: str) -> tuple[int, list[str]]:
-    """Compare two schema texts and return (exit_code, list of errors)."""
-    old_parent_of, old_owns_of, old_plays_of = parse_canonical_caps(old_text)
-    new_parent_of, new_owns_of, new_plays_of = parse_canonical_caps(new_text)
-
-    errors = []
-
-    # 1. Detect removed types
-    old_types = set(old_parent_of.keys()) | set(old_owns_of.keys()) | set(old_plays_of.keys())
-    new_types = set(new_parent_of.keys()) | set(new_owns_of.keys()) | set(new_plays_of.keys())
-    
-    removed_types = old_types - new_types
-    for typ in removed_types:
-        errors.append(f"REMOVED: Type '{typ}' was deleted.")
-
-    # 2. Detect removed owns edges
-    for typ, old_attrs in old_owns_of.items():
-        if typ not in removed_types: # only report if the type still exists
-            new_attrs = new_owns_of.get(typ, set())
-            removed_attrs = old_attrs - new_attrs
-            for attr in removed_attrs:
-                errors.append(f"REMOVED: Type '{typ}' no longer owns '{attr}'.")
-
-    # 3. Detect removed plays edges
-    for typ, old_roles in old_plays_of.items():
-         if typ not in removed_types:
-            new_roles = new_plays_of.get(typ, set())
-            removed_roles = old_roles - new_roles
-            for role in removed_roles:
-                errors.append(f"REMOVED: Type '{typ}' no longer plays '{role}'.")
-
-    # 4. We omit undefine checking for now, as that relies on parse logic of the tql string itself, 
-    # but the structural mapping catches the *results* of undefines conceptually if we compare full schemas.
-    # We could also just regex for `undefine ` in the new schema if we want a hard block on the word.
-    import re
-    if re.search(r"\bundefine\b", new_text):
-        errors.append("UNDEFINE: The 'undefine' keyword was found in the schema. This is forbidden in Additive-Only normal releases.")
-
-    return (len(errors) > 0, errors)
 
 
 def main():
-    p = argparse.ArgumentParser(description="Additive-only migration linter.")
-    p.add_argument("--base", required=True, help="Base canonical schema file (e.g. from main branch)")
-    p.add_argument("--head", required=True, help="Head canonical schema file (or merged with migrations)")
-    p.add_argument("--allow-breaking", action="store_true", help="Explicitly allow breaking changes (bypass linter).")
-    args = p.parse_args()
+    parser = argparse.ArgumentParser(description="Prevent destructive schema changes.")
+    parser.add_argument("--base", default="origin/main")
+    parser.add_argument("--head", default="HEAD")
+    args = parser.parse_args()
 
-    if args.allow_breaking:
-        print("[additive_linter] WARNING: Linter bypassed natively via --allow-breaking. Breaking changes allowed.")
-        return 0
+    allow_destructive = os.environ.get("ALLOW_DESTRUCTIVE_SCHEMA", "false").lower() == "true"
+    is_dev = os.environ.get("SUPERHYPERION_ENV", "").lower() == "dev"
+    override_allowed = allow_destructive and is_dev
 
-    base_path = Path(args.base)
-    head_path = Path(args.head)
-
-    if not base_path.exists():
-        print(f"[additive_linter] base schema {base_path} not found. Skipping compare.")
-        return 0
-
-    if not head_path.exists():
-         print(f"[additive_linter] ERROR: head schema {head_path} not found.")
-         return 1
-
-    old_text = base_path.read_text(encoding="utf-8")
-    new_text = head_path.read_text(encoding="utf-8")
-
-    has_errors, errors = compare_schemas(old_text, new_text)
-
-    if has_errors:
-        print("====== ADDITIVE-ONLY LINTER FAILED ======")
-        print("The following breaking changes were detected:")
-        for err in errors:
-            print(f"  - {err}")
-        print("\nFix: Revert destructive schema changes.")
-        print("To override manually (e.g., scheduled breaking window), use --allow-breaking.")
+    cmd = ["git", "diff", "-U0", args.base, args.head]
+    try:
+        diff_out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        print(f"[additive_linter] Error running git diff: {e.output}")
+        # Not exiting 1 here immediately to avoid failing when branches aren't fetched properly in some basic CI checkouts without explicit handling,
+        # but let's assume standard behavior is to fail if we can't diff.
         return 1
-    
-    print("[additive_linter] OK: Canonical schema changes are strictly additive.")
-    return 0
+    except FileNotFoundError:
+        print("[additive_linter] git command not found")
+        return 1
 
+    violations = []
+    current_file = None
+
+    for line in diff_out.splitlines():
+        if line.startswith("+++"):
+            continue
+        if line.startswith("---"):
+            parts = line.split(" ", 1)
+            if len(parts) > 1:
+                fpath = parts[1][2:] if parts[1].startswith("a/") or parts[1].startswith("b/") else parts[1]
+                if fpath.endswith(".tql"):
+                    current_file = fpath
+                else:
+                    current_file = None
+            continue
+            
+        if current_file and line.startswith("-") and not line.startswith("---"):
+            content = line[1:].strip()
+            if not content or content.startswith("#"):
+                continue
+                
+            content_lower = content.lower()
+            is_violation = False
+            reason = ""
+            
+            if "undefine" in content_lower:
+                is_violation = True
+                reason = "contains 'undefine'"
+            else:
+                for kw in ["sub", "owns", "plays", "relates", "key"]:
+                    # Match word boundaries to prevent matching 'subject' for 'sub' etc.
+                    if re.search(rf'\b{kw}\b', content_lower):
+                        is_violation = True
+                        reason = f"contains structural keyword '{kw}'"
+                        break
+            
+            if is_violation:
+                violations.append((current_file, content, reason))
+
+    if not violations:
+        print("[additive_linter] PASS: No destructive schema changes detected.")
+        return 0
+
+    # Ensure deterministic ordering
+    violations.sort(key=lambda x: (x[0], x[1]))
+
+    print("[additive_linter] FAIL: Destructive schema changes detected:")
+    for fpath, snippet, reason in violations:
+        print(f"  - {fpath}: {reason} -> `{snippet}`")
+
+    if override_allowed:
+        print("\n[additive_linter] WARNING: Override active (ALLOW_DESTRUCTIVE_SCHEMA=true and SUPERHYPERION_ENV=dev). Allowing changes.")
+        return 0
+
+    return 1
 
 if __name__ == "__main__":
     sys.exit(main())
